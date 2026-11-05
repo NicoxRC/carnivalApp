@@ -1,0 +1,129 @@
+{
+  "_nota": "COMERCIOS DE EJEMPLO. Ninguno de estos negocios es real ni ha contratado nada: son datos inventados para poder construir y demostrar la capa. Reemplazar por los comercios que efectivamente contraten, con su dirección verificada, antes de publicar.",
+  "_campos": {
+    "plan": "null = comercio listado sin pagar (directorio). 'basico' | 'destacado' = contrató espacio. Determina si la ficha lleva el sello de pauta, no si aparece en el mapa.",
+    "promo": "Solo para comercios con plan. Es la oferta que el comercio quiere mostrar."
+  },
+  "comercios": [
+    {
+      "id": "c-01",
+      "nombre": "Asadero El Fogón de la 18",
+      "categoria": "restaurante",
+      "descripcion": "Cuy asado, gallina y fritanga. Mesas adentro y en el andén.",
+      "direccion": "A media cuadra de la Iglesia de Cristo Rey",
+      "horario": "10:00 a. m. – 11:00 p. m.",
+      "lat": 1.22235,
+      "lng": -77.28545,
+      "plan": "destacado",
+      "promo": "Segundo jugo gratis mostrando la app"
+    },
+    {
+      "id": "c-02",
+      "nombre": "Tasca La Guaneña",
+      "categoria": "tasca",
+      "descripcion": "Empanadas de añejo, hervidos y música en vivo toda la tarde.",
+      "direccion": "Sobre la senda, frente al Parque Infantil",
+      "horario": "9:00 a. m. – 8:00 p. m.",
+      "lat": 1.21672,
+      "lng": -77.28256,
+      "plan": "destacado",
+      "promo": "2x1 en hervido hasta el mediodía"
+    },
+    {
+      "id": "c-03",
+      "nombre": "Café Quillacinga",
+      "categoria": "cafe",
+      "descripcion": "Café de Nariño, tinto y pasteles. Baño para clientes.",
+      "direccion": "Esquina frente a la Plaza del Carnaval",
+      "horario": "7:00 a. m. – 9:00 p. m.",
+      "lat": 1.21512,
+      "lng": -77.27996,
+      "plan": "basico",
+      "promo": "Tinto a $2.000 mostrando la app"
+    },
+    {
+      "id": "c-04",
+      "nombre": "Heladería La Merced",
+      "categoria": "heladeria",
+      "descripcion": "Helado de paila y salpicón. Fila rápida.",
+      "direccion": "Costado sur de la Plaza de Nariño",
+      "horario": "10:00 a. m. – 10:00 p. m.",
+      "lat": 1.21308,
+      "lng": -77.27801,
+      "plan": null,
+      "promo": null
+    },
+    {
+      "id": "c-05",
+      "nombre": "Panadería El Trigal",
+      "categoria": "panaderia",
+      "descripcion": "Pan de maíz, quimbolitos y café. Abre temprano.",
+      "direccion": "Media cuadra antes del Colegio Champagnat",
+      "horario": "6:00 a. m. – 7:00 p. m.",
+      "lat": 1.22948,
+      "lng": -77.28841,
+      "plan": null,
+      "promo": null
+    },
+    {
+      "id": "c-06",
+      "nombre": "Bar La Cosecha",
+      "categoria": "bar",
+      "descripcion": "Cerveza artesanal de Pasto y picada. Terraza con vista a la senda.",
+      "direccion": "Diagonal al Centro Comercial Unicentro",
+      "horario": "12:00 m. – 2:00 a. m.",
+      "lat": 1.21148,
+      "lng": -77.27498,
+      "plan": "destacado",
+      "promo": "Jarra de cerveza al precio de media"
+    },
+    {
+      "id": "c-07",
+      "nombre": "Droguería Santa Mónica",
+      "categoria": "farmacia",
+      "descripcion": "Bloqueador, suero y curaciones menores. Turno hasta tarde.",
+      "direccion": "Frente al Parque Infantil",
+      "horario": "7:00 a. m. – 11:00 p. m.",
+      "lat": 1.21598,
+      "lng": -77.28178,
+      "plan": null,
+      "promo": null
+    },
+    {
+      "id": "c-08",
+      "nombre": "Tienda Doña Rosa",
+      "categoria": "tienda",
+      "descripcion": "Agua, gaseosa, espuma y confeti. La de toda la vida.",
+      "direccion": "Sobre la senda, altura Calle 20",
+      "horario": "6:00 a. m. – 10:00 p. m.",
+      "lat": 1.22562,
+      "lng": -77.28612,
+      "plan": "basico",
+      "promo": "Espuma a precio de costo antes de las 10"
+    },
+    {
+      "id": "c-09",
+      "nombre": "Restaurante Doña Chepa",
+      "categoria": "restaurante",
+      "descripcion": "Corrientazo, sopa de cuchas y jugo. Almuerzo de 12 a 3.",
+      "direccion": "Cerca del Estadio Libertad",
+      "horario": "11:00 a. m. – 4:00 p. m.",
+      "lat": 1.20932,
+      "lng": -77.27198,
+      "plan": null,
+      "promo": null
+    },
+    {
+      "id": "c-10",
+      "nombre": "Tasca El Ingenio",
+      "categoria": "tasca",
+      "descripcion": "Cierre de la senda: asados, chicha y tarima propia.",
+      "direccion": "Llegando a la Plaza del Ingenio",
+      "horario": "11:00 a. m. – 12:00 a. m.",
+      "lat": 1.20782,
+      "lng": -77.27012,
+      "plan": "destacado",
+      "promo": "Entrada libre a la tarima mostrando la app"
+    }
+  ]
+}

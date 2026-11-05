@@ -1,0 +1,127 @@
+{
+  "_nota": "DATOS DE EJEMPLO. Ninguno de estos eventos es real ni está confirmado por Corpocarnaval. Sirven solo para que la pantalla /hoy tenga contenido durante el desarrollo y el demo. Reemplazar por la programación oficial antes de publicar.",
+  "fecha": "2027-01-06",
+  "nombreDia": "Desfile Magno · 6 de enero",
+  "eventos": [
+    {
+      "id": "ev-01",
+      "horaInicio": "08:00",
+      "horaFin": "09:30",
+      "titulo": "Concentración de comparsas",
+      "descripcion": "Las comparsas se organizan antes de entrar a la senda.",
+      "categoria": "cultural",
+      "lugarNombre": "Sector Universidad de Nariño",
+      "lat": 1.2358,
+      "lng": -77.2905,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-02",
+      "horaInicio": "09:00",
+      "horaFin": null,
+      "titulo": "Salida del Desfile Magno",
+      "descripcion": "Arranca el desfile por la senda del Carnaval.",
+      "categoria": "cultural",
+      "lugarNombre": "Av. Los Estudiantes",
+      "lat": 1.2352,
+      "lng": -77.2901,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-03",
+      "horaInicio": "09:30",
+      "horaFin": "12:00",
+      "titulo": "Tasca La Esquina del Cuy",
+      "descripcion": "Comida típica y bebida sobre la senda.",
+      "categoria": "tasca",
+      "lugarNombre": "Calle 20 con Av. Los Estudiantes",
+      "lat": 1.2242,
+      "lng": -77.2851,
+      "patrocinado": true
+    },
+    {
+      "id": "ev-04",
+      "horaInicio": "10:00",
+      "horaFin": "11:00",
+      "titulo": "Taller de talla para niños",
+      "descripcion": "Los maestros artesanos enseñan a modelar figuras en papel.",
+      "categoria": "infantil",
+      "lugarNombre": "Plaza del Carnaval",
+      "lat": 1.2151,
+      "lng": -77.2793,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-05",
+      "horaInicio": "11:00",
+      "horaFin": "13:00",
+      "titulo": "Música en vivo — chirimías",
+      "descripcion": "Agrupaciones tradicionales de la región.",
+      "categoria": "presentacion",
+      "lugarNombre": "Plaza del Carnaval",
+      "lat": 1.2149,
+      "lng": -77.2795,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-06",
+      "horaInicio": "12:00",
+      "horaFin": "16:00",
+      "titulo": "Zona de tascas Carrera 27",
+      "descripcion": "Corredor gastronómico con puestos a lo largo de tres cuadras.",
+      "categoria": "tasca",
+      "lugarNombre": "Carrera 27 entre calles 16 y 19",
+      "lat": 1.2122,
+      "lng": -77.2747,
+      "patrocinado": true
+    },
+    {
+      "id": "ev-07",
+      "horaInicio": "13:00",
+      "horaFin": "14:30",
+      "titulo": "Presentación de danzas del Pacífico",
+      "descripcion": "Invitados de Tumaco y Guapi.",
+      "categoria": "presentacion",
+      "lugarNombre": "Tarima Calle 18",
+      "lat": 1.2188,
+      "lng": -77.283,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-08",
+      "horaInicio": "14:00",
+      "horaFin": "15:00",
+      "titulo": "Punto de hidratación y primeros auxilios",
+      "descripcion": "Atención de la Cruz Roja sobre la senda.",
+      "categoria": "cultural",
+      "lugarNombre": "Calle 18 con Carrera 30",
+      "lat": 1.2175,
+      "lng": -77.2815,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-09",
+      "horaInicio": "15:00",
+      "horaFin": "17:00",
+      "titulo": "Cierre del desfile y premiación",
+      "descripcion": "Reconocimiento a las mejores carrozas y comparsas.",
+      "categoria": "cultural",
+      "lugarNombre": "Plaza del Ingenio",
+      "lat": 1.2074,
+      "lng": -77.2696,
+      "patrocinado": false
+    },
+    {
+      "id": "ev-10",
+      "horaInicio": "17:00",
+      "horaFin": "20:00",
+      "titulo": "Tarima de cierre",
+      "descripcion": "Artistas locales y nacionales.",
+      "categoria": "presentacion",
+      "lugarNombre": "Plaza del Ingenio",
+      "lat": 1.2071,
+      "lng": -77.2692,
+      "patrocinado": true
+    }
+  ]
+}

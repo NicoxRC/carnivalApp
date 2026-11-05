@@ -1,0 +1,124 @@
+{
+  "_nota": "DATOS DE EJEMPLO, NO OFICIALES. Los nombres de los desfiles son los tradicionales del Carnaval, pero ni las fechas, ni las horas, ni los recorridos están verificados con Corpocarnaval. Reemplazar por la programación oficial antes de publicar. Misma advertencia que en eventos-ejemplo.json.",
+  "rango": "Del 31 de diciembre al 6 de enero",
+  "dias": [
+    {
+      "id": "d-31",
+      "diaCorto": "MIÉ",
+      "diaNumero": "31",
+      "fecha": "2026-12-31",
+      "eventos": [
+        {
+          "id": "d31-1",
+          "hora": "16:00",
+          "titulo": "Desfile de Años Viejos",
+          "lugar": "Av. Los Estudiantes",
+          "esDesfile": true
+        },
+        {
+          "id": "d31-2",
+          "hora": "23:00",
+          "titulo": "Quema de los Años Viejos",
+          "lugar": "Toda la ciudad",
+          "esDesfile": false
+        }
+      ]
+    },
+    {
+      "id": "d-2",
+      "diaCorto": "VIE",
+      "diaNumero": "2",
+      "fecha": "2027-01-02",
+      "eventos": [
+        {
+          "id": "d2-1",
+          "hora": "9:00",
+          "titulo": "Desfile de Colonias",
+          "lugar": "Senda del Carnaval",
+          "esDesfile": true
+        }
+      ]
+    },
+    {
+      "id": "d-3",
+      "diaCorto": "SÁB",
+      "diaNumero": "3",
+      "fecha": "2027-01-03",
+      "eventos": [
+        {
+          "id": "d3-1",
+          "hora": "10:00",
+          "titulo": "Carnavalito",
+          "lugar": "Senda del Carnaval",
+          "esDesfile": true
+        },
+        {
+          "id": "d3-2",
+          "hora": "18:00",
+          "titulo": "Verbena Popular",
+          "lugar": "Plaza del Carnaval",
+          "esDesfile": false
+        }
+      ]
+    },
+    {
+      "id": "d-4",
+      "diaCorto": "DOM",
+      "diaNumero": "4",
+      "fecha": "2027-01-04",
+      "eventos": [
+        {
+          "id": "d4-1",
+          "hora": "10:00",
+          "titulo": "Desfile de la Familia Castañeda",
+          "lugar": "Senda del Carnaval",
+          "esDesfile": true
+        },
+        {
+          "id": "d4-2",
+          "hora": "14:00",
+          "titulo": "Canto a la Tierra",
+          "lugar": "Estadio Libertad",
+          "esDesfile": false
+        }
+      ]
+    },
+    {
+      "id": "d-5",
+      "diaCorto": "LUN",
+      "diaNumero": "5",
+      "fecha": "2027-01-05",
+      "eventos": [
+        {
+          "id": "d5-1",
+          "hora": "10:00",
+          "titulo": "Día de Negros",
+          "lugar": "Toda la ciudad",
+          "esDesfile": true
+        }
+      ]
+    },
+    {
+      "id": "d-6",
+      "diaCorto": "MAR",
+      "diaNumero": "6",
+      "fecha": "2027-01-06",
+      "eventos": [
+        {
+          "id": "d6-1",
+          "hora": "10:00",
+          "titulo": "Desfile Magno · Día de Blancos",
+          "lugar": "Senda del Carnaval",
+          "esDesfile": true
+        },
+        {
+          "id": "d6-2",
+          "hora": "17:00",
+          "titulo": "Tarima de cierre",
+          "lugar": "Plaza del Ingenio",
+          "esDesfile": false
+        }
+      ]
+    }
+  ]
+}

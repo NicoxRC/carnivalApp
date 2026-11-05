@@ -1,0 +1,291 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/*
+  Tema claro de alto contraste, según el diseño.
+  El cambio de fondo oscuro a papel cálido no es estético: los desfiles son de
+  día y al aire libre, y el modo oscuro rinde peor bajo luz directa.
+*/
+
+/*
+  Alfa Slab One, servida desde nuestro dominio y no desde Google Fonts.
+  Solo el subconjunto `latin` (19 KB): cubre todo el español —tildes, ñ, ¿, ¡—
+  y la raya del ETA (–). Los subconjuntos latin-ext y vietnamita venían en el
+  diseño y se descartaron: 27 KB que nadie iba a usar el 31 de diciembre.
+*/
+@font-face {
+  font-family: "Alfa Slab One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fuentes/alfa-slab-one-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@theme {
+  /* Superficies */
+  --color-papel: #f4efe0; /* crema cálido: héroe y superficies de marca */
+  --color-papel-2: #eceae2; /* fondo del mapa */
+  --color-papel-3: #f6f4ee; /* fondo de listas */
+  --color-blanco: #ffffff; /* tarjetas y hojas */
+
+  /* Tinta */
+  --color-tinta: #141414; /* texto principal */
+  --color-tinta-2: #3f3f47; /* secundario */
+  --color-tinta-3: #5c5c66; /* metadatos */
+  --color-tinta-4: #9a9aa4; /* inactivo */
+
+  /* Bordes */
+  --color-borde: #eeece4;
+  --color-borde-2: #e0ded5;
+  --color-borde-3: #cbc9c0;
+
+  /* Semánticos del desfile */
+  --color-cabeza: #ff6a1f;
+  --color-mitad: #ffc61a;
+  --color-cola: #a06bff;
+  --color-usuario: #2f9bff;
+  --color-marca: #1487cc;
+  --color-ok: #0f8f5f;
+
+  /*
+    Variantes legibles sobre blanco. El naranja y el amarillo de los marcadores
+    tienen contraste de sobra como relleno, pero como TEXTO no pasan de 3:1.
+    Estos son sus equivalentes oscuros; el diseño ya traía --color-cabeza-txt.
+  */
+  --color-cabeza-txt: #c2470a;
+  --color-aviso-txt: #8a5a00;
+
+  /*
+    El diseño solo resolvió el estado feliz del ETA. Este rojo es añadido:
+    hace falta para "el desfile está detenido" y "sin conexión".
+  */
+  --color-alerta: #c0271b;
+
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Alfa Slab One", Georgia, "Times New Roman", serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-papel-2);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+  /* La hoja del ETA vive pegada abajo: nada de rebote elástico tapándola. */
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.fuente-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.3px;
+}
+
+/* Respeta el notch y la barra de gestos en iOS. */
+.pb-seguro {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.pt-seguro {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+/* --- MapLibre: el chrome no debe competir con el mapa --- */
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--color-tinta-3) !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-tinta-2) !important;
+}
+.maplibregl-ctrl-group {
+  background: var(--color-blanco) !important;
+  border: 1px solid var(--color-borde-2) !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-borde) !important;
+}
+
+/* --- Marcadores del desfile --- */
+.marcador-desfile {
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.marcador {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  color: #fff;
+  cursor: default;
+  transition: opacity 150ms ease;
+}
+.marcador--cabeza {
+  width: 38px;
+  height: 38px;
+  background: var(--color-cabeza);
+  box-shadow: 0 4px 12px rgba(234, 90, 18, 0.45);
+}
+.marcador--mitad {
+  width: 26px;
+  height: 26px;
+  background: var(--color-mitad);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22);
+}
+.marcador--cola {
+  width: 26px;
+  height: 26px;
+  background: var(--color-cola);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22);
+}
+/* Un reportero sin señal no se borra: se apaga. Su último dato sigue valiendo. */
+.marcador--apagado {
+  opacity: 0.45;
+  filter: grayscale(0.85);
+}
+
+/* --- Comercios y tarimas: son botones, no adornos --- */
+.punto-mapa {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 10px;
+  border: 2px solid var(--color-punto, #2fa898);
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+.punto-mapa:hover,
+.punto-mapa:focus-visible {
+  transform: scale(1.12);
+}
+.punto-mapa:focus-visible {
+  outline: 2px solid var(--color-tinta);
+  outline-offset: 2px;
+}
+/* El que tiene la ficha abierta: crece y se le marca el anillo. */
+.punto-mapa--activo {
+  transform: scale(1.2);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-punto, #2fa898) 28%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.26);
+}
+
+/* --- Puntos de referencia ---
+   Deliberadamente más callados que los marcadores del desfile: orientan, no
+   compiten. El halo blanco del nombre es lo que los hace legibles sobre el mapa. */
+.hito {
+  /* Orientan, pero jamás tapan al desfile: ese es el dato principal. */
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+  pointer-events: none;
+}
+.hito__icono {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--color-tinta-2);
+  border: 1.5px solid var(--color-borde-2);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.16);
+}
+.hito__nombre {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-tinta);
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+  text-shadow:
+    0 0 3px #f4efe0,
+    0 0 3px #f4efe0,
+    0 0 6px #f4efe0;
+}
+.hito--sin-nombre .hito__nombre {
+  display: none;
+}
+
+/* Etiqueta bajo la cabeza: "Va por acá · 23 s" */
+.globo-cabeza {
+  margin-top: 5px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-cabeza-txt);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+
+.marcador-usuario {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+.marcador-usuario span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-usuario);
+}
+.marcador-usuario span:last-child {
+  border: 3px solid #fff;
+  background: transparent;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(47, 155, 255, 0.5);
+}
+.marcador-usuario .halo {
+  animation: halo 2.4s ease-out infinite;
+}
+
+@keyframes halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@keyframes latido {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.latido {
+  animation: latido 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

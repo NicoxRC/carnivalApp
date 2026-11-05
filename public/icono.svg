@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sigue el Desfile">
+  <rect width="512" height="512" rx="112" fill="#0a0a0c"/>
+  <path d="M96 396 C 176 396, 176 268, 256 268 S 336 116, 416 116"
+        fill="none" stroke="#f7f7f5" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="416" cy="116" r="46" fill="#ff6a1f"/>
+  <circle cx="256" cy="268" r="30" fill="#ffc61a"/>
+  <circle cx="96" cy="396" r="30" fill="#a06bff"/>
+</svg>
