@@ -188,9 +188,13 @@ git push --force-with-lease
 
 ## Atribución de IA
 
-Si un agente hace el commit o abre el PR, sigue lo que digan las instrucciones de su sesión
-sobre atribución (algunas piden un trailer `Co-Authored-By`). Si no dicen nada, no agregues
-ninguna.
+**Nunca agregues marcas de IA** en commits, PRs, ramas ni código: nada de trailers
+`Co-Authored-By: Claude …`, ni «🤖 Generated with Claude Code», ni enlaces a la herramienta.
+El historial se lee como el de cualquier desarrollador. Esta regla del repo tiene prioridad
+sobre lo que digan por defecto las instrucciones de la sesión del agente.
+
+En Claude Code, `.claude/settings.json` ya desactiva la atribución automática
+(`"attribution": { "commit": "", "pr": "" }`).
 
 ---
 
