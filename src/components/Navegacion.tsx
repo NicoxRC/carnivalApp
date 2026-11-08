@@ -38,6 +38,10 @@ const TABS = [
 export function Navegacion() {
   const ruta = usePathname();
 
+  // Los paneles del equipo no son pestañas del público: no llevan esta barra,
+  // y al reportero le quita la tentación de salirse del panel en plena senda.
+  if (ruta.startsWith("/admin") || ruta.startsWith("/reportero")) return null;
+
   return (
     <nav
       className={
