@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { MODO_DATOS } from "@/lib/datos";
+import { MODO_DATOS } from "@/lib/datos/modo";
 import type { EstadoDesfile } from "@/lib/tipos";
 
 export type Conexion = "conectando" | "en_vivo" | "reintentando" | "sin_conexion";

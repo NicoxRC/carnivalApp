@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import datos from "@/data/eventos-ejemplo.json";
-import { DESFILE_DEMO } from "@/lib/datos";
+import { DESFILE_DEMO } from "@/lib/datos/modo";
 import { calcularEta } from "@/lib/eta";
 import { distanciaCorta, horaDelDia } from "@/lib/formato";
 import { distanciaHaversine } from "@/lib/geo";
