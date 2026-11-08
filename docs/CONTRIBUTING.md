@@ -103,6 +103,8 @@ El área afectada. Los alcances de este proyecto:
 | `datos` | Los adaptadores de datos (`src/lib/datos/`) |
 | `api` | Las rutas de `src/app/api/` |
 | `simulacion` | El motor de simulación y el script `simular` |
+| `reportero` | El panel de los reporteros (`/reportero`, `useReporte`) |
+| `admin` | El panel de administración (`/admin`, `src/app/api/admin/`) |
 | `ui` | Pantallas y componentes que no encajan en otro alcance |
 | `pwa` | Service worker, manifest, íconos |
 | `deps` | Dependencias |

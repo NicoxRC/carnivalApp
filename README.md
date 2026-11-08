@@ -2,9 +2,9 @@
 
 App web (PWA) para seguir en vivo los desfiles del Carnaval de Negros y Blancos de Pasto.
 
-**Estado: Fase 1 (demo) terminada, con el diseño aplicado.** Se puede abrir, mover un
-desfile por la senda y ver el ETA calculándose. Sin subida de fotos, sin autenticación,
-sin panel de admin.
+**Estado: Fase 1 (demo) terminada, con el diseño aplicado, más los paneles del equipo.**
+Se puede abrir, mover un desfile por la senda y ver el ETA calculándose. Hay panel de
+reporteros (`/reportero`) y de administración (`/admin`). Sin subida de fotos todavía.
 
 ---
 
@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Abrir <http://localhost:3000>. El desfile no se mueve solo: hay dos formas de moverlo.
+Abrir <http://localhost:3000>. El desfile no se mueve solo: hay tres formas de moverlo.
 
 **1. El botón (para enseñarlo).** En el mapa, abajo a la izquierda: *Modo demo →
 Iniciar desfile*. Corre dentro del proceso de Next. Es lo que se usa en una sala de juntas.
@@ -36,9 +36,16 @@ npm run simular -- --velocidad=1.5 --desfile=demo
 | `--desfile` | `demo` | id del desfile |
 | `--url` | `http://localhost:3000` | contra qué despliegue apuntar |
 
-Los dos caminos hacen `POST /api/posiciones` con el mismo payload que enviará el celular
-de un reportero en Fase 2. **No hay un camino "de mentiras" paralelo al real**: lo que se
-prueba en octubre es el mismo código que corre el 31 de diciembre.
+Contra un despliegue hace falta la llave de ingesta: `INGESTA_TOKEN=… npm run simular --
+--url=https://…` (o `--token=…`).
+
+**3. Un reportero de verdad.** Poner `ADMIN_CLAVE` en `.env.local`, entrar a `/admin`,
+crear un reportero en la pestaña *Reporteros* y abrir `/reportero` con ese código en un
+celular. Ver «Panel de reporteros».
+
+Los tres caminos hacen `POST /api/posiciones` con el mismo payload. **No hay un camino
+"de mentiras" paralelo al real**: lo que se prueba en octubre es el mismo código que corre
+el 31 de diciembre.
 
 ---
 
@@ -74,7 +81,9 @@ probado hasta que alguien lo corra:
 
 1. Crear el proyecto en Supabase (eso lo tienes que hacer tú: son credenciales).
 2. Pegar `supabase/schema.sql` en el SQL Editor y ejecutarlo.
-3. Copiar `.env.example` a `.env.local` y llenar las tres variables.
+3. Copiar `.env.example` a `.env.local` y llenar las tres variables de Supabase (la
+   `service_role` es obligatoria: el servidor la usa para escribir y para leer los
+   reporteros) y las de los paneles.
 4. Poner `NEXT_PUBLIC_DATOS=supabase`.
 5. Cargar la senda real en la tabla `sendas`.
 
@@ -106,12 +115,10 @@ en JSON porque el script `npm run simular` corre fuera del bundler.
 
 Ordenado por lo que más duele si se ignora.
 
-**1. Los tiles del mapa no aguantan el 31 de diciembre.**
-Hoy se usan tiles de `tile.openstreetmap.org`, que son gratis y no piden tarjeta. Su
-política de uso **no admite el tráfico de una app masiva**; con miles de personas en la
-senda es bloqueo casi seguro. Hay que migrar a tiles propios (Protomaps con un `.pmtiles`
-servido desde Vercel/R2, o MapTiler) antes del piloto. Es un cambio de una constante en
-`src/components/MapaDesfile.tsx`, pero hay que hacerlo con tiempo.
+**1. Probar el panel de reporteros caminando.** En iPhone y en Android, con la pantalla
+encendida cuatro horas, batería externa y señal mala. En la web el GPS se detiene con la
+pantalla bloqueada: si el Wake Lock falla en algún celular del equipo, hay que saberlo
+antes del 31, no ese día.
 
 **2. Probarlo con red mala.** Está pensado para eso —service worker que cachea el armazón,
 la senda y los tiles; reconexión con backoff y jitter; siempre el último dato con su hora
@@ -152,6 +159,86 @@ convence, aquí está el porqué:
   del reportero mande GPS directo, hay que añadir una que valide `auth.uid()`.
 
 ---
+
+## El mapa base
+
+Las teselas son propias: `public/mapa/pasto.pmtiles` (≈2,4 MB, Pasto entero hasta z15,
+derivado de OpenStreetMap por Protomaps) y las fuentes de las etiquetas en
+`public/mapa/fuentes/`. No se depende de `tile.openstreetmap.org`, cuya política de uso no
+admite una app masiva.
+
+- **Abre sin red.** El service worker guarda el archivo entero en la primera visita y
+  recorta desde la caché los pedazos que pide el visor. Probado: con la red cortada el
+  mapa se dibuja completo.
+- **El estilo** (colores de papel, sin puntos de interés del mapa base) se genera con
+  `npm run mapa:estilo` y queda versionado en `src/data/estilo-mapa.json`, para no mandarle
+  al celular la librería de estilos.
+- **Actualizar las teselas** (una vez al año basta):
+
+  ```bash
+  go install github.com/protomaps/go-pmtiles@latest
+  pmtiles extract https://build.protomaps.com/AAAAMMDD.pmtiles public/mapa/pasto.pmtiles \
+    --bbox=-77.33,1.16,-77.23,1.26 --maxzoom=15
+  ```
+
+  Y subir `VERSION` en `public/sw.js`, o los celulares se quedan con el archivo viejo. Si
+  algún día el archivo pesa demasiado para el despliegue, se sube a un almacenamiento
+  (R2, S3) y se apunta con `NEXT_PUBLIC_MAPA_PMTILES`.
+
+## Quién puede escribir
+
+Leer el desfile es público. Escribir no: una cabeza falsa le miente a toda la senda a la
+vez. Todo pasa por `src/lib/sesion.ts`:
+
+| Quién | Cómo entra | Qué puede hacer |
+|---|---|---|
+| Administrador | `/admin` con `ADMIN_CLAVE` | Comercios, reporteros, estado del desfile |
+| Reportero | `/reportero` con un código que genera el admin | Mandar posiciones, siempre con el rol que tiene asignado |
+| Script / herramientas | `Authorization: Bearer <INGESTA_TOKEN>` | Mandar posiciones |
+
+- Las sesiones son cookies firmadas con `SESION_SECRETO`. No hay tabla de sesiones.
+- Del código del reportero se guarda solo el hash. Se muestra una vez al crearlo; si se
+  pierde, se genera otro y el viejo deja de servir. Desactivar a un reportero corta
+  también las sesiones que tenga abiertas.
+- Cinco intentos fallidos desde la misma IP la bloquean un minuto. Vive en memoria del
+  proceso: en serverless es un freno, no una muralla.
+- **En modo local sin `INGESTA_TOKEN` la ingesta queda abierta**, para desarrollar. En
+  modo supabase siempre hace falta llave. El simulador embebido solo existe en modo local.
+- Es deliberadamente pequeño: cuando se decida el backend definitivo se cambia por su
+  auth sin tocar las pantallas.
+
+## Panel de reporteros
+
+`/reportero`. Pantalla oscura y mínima, pensada para cuatro horas en la mano a pleno sol.
+
+1. El reportero escribe su código (una vez por día) y toca **Empezar a reportar**.
+2. Desde ahí **el GPS sale solo cada 20 s**. No hay que tocar nada.
+3. **«Estoy aquí»** manda al instante. Para cuando el desfile se para o vuelve a arrancar.
+4. Si el GPS no sirve, se marca **por punto de referencia** (la lista de hitos).
+
+Lo que aguanta: si se cae la red, los puntos se guardan en el celular y salen juntos al
+volver la señal; la hora se corrige con el reloj del servidor; y se pide mantener la
+pantalla encendida (Wake Lock), porque **con la pantalla bloqueada el navegador deja de
+leer el GPS**. Si el navegador no lo permite, el panel lo dice. La pantalla también le
+confirma al reportero por dónde cree la app que va («estás por Colegio Champagnat»): si
+dice algo raro, lo nota al instante.
+
+Recomendación operativa: un suplente por rol, con su propio código, por si a alguien se le
+acaba la batería.
+
+## Panel de administración
+
+`/admin`, con `ADMIN_CLAVE`. Tres pestañas:
+
+- **En vivo**: dónde va cada rol, hace cuánto mandó, qué reportero está asignado y quién
+  se calló. Botones para marcar en curso, finalizar o reiniciar (reiniciar borra las
+  posiciones del recorrido y pide confirmación).
+- **Reporteros**: crear (genera el código), cambiar de rol, desactivar, regenerar código,
+  borrar.
+- **Comercios**: alta y edición con la ubicación marcada en el mapa, plan y oferta.
+  *Ocultar* lo saca del mapa sin borrarlo (no renovó, cerró ese día).
+
+Falta: la programación del día (sigue en JSON) y la moderación de fotos.
 
 ## Ubicarse por referencias, no por calles
 
@@ -207,25 +294,22 @@ Pasos, en orden:
    3. Project Settings → API → copiar `URL`, `anon public` y `service_role`.
 
 **2. Conectar (lo hago yo con esas tres llaves).**
-   - `.env.local` con `NEXT_PUBLIC_DATOS=supabase` y las tres variables.
+   - `.env.local` con `NEXT_PUBLIC_DATOS=supabase`, las tres variables de Supabase y
+     `ADMIN_CLAVE`, `SESION_SECRETO` e `INGESTA_TOKEN` (ver `.env.example`).
    - Cargar la senda en la tabla `sendas` y crear la fila del desfile.
    - **Probar el adaptador de Supabase de punta a punta**, que hoy está escrito pero nunca
      ejecutado contra un proyecto real. Hay que dar por hecho que algo falla la primera vez.
 
 **3. Vercel (cuenta tuya).**
-   - El proyecto todavía **no es un repositorio git**; hay que iniciarlo y subirlo.
    - Importar el repo en Vercel y poner las mismas variables de entorno.
    - `SUPABASE_SERVICE_ROLE_KEY` va solo como variable de servidor. Nunca con prefijo
      `NEXT_PUBLIC_`, que la publicaría al navegador.
 
 ### Lo que hay que saber antes de enseñárselo a alguien
 
-- **Los tiles del mapa siguen siendo de OpenStreetMap.** Para un demo con pocas visitas
-  está bien. Para tráfico real **no**: su política de uso no lo admite y bloquean. Hay que
-  migrar a tiles propios antes del piloto, no antes del demo.
 - **El simulador embebido (`Modo demo`) no funciona en Vercel**, porque es un `setInterval`
   dentro del proceso. Para mover el desfile en el despliegue se usa el script:
-  `npm run simular -- --url=https://tu-despliegue.vercel.app`.
+  `INGESTA_TOKEN=… npm run simular -- --url=https://tu-despliegue.vercel.app`.
 - **Sigue sin probarse con red mala**, que es el riesgo número uno del proyecto.
 - La senda, los hitos, los comercios y la programación siguen siendo **datos de ejemplo**.
 
@@ -256,8 +340,10 @@ abre; la oferta va después, y solo la tienen los que contrataron.
 Si querés que el sello desaparezca del todo, decímelo y lo quitamos, pero esa es la
 decisión que hay detrás.
 
-Los comercios se editan en `src/data/comercios-ejemplo.json`. ⚠️ Los diez que vienen son
-**inventados**: ningún negocio real ha contratado nada.
+Los comercios se gestionan desde `/admin` (pestaña *Comercios*). En modo local,
+`src/data/comercios-ejemplo.json` es la carga inicial y lo que se edite vive en memoria
+hasta reiniciar el servidor. ⚠️ Los diez del JSON son **inventados**: ningún negocio real
+ha contratado nada.
 
 ## Mapa de gentío
 
@@ -333,25 +419,36 @@ src/
     hoy/                  qué hay hoy
     desfiles/             programación de los 6 días
     fotos/                muro de fotos (armazón, sin backend)
+    reportero/            panel de los reporteros
+    admin/                panel de administración
     api/
       posiciones/         ingesta — la única puerta de entrada
       estado/             snapshot + stream SSE
       senda/              la ruta (cacheable)
-      simulacion/         el botón de demo
+      comercios/          los comercios visibles (público)
+      reportero/sesion/   entrar y salir con el código
+      admin/              sesión, comercios, reporteros, estado del desfile
+      simulacion/         el botón de demo (solo modo local)
   components/
     Inicio.tsx            primera pantalla, antes de pedir el GPS
     MapaDesfile.tsx       MapLibre: senda en 3 tramos, marcadores, PDI
     BarraEta.tsx          la hoja blanca: los 7 estados del ETA
     Pantalla*.tsx         una por ruta
+    PanelReportero.tsx    el panel de los reporteros
+    admin/                el panel de administración y su selector en el mapa
   lib/
     senda.ts              proyección 1D (Turf)
     eta.ts                velocidad, rangos, detención
-    datos/                adaptador local + adaptador Supabase
+    mapa.ts               estilo y teselas del mapa base
+    sesion.ts             quién puede escribir: cookies firmadas, códigos, llave
+    datos/                adaptador local + adaptador Supabase (modo.ts: lo que ve el cliente)
     simulacion/motor.ts   el desfile falso, compartido por script y botón
-  data/                   senda, programación y desfiles de ejemplo
+  data/                   senda, programación, comercios de ejemplo y estilo del mapa
 design/                   el .dc.html original y lo extraído del export
 scripts/simular-desfile.ts
+scripts/generar-estilo-mapa.ts
 supabase/schema.sql
 public/sw.js              service worker
 public/fuentes/           Alfa Slab One (subconjunto latin)
+public/mapa/              teselas de Pasto (.pmtiles) y fuentes de las etiquetas
 ```
