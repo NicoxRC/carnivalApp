@@ -106,3 +106,56 @@ export const DETENIDO_MS = 10 * 60 * 1000;
 
 /** Umbral suave: antes del anterior, se avisa sin dramatizar ("sin avanzar hace 4 min"). */
 export const SIN_AVANZAR_AVISO_MS = 3 * 60 * 1000;
+
+/* -------------------------------------------------------------------------- */
+/* Comercios (la capa del mapa y lo que se vende como pauta)                  */
+/* -------------------------------------------------------------------------- */
+
+export type CategoriaComercio =
+  | "restaurante"
+  | "tasca"
+  | "cafe"
+  | "heladeria"
+  | "panaderia"
+  | "tienda"
+  | "bar"
+  | "farmacia";
+
+/** null = aparece en el directorio sin haber pagado. Aparecer nunca depende de pagar. */
+export type PlanComercio = "basico" | "destacado";
+
+export interface Comercio {
+  id: string;
+  nombre: string;
+  categoria: CategoriaComercio;
+  descripcion: string;
+  /** Referencia para encontrarlo desde la acera, no solo la dirección catastral. */
+  direccion: string;
+  horario: string;
+  lat: number;
+  lng: number;
+  plan: PlanComercio | null;
+  /** La oferta. Solo se muestra si hay plan: es lo que se vende. */
+  promo: string | null;
+  /** false = oculto del mapa sin borrarlo (p. ej. no renovó, o cerró ese día). */
+  visible: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reporteros                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Una persona del equipo que camina con el desfile. Entra al panel con un
+ * código que le da el administrador; nunca ve ni toca nada más.
+ */
+export interface Reportero {
+  id: string;
+  nombre: string;
+  rol: Rol;
+  /** false = el código deja de servir, sin borrar su historial. */
+  activo: boolean;
+  /** Última vez que mandó una posición. null si nunca. */
+  ultimaSenalTs: number | null;
+  creadoEn: number;
+}

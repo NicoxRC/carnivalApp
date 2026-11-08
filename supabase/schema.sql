@@ -47,6 +47,12 @@ create table if not exists reporteros (
   creado_en timestamptz not null default now()
 );
 
+-- Cada reportero entra al panel con un código que genera el administrador.
+-- Se guarda solo el hash. `ultima_senal` es lo que mira el panel de admin para
+-- saber quién está mandando y quién se calló.
+alter table reporteros add column if not exists codigo_hash text unique;
+alter table reporteros add column if not exists ultima_senal timestamptz;
+
 -- ---------------------------------------------------------------------
 -- Stream de posiciones — la tabla que más escribe
 -- ---------------------------------------------------------------------
@@ -99,6 +105,27 @@ create table if not exists presencias (
 
 create index if not exists presencias_desfile_visto_idx
   on presencias (desfile_id, visto_en desc);
+
+-- ---------------------------------------------------------------------
+-- Comercios del mapa. Los gestiona el panel de administración.
+-- Aparecer no depende de pagar: `plan` solo decide si la ficha lleva oferta
+-- y el sello de pauta.
+-- ---------------------------------------------------------------------
+create table if not exists comercios (
+  id            text primary key,
+  nombre        text not null,
+  categoria     text not null check (categoria in
+                  ('restaurante','tasca','cafe','heladeria','panaderia','tienda','bar','farmacia')),
+  descripcion   text,
+  direccion     text,
+  horario       text,
+  lat           double precision not null,
+  lng           double precision not null,
+  plan          text check (plan in ('basico','destacado')),
+  promo         text,
+  visible       boolean not null default true,
+  actualizado_en timestamptz not null default now()
+);
 
 -- ---------------------------------------------------------------------
 -- Fotos del público (Fase 2). Nada se publica sin aprobación.
@@ -190,6 +217,8 @@ alter table posiciones enable row level security;
 alter table eventos    enable row level security;
 alter table fotos      enable row level security;
 alter table presencias enable row level security;
+alter table comercios  enable row level security;
+alter table reporteros enable row level security;
 
 drop policy if exists "lectura publica sendas" on sendas;
 create policy "lectura publica sendas" on sendas for select using (true);
@@ -208,6 +237,13 @@ create policy "lectura publica eventos" on eventos for select using (true);
 drop policy if exists "lectura fotos aprobadas" on fotos;
 create policy "lectura fotos aprobadas" on fotos for select using (estado = 'aprobada');
 
+-- Los comercios ocultos desde el panel no los ve el público.
+drop policy if exists "lectura comercios visibles" on comercios;
+create policy "lectura comercios visibles" on comercios for select using (visible);
+
+-- `reporteros` no lleva policy: sus nombres y el hash del código solo los lee
+-- el servidor (service_role).
+
 -- `presencias` no lleva ninguna policy, ni de lectura: las filas crudas no las
 -- ve nadie desde el cliente. El agregado sale por /api/densidad, que corre en el
 -- servidor. Que la tabla exista no debe permitir reconstruir por dónde anduvo
@@ -218,8 +254,7 @@ create policy "lectura fotos aprobadas" on fotos for select using (estado = 'apr
 
 -- =====================================================================
 -- Semilla mínima para que el demo tenga con qué arrancar.
--- La senda real se carga con el script `npm run cargar-senda` (pendiente)
--- o pegando el GeoJSON oficial aquí.
+-- La senda real se carga pegando el GeoJSON oficial en la tabla `sendas`.
 -- =====================================================================
 insert into desfiles (id, nombre, fecha, hora_inicio, estado)
 values ('demo', 'Desfile Magno (demo)', current_date, '09:00', 'programado')

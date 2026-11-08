@@ -1,5 +1,5 @@
 import type { Densidad } from "@/lib/densidad";
-import type { EntradaPosicion, EstadoDesfile } from "@/lib/tipos";
+import type { Comercio, EntradaPosicion, EstadoDesfile, Reportero, Rol } from "@/lib/tipos";
 
 /**
  * Una sola interfaz, dos implementaciones:
@@ -14,8 +14,11 @@ import type { EntradaPosicion, EstadoDesfile } from "@/lib/tipos";
  */
 export interface AdaptadorDatos {
   readonly nombre: "local" | "supabase";
-  /** Guarda una posición ya proyectada sobre la senda. */
-  registrarPosicion(entrada: EntradaPosicion): Promise<void>;
+  /**
+   * Guarda una posición ya proyectada sobre la senda. `reporteroId` es quién la
+   * mandó, si vino del panel de reporteros (el simulador no tiene).
+   */
+  registrarPosicion(entrada: EntradaPosicion, reporteroId?: string): Promise<void>;
   /** Snapshot completo para pintar la pantalla. */
   leerEstado(desfileId: string): Promise<EstadoDesfile>;
   /** Marca el desfile como en curso / finalizado. */
@@ -30,6 +33,27 @@ export interface AdaptadorDatos {
 
   /** Gentío agregado por tramo. */
   leerDensidad(desfileId: string): Promise<Densidad>;
+
+  /* ---- Comercios: los gestiona el panel de administración ---- */
+
+  /** Todos, incluidos los ocultos. El público filtra por `visible`. */
+  listarComercios(): Promise<Comercio[]>;
+  /** Crea o reemplaza por `id`. */
+  guardarComercio(comercio: Comercio): Promise<void>;
+  eliminarComercio(id: string): Promise<void>;
+
+  /* ---- Reporteros ---- */
+
+  listarReporteros(): Promise<Reportero[]>;
+  leerReportero(id: string): Promise<Reportero | null>;
+  /** Solo encuentra reporteros activos. */
+  buscarReporteroPorCodigo(codigoHash: string): Promise<Reportero | null>;
+  crearReportero(datos: { nombre: string; rol: Rol }, codigoHash: string): Promise<Reportero>;
+  actualizarReportero(
+    id: string,
+    cambios: { nombre?: string; rol?: Rol; activo?: boolean; codigoHash?: string },
+  ): Promise<Reportero | null>;
+  eliminarReportero(id: string): Promise<void>;
 }
 
 export const DESFILE_DEMO = "demo";

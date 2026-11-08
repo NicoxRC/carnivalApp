@@ -13,7 +13,9 @@
  *   - /api/estado          -> red primero con timeout corto, y si falla,
  *                             se devuelve la última respuesta cacheada.
  *                             Es preferible un dato viejo con su hora que un error.
+ *   - /api/comercios       -> igual que /api/estado: la capa funciona sin red
  *   - /api/posiciones      -> nunca se cachea (es escritura)
+ *   - /api/admin, /api/reportero -> nunca se cachean (son privadas)
  */
 
 // Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
@@ -187,7 +189,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname === "/api/estado" || url.pathname === "/api/senda") {
+  if (
+    url.pathname === "/api/estado" ||
+    url.pathname === "/api/senda" ||
+    url.pathname === "/api/comercios"
+  ) {
     event.respondWith(redPrimeroConRespaldo(req, CACHE_DATOS).catch(() => Response.error()));
     return;
   }

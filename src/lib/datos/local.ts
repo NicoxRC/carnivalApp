@@ -1,10 +1,13 @@
+import datosComercios from "@/data/comercios-ejemplo.json";
 import { clasificar, VENTANA_DENSIDAD_MS, type Densidad } from "@/lib/densidad";
 import { metrosEnSenda, SENDA } from "@/lib/senda";
 import {
   MS_VENTANA_HISTORIAL,
+  type Comercio,
   type EntradaPosicion,
   type EstadoDesfile,
   type Posicion,
+  type Reportero,
   type Rol,
 } from "@/lib/tipos";
 import type { AdaptadorDatos } from "@/lib/datos/adaptador";
@@ -28,16 +31,30 @@ interface StoreGlobal {
   oyentes: Map<string, Set<Oyente>>;
   /** desfileId -> dispositivoId -> tramo visto. Una entrada por dispositivo. */
   presencias: Map<string, Map<string, { bin: number; ts: number }>>;
+  comercios: Map<string, Comercio>;
+  /** El hash del código va aparte del reportero: nunca sale en un listado. */
+  reporteros: Map<string, { reportero: Reportero; codigoHash: string }>;
 }
 
 const g = globalThis as unknown as { __sigueElDesfile?: StoreGlobal };
 
-const store: StoreGlobal = (g.__sigueElDesfile ??= {
+const store = (g.__sigueElDesfile ??= {
   desfiles: new Map(),
   oyentes: new Map(),
   presencias: new Map(),
-});
+} as StoreGlobal);
 store.presencias ??= new Map();
+store.reporteros ??= new Map();
+// Los comercios de ejemplo son el punto de partida en modo local, para que el
+// mapa no arranque vacío. Lo que se edite desde el panel vive en memoria.
+if (!store.comercios) {
+  store.comercios = new Map(
+    (datosComercios.comercios as Omit<Comercio, "visible">[]).map((c) => [
+      c.id,
+      { ...c, visible: true },
+    ]),
+  );
+}
 
 function obtener(desfileId: string): RegistroDesfile {
   let d = store.desfiles.get(desfileId);
@@ -97,7 +114,7 @@ export function suscribirLocal(desfileId: string, cb: Oyente): () => void {
 export const adaptadorLocal: AdaptadorDatos = {
   nombre: "local",
 
-  async registrarPosicion(entrada: EntradaPosicion) {
+  async registrarPosicion(entrada: EntradaPosicion, reporteroId?: string) {
     const d = obtener(entrada.desfileId);
     const ts = entrada.ts ?? Date.now();
     const proy = metrosEnSenda(entrada.lat, entrada.lng);
@@ -125,6 +142,11 @@ export const adaptadorLocal: AdaptadorDatos = {
     }
 
     if (d.estado === "programado") d.estado = "en_curso";
+
+    if (reporteroId) {
+      const r = store.reporteros.get(reporteroId);
+      if (r) r.reportero.ultimaSenalTs = Math.max(r.reportero.ultimaSenalTs ?? 0, ts);
+    }
 
     notificar(entrada.desfileId);
   },
@@ -169,6 +191,63 @@ export const adaptadorLocal: AdaptadorDatos = {
       d.historialCabeza = [];
     }
     notificar(desfileId);
+  },
+
+  async listarComercios() {
+    return [...store.comercios.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  },
+
+  async guardarComercio(comercio: Comercio) {
+    store.comercios.set(comercio.id, comercio);
+  },
+
+  async eliminarComercio(id: string) {
+    store.comercios.delete(id);
+  },
+
+  async listarReporteros() {
+    return [...store.reporteros.values()]
+      .map((r) => ({ ...r.reportero }))
+      .sort((a, b) => a.creadoEn - b.creadoEn);
+  },
+
+  async leerReportero(id: string) {
+    const r = store.reporteros.get(id);
+    return r ? { ...r.reportero } : null;
+  },
+
+  async buscarReporteroPorCodigo(codigoHash: string) {
+    for (const r of store.reporteros.values()) {
+      if (r.codigoHash === codigoHash && r.reportero.activo) return { ...r.reportero };
+    }
+    return null;
+  },
+
+  async crearReportero(datos: { nombre: string; rol: Rol }, codigoHash: string) {
+    const reportero: Reportero = {
+      id: crypto.randomUUID(),
+      nombre: datos.nombre,
+      rol: datos.rol,
+      activo: true,
+      ultimaSenalTs: null,
+      creadoEn: Date.now(),
+    };
+    store.reporteros.set(reportero.id, { reportero, codigoHash });
+    return { ...reportero };
+  },
+
+  async actualizarReportero(id, cambios) {
+    const r = store.reporteros.get(id);
+    if (!r) return null;
+    if (cambios.nombre !== undefined) r.reportero.nombre = cambios.nombre;
+    if (cambios.rol !== undefined) r.reportero.rol = cambios.rol;
+    if (cambios.activo !== undefined) r.reportero.activo = cambios.activo;
+    if (cambios.codigoHash !== undefined) r.codigoHash = cambios.codigoHash;
+    return { ...r.reportero };
+  },
+
+  async eliminarReportero(id: string) {
+    store.reporteros.delete(id);
   },
 };
 

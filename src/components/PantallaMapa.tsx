@@ -8,13 +8,13 @@ import { Inicio } from "@/components/Inicio";
 import { PanelSimulacion } from "@/components/PanelSimulacion";
 import type { Encuadre, PuntoMapa } from "@/components/MapaDesfile";
 import { FichaPunto } from "@/components/FichaPunto";
-import datosComercios from "@/data/comercios-ejemplo.json";
 import datosEventos from "@/data/eventos-ejemplo.json";
 import { ETIQUETA_NIVEL, COLOR_NIVEL, MIN_USUARIOS_GLOBAL } from "@/lib/densidad";
-import { MODO_DATOS } from "@/lib/datos";
+import { MODO_DATOS } from "@/lib/datos/modo";
 import { calcularEta } from "@/lib/eta";
 import { distanciaHaversine } from "@/lib/geo";
 import { DESVIO_MAX_USUARIO_M, referenciaEnSenda, SENDA } from "@/lib/senda";
+import { useComercios } from "@/lib/hooks/useComercios";
 import { useEstadoDesfile, useReloj } from "@/lib/hooks/useEstadoDesfile";
 import { useDensidad } from "@/lib/hooks/useDensidad";
 import { useUbicacion } from "@/lib/hooks/useUbicacion";
@@ -33,19 +33,6 @@ interface EventoCrudo {
   categoria: string;
   lat: number;
   lng: number;
-}
-
-interface ComercioCrudo {
-  id: string;
-  nombre: string;
-  categoria: string;
-  descripcion: string;
-  direccion: string;
-  horario: string;
-  lat: number;
-  lng: number;
-  plan: string | null;
-  promo: string | null;
 }
 
 /**
@@ -81,6 +68,7 @@ export function PantallaMapa({ desfileId }: { desfileId: string }) {
   const [inicioVisto, setInicioVisto] = useState<boolean | null>(null);
   const [verGentio, setVerGentio] = useState(false);
   const [puntoSel, setPuntoSel] = useState<PuntoMapa | null>(null);
+  const comercios = useComercios(capas.has("comercio"));
 
   useEffect(() => {
     try {
@@ -135,7 +123,7 @@ export function PantallaMapa({ desfileId }: { desfileId: string }) {
     }
 
     if (capas.has("comercio")) {
-      for (const c of datosComercios.comercios as ComercioCrudo[]) {
+      for (const c of comercios) {
         lista.push({
           id: c.id,
           nombre: c.nombre,
@@ -147,13 +135,13 @@ export function PantallaMapa({ desfileId }: { desfileId: string }) {
           direccion: c.direccion,
           horario: c.horario,
           promo: c.promo,
-          plan: c.plan as PuntoMapa["plan"],
+          plan: c.plan,
         });
       }
     }
 
     return lista;
-  }, [capas]);
+  }, [capas, comercios]);
 
   // Si se apaga la capa del punto abierto, la ficha se cierra con ella.
   useEffect(() => {
