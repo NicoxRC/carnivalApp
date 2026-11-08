@@ -8,45 +8,12 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 import { COLOR_NIVEL, type Densidad } from "@/lib/densidad";
 import { sinSenal } from "@/lib/eta";
 import { haceCuanto } from "@/lib/formato";
+import { estiloMapa, LIMITES_TESELAS, ZOOM_MAX, ZOOM_MIN } from "@/lib/mapa";
 import { SENDA } from "@/lib/senda";
 import { ROLES, type EstadoDesfile, type Rol, type TipoHito } from "@/lib/tipos";
 import type { Ubicacion } from "@/lib/hooks/useUbicacion";
 
 const NOMBRE: Record<Rol, string> = { cabeza: "Cabeza", mitad: "Mitad", cola: "Cola" };
-
-/**
- * Tiles raster de OpenStreetMap: gratis y sin tarjeta.
- * OJO: la política de uso de tile.openstreetmap.org NO admite el tráfico de una app
- * masiva. Antes del 31 de diciembre hay que migrar a tiles propios (Protomaps/MapTiler).
- * Ver README, "Los tiles del mapa no aguantan el 31 de diciembre".
- */
-const ESTILO_MAPA: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    },
-  },
-  layers: [
-    { id: "fondo", type: "background", paint: { "background-color": "#eceae2" } },
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-      // Mapa base lavado, casi papel: lo que tiene que saltar a la vista es la senda.
-      paint: {
-        "raster-saturation": -0.72,
-        "raster-contrast": -0.18,
-        "raster-brightness-min": 0.12,
-        "raster-opacity": 0.62,
-      },
-    },
-  ],
-};
 
 /**
  * Iconos de los puntos de referencia. Son lo que la gente busca con la vista
@@ -202,9 +169,12 @@ export default function MapaDesfile({
 
     const m = new maplibregl.Map({
       container: contenedor.current,
-      style: ESTILO_MAPA,
+      style: estiloMapa(),
       bounds: limitesSenda(),
       fitBoundsOptions: { padding: 56 },
+      maxBounds: LIMITES_TESELAS,
+      minZoom: ZOOM_MIN,
+      maxZoom: ZOOM_MAX,
       attributionControl: { compact: true },
       // Un desfile no necesita brújula ni inclinación; quitarlas evita toques accidentales.
       pitchWithRotate: false,
