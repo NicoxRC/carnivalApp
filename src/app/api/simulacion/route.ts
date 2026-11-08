@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { datos, DESFILE_DEMO } from "@/lib/datos";
+import { datos, DESFILE_DEMO, MODO_DATOS } from "@/lib/datos";
 import { SENDA } from "@/lib/senda";
 import { SimuladorDesfile } from "@/lib/simulacion/motor";
 
@@ -50,12 +50,27 @@ function resumen(desfileId: string) {
   };
 }
 
+/**
+ * Solo existe en modo local. En modo supabase la app ya es «de verdad»: un
+ * botón público que mueve el desfile sería una puerta para mentirle a la senda.
+ */
+function soloLocal() {
+  return MODO_DATOS === "local"
+    ? null
+    : NextResponse.json({ error: "El simulador embebido solo funciona en modo local." }, { status: 404 });
+}
+
 export function GET(req: Request) {
+  const bloqueo = soloLocal();
+  if (bloqueo) return bloqueo;
   const desfileId = new URL(req.url).searchParams.get("desfile") ?? DESFILE_DEMO;
   return NextResponse.json(resumen(desfileId));
 }
 
 export async function POST(req: Request) {
+  const bloqueo = soloLocal();
+  if (bloqueo) return bloqueo;
+
   let cuerpo: Record<string, unknown> = {};
   try {
     cuerpo = (await req.json()) as Record<string, unknown>;
