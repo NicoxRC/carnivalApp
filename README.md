@@ -2,9 +2,10 @@
 
 App web (PWA) para seguir en vivo los desfiles del Carnaval de Negros y Blancos de Pasto.
 
-**Estado: Fase 1 (demo) terminada, con el diseño aplicado, más los paneles del equipo.**
-Se puede abrir, mover un desfile por la senda y ver el ETA calculándose. Hay panel de
-reporteros (`/reportero`) y de administración (`/admin`). Sin subida de fotos todavía.
+**Estado: funciona de punta a punta en modo local; el camino de producción (Supabase)
+está escrito y sin probar.** Se puede abrir, mover un desfile por la senda, ver el ETA,
+recibir un aviso cuando se acerca, subir fotos y administrar todo desde `/admin`. Lo que
+falta para salir al público está en «Lo que falta antes de que esto sirva de verdad».
 
 ---
 
@@ -49,6 +50,16 @@ el 31 de diciembre.
 
 ---
 
+```bash
+npm run typecheck    # tipos
+npm test             # pruebas del ETA, la senda, las fechas y las validaciones
+npm run build
+```
+
+Los tres corren en cada PR (`.github/workflows/ci.yml`).
+
+---
+
 ## La idea que sostiene todo: la senda es 1D
 
 La senda es una ruta fija conocida. Cualquier punto —la cabeza, la cola, el usuario— se
@@ -67,9 +78,9 @@ Una sola interfaz (`src/lib/datos/adaptador.ts`), dos implementaciones. El inter
 
 | | `local` (por defecto) | `supabase` |
 |---|---|---|
-| Almacén | memoria del proceso Next | Postgres |
+| Almacén | memoria del proceso Next + copia en `.datos-local/` de lo editado en `/admin` | Postgres + Storage |
 | Tiempo real | SSE (`/api/estado/stream`) | Supabase Realtime |
-| Sobrevive a un reinicio | no | sí |
+| Sobrevive a un reinicio | lo editado sí (comercios, reporteros, programación, fotos); lo en vivo no | sí |
 | Sirve en Vercel | **no** | sí |
 | Probado | sí, de punta a punta | **no** |
 
@@ -115,24 +126,52 @@ en JSON porque el script `npm run simular` corre fuera del bundler.
 
 Ordenado por lo que más duele si se ignora.
 
-**1. Probar el panel de reporteros caminando.** En iPhone y en Android, con la pantalla
+**1. Conectar Supabase y desplegar con HTTPS.** Todo lo de este README se probó en modo
+local. El adaptador de Supabase, el bucket de fotos y Realtime **nunca se han ejecutado**.
+Y sin HTTPS no se puede probar el panel de reporteros en un celular: el navegador no
+entrega el GPS ni mantiene la pantalla encendida por `http://` (salvo en `localhost`).
+
+**2. Probar el panel de reporteros caminando.** En iPhone y en Android, con la pantalla
 encendida cuatro horas, batería externa y señal mala. En la web el GPS se detiene con la
 pantalla bloqueada: si el Wake Lock falla en algún celular del equipo, hay que saberlo
 antes del 31, no ese día.
 
-**2. Probarlo con red mala.** Está pensado para eso —service worker que cachea el armazón,
-la senda y los tiles; reconexión con backoff y jitter; siempre el último dato con su hora
-en vez de un spinner— pero **no se ha probado con throttling 3G**. Es el riesgo número uno
-del proyecto y sigue sin verificarse.
+**3. Probarlo con red mala.** Está pensado para eso —service worker que guarda el armazón,
+el mapa y la programación; reconexión con backoff y jitter; siempre el último dato con su
+hora— y se probó apagando el servidor, pero **no con throttling 3G real**.
 
-**3. Íconos PNG.** El manifest apunta a SVG. Android los acepta; iOS quiere PNG de 192 y
-512 px para el ícono de pantalla de inicio. Hay que exportarlos desde `public/icono.svg`.
+**4. Los avisos push en iPhone.** Solo funcionan con la app instalada en la pantalla de
+inicio (iOS 16.4+). Sin eso queda el aviso local, que suena solo con la app abierta. Hay
+que probarlo en un iPhone de verdad y decidir si se le pide a la gente instalarla.
 
-**4. El piloto en otro evento.** Una ciclovía, una procesión, cualquier cosa con recorrido.
+**5. La política de privacidad.** `/privacidad` describe con exactitud lo que hace el
+código, pero es un **borrador**: falta el responsable del tratamiento, un contacto real y
+la revisión de un abogado frente a la Ley 1581 de 2012.
+
+**6. El piloto en otro evento.** Una ciclovía, una procesión, cualquier cosa con recorrido.
 Si el 31 de diciembre falla, no hay segunda oportunidad hasta el año siguiente.
 
-**5. Corpocarnaval.** Sin el aval no hay senda oficial, ni programación real, ni
-legitimidad para vender pauta sobre patrimonio de la UNESCO.
+**7. Corpocarnaval.** Sin el aval no hay senda oficial, ni programación real, ni servicios
+(baños, hidratación) que cargar, ni legitimidad para vender pauta sobre patrimonio de la
+UNESCO.
+
+**Limitaciones conocidas que siguen abiertas:**
+
+- **Un solo administrador con una sola contraseña.** No hay usuarios, ni registro de quién
+  cambió qué, ni forma de cerrar una sesión robada antes de 12 horas. Resolverlo bien es
+  parte de decidir el backend definitivo.
+- **El gentío se puede seguir falseando con muchas IPs.** Los ids de dispositivo los firma
+  el servidor y emitirlos tiene tope por IP, así que ya no basta un bucle; pero no es
+  inviolable. Y sigue midiendo usuarios de la app, no gente.
+- **La CSP permite scripts en línea** (`'unsafe-inline'`): quitarlo exige nonces por
+  petición. Y queda una vulnerabilidad alta en el `postcss` que trae empaquetado Next 15;
+  se va subiendo a Next 16.
+- **No hay lint ni monitoreo de errores.** Los fallos de la API quedan en los registros
+  del servidor (`[api]`) y `/api/salud` sirve para un monitor externo, pero nadie avisa
+  solo si algo se cae.
+- **La proyección 1D asume que la senda no pasa dos veces por el mismo sitio.** Si el
+  recorrido oficial tiene tramos casi paralelos, un punto puede pegarse al tramo
+  equivocado; habría que acotar la proyección al entorno de la última posición.
 
 ---
 
@@ -155,6 +194,24 @@ convence, aquí está el porqué:
   depender de la celda. `/api/senda` queda para el service worker y herramientas.
 - **`posiciones.rol` está desnormalizado** en el esquema SQL. La lectura corre cada pocos
   segundos con miles de clientes encima y no puede pagar un join.
+- **La app sigue UN desfile: el «actual».** El que está en curso; si no hay, el de hoy; si
+  no, el próximo (`src/lib/desfiles.ts`). No se le pregunta al usuario cuál quiere ver, y
+  los reporteros siempre escriben en ese. Pedir un desfile que no existe da 404: nunca se
+  crea uno por nombrarlo.
+- **Con la cabeza más de 5 min callada no se da un tiempo.** El titular pasa a «sin
+  noticias del desfile hace 8 min». Un «llega en 20–35 min» calculado sobre dónde ESTABA
+  el desfile es un dato viejo disfrazado de nuevo.
+- **Un dato servido desde la caché no cuenta como dato nuevo.** Sin red, el service worker
+  devuelve la última copia; la app la muestra, pero no la marca «en vivo» ni reinicia su
+  antigüedad, y nunca deja que pise algo más reciente.
+- **Un rol, un emisor.** Si dos reporteros tienen el mismo rol, manda el que ya venía
+  mandando; el otro queda de respaldo y toma el rol solo si el titular se calla un minuto
+  (`RELEVO_MS`). Dos celulares a cuadras de distancia hacían saltar la cabeza.
+- **Un GPS de más de ±150 m se descarta** en el servidor (y de más de ±100 m ni se envía).
+- **«Hoy» es la fecha de Pasto**, no la del celular ni UTC (`src/lib/fecha.ts`).
+- **El freno a adivinar contraseñas es una espera, no un bloqueo.** Cada fallo hace que
+  la siguiente respuesta tarde más (hasta 5 s). Con bloqueo, seis intentos de cualquiera
+  dejaban fuera al administrador.
 - **Sin política de INSERT en RLS.** Solo el backend escribe. En Fase 2, cuando el celular
   del reportero mande GPS directo, hay que añadir una que valide `auth.uid()`.
 
@@ -173,6 +230,8 @@ admite una app masiva.
 - **El estilo** (colores de papel, sin puntos de interés del mapa base) se genera con
   `npm run mapa:estilo` y queda versionado en `src/data/estilo-mapa.json`, para no mandarle
   al celular la librería de estilos.
+- **El worker de MapLibre** se copia desde `node_modules` a `public/mapa/` antes de cada
+  `dev` y `build` (`npm run mapa:worker`): desde la versión 6 no viene embebido.
 - **Actualizar las teselas** (una vez al año basta):
 
   ```bash
@@ -181,9 +240,10 @@ admite una app masiva.
     --bbox=-77.33,1.16,-77.23,1.26 --maxzoom=15
   ```
 
-  Y subir `VERSION` en `public/sw.js`, o los celulares se quedan con el archivo viejo. Si
-  algún día el archivo pesa demasiado para el despliegue, se sube a un almacenamiento
-  (R2, S3) y se apunta con `NEXT_PUBLIC_MAPA_PMTILES`.
+  Y subir `VERSION` en `public/sw.js`, o los celulares se quedan con el archivo viejo.
+  `NEXT_PUBLIC_MAPA_PMTILES` permite apuntar a otra ruta **del mismo dominio**. Si el
+  archivo se sirve desde otro dominio (R2, S3), el mapa funciona con red pero el service
+  worker no lo guarda: se pierde el mapa sin señal.
 
 ## Quién puede escribir
 
@@ -192,16 +252,19 @@ vez. Todo pasa por `src/lib/sesion.ts`:
 
 | Quién | Cómo entra | Qué puede hacer |
 |---|---|---|
-| Administrador | `/admin` con `ADMIN_CLAVE` | Comercios, reporteros, estado del desfile |
-| Reportero | `/reportero` con un código que genera el admin | Mandar posiciones, siempre con el rol que tiene asignado |
+| Administrador | `/admin` con `ADMIN_CLAVE` | Todo: programación, comercios, reporteros, avisos, fotos, corregir posiciones |
+| Reportero | `/reportero` con un código que genera el admin | Mandar posiciones del desfile actual, siempre con su rol |
+| Público | sin cuenta; un id de dispositivo firmado por el servidor | Aportar al gentío y subir fotos (quedan pendientes de moderación) |
 | Script / herramientas | `Authorization: Bearer <INGESTA_TOKEN>` | Mandar posiciones |
 
 - Las sesiones son cookies firmadas con `SESION_SECRETO`. No hay tabla de sesiones.
 - Del código del reportero se guarda solo el hash. Se muestra una vez al crearlo; si se
   pierde, se genera otro y el viejo deja de servir. Desactivar a un reportero corta
   también las sesiones que tenga abiertas.
-- Cinco intentos fallidos desde la misma IP la bloquean un minuto. Vive en memoria del
-  proceso: en serverless es un freno, no una muralla.
+- Cada intento fallido hace más lenta la siguiente respuesta desde esa IP (hasta 5 s).
+  Vive en memoria del proceso: en serverless es un freno, no una muralla.
+- El público no tiene cuenta. Para el gentío y las fotos se usa un id de dispositivo que
+  emite y firma el servidor (`POST /api/dispositivo`), con tope de emisiones por IP.
 - **En modo local sin `INGESTA_TOKEN` la ingesta queda abierta**, para desarrollar. En
   modo supabase siempre hace falta llave. El simulador embebido solo existe en modo local.
 - Es deliberadamente pequeño: cuando se decida el backend definitivo se cambia por su
@@ -223,22 +286,34 @@ leer el GPS**. Si el navegador no lo permite, el panel lo dice. La pantalla tamb
 confirma al reportero por dónde cree la app que va («estás por Colegio Champagnat»): si
 dice algo raro, lo nota al instante.
 
-Recomendación operativa: un suplente por rol, con su propio código, por si a alguien se le
-acaba la batería.
+**Suplentes.** Conviene un suplente por rol, con su propio código y el panel abierto. No
+estorba: mientras el titular manda, el suplente ve «de respaldo» y sus puntos no entran;
+si el titular se calla un minuto, el suplente toma el rol solo.
+
+**Necesita HTTPS.** Por `http://` (fuera de `localhost`) el navegador no entrega el GPS; el
+panel lo avisa.
 
 ## Panel de administración
 
-`/admin`, con `ADMIN_CLAVE`. Tres pestañas:
+`/admin`, con `ADMIN_CLAVE`. Cinco pestañas:
 
-- **En vivo**: dónde va cada rol, hace cuánto mandó, qué reportero está asignado y quién
-  se calló. Botones para marcar en curso, finalizar o reiniciar (reiniciar borra las
-  posiciones del recorrido y pide confirmación).
+- **En vivo**: el desfile actual en un mapa, dónde va cada rol, hace cuánto mandó y quién
+  lo reporta. Botones para marcar en curso, finalizar o reiniciar.
+  - **Corregir**: poner a mano un rol en el mapa cuando un reportero mandó algo absurdo o
+    se quedó sin señal.
+  - **Alertas**: si un rol lleva más de 5 min callado con el desfile en curso, sale un
+    aviso rojo, suena un pitido y (si se activó) llega una notificación. Solo con el
+    panel abierto en algún navegador.
+  - **Mensaje para todos**: un texto que sale arriba del mapa de todo el mundo al
+    instante («arranca con 40 min de retraso»). Vence solo.
+- **Programación**: los desfiles de cada día y los demás eventos. Es lo que alimenta
+  «Hoy», «Desfiles» y la capa Tarimas.
 - **Reporteros**: crear (genera el código), cambiar de rol, desactivar, regenerar código,
   borrar.
-- **Comercios**: alta y edición con la ubicación marcada en el mapa, plan y oferta.
-  *Ocultar* lo saca del mapa sin borrarlo (no renovó, cerró ese día).
-
-Falta: la programación del día (sigue en JSON) y la moderación de fotos.
+- **Comercios**: alta y edición con la ubicación en el mapa, plan, oferta, menú, WhatsApp
+  y enlace; y los servicios (baños, hidratación…). Cada comercio muestra **sus números**:
+  cuántos vieron la oferta, abrieron la ficha, vieron el menú o tocaron WhatsApp.
+- **Fotos**: la cola de moderación. Nada sale en el muro sin pasar por aquí.
 
 ## Ubicarse por referencias, no por calles
 
@@ -317,33 +392,65 @@ Pasos, en orden:
 
 La capa **Comercios** reúne restaurantes, tascas, cafés, tiendas y droguerías. Cada uno es
 un marcador tocable: al tocarlo se abre su ficha abajo, en lugar de la barra de ETA, con
-qué es, dónde queda, a cuánto está de vos, a qué hora abre y —si contrató— su oferta.
+qué es, dónde queda, a cuánto está de vos, a qué hora abre y —si contrató— su oferta, su
+menú y su WhatsApp.
 
 Va todo junto en un solo filtro a propósito: para alguien parado en la senda, «dónde como,
-dónde compro, dónde hay baño» es la misma pregunta. El icono distingue de qué tipo es cada
-sitio; el color no cambia por categoría porque con ocho colores el mapa se vuelve ilegible
-justo donde hay más cosas.
+dónde compro» es la misma pregunta. El icono distingue de qué tipo es cada sitio; el color
+no cambia por categoría porque con ocho colores el mapa se vuelve ilegible justo donde hay
+más cosas.
 
-### Cómo se monetiza sin que parezca un anuncio
+La capa **Servicios** (baños, hidratación, primeros auxilios, policía, cierres) usa el
+mismo almacén y formulario, pero solo aparece si el equipo cargó alguno. ⚠️ Solo con datos
+oficiales: un baño inventado en un mapa que alguien usa para buscar un baño es peor que no
+ofrecer la capa.
 
-La ficha es una **ficha de sitio, no un banner**. Primero va lo que le sirve a quien la
-abre; la oferta va después, y solo la tienen los que contrataron.
+### Qué se vende
 
-- **Aparecer en el mapa no depende de pagar.** En `comercios-ejemplo.json` hay negocios con
-  `plan: null` que salen igual. El directorio vale por completo, no por pagado.
-- **Lo que da el plan** es la oferta (`promo`) en la ficha.
+| | Sin plan | Básico | Destacado |
+|---|---|---|---|
+| Aparece en el mapa con su ficha | sí | sí | sí |
+| Oferta, menú, WhatsApp y enlace en la ficha | — | sí | sí |
+| «Oferta cerca» a quien pase a menos de 300 m | — | — | sí |
+| Vitrina en la pantalla Hoy (rota cada 30 min) | — | — | sí |
+
+- **Aparecer en el mapa no depende de pagar.** El directorio vale por completo, no por
+  pagado.
+- **La oferta puede ser por momento**: todo el día, solo antes de que pase el desfile
+  frente al comercio, o solo después («2x1 en hervidos cuando pase el desfile»).
 - **Lo pagado lleva el sello «PAUTA»**, discreto, junto al botón. Discreto porque no es lo
   primero que importa; presente porque si el usuario no puede distinguir qué es pauta y qué
   no, la confianza que se le vende al anunciante deja de existir — y en Colombia la
   publicidad no identificada es un problema con la SIC, no solo de estilo.
+- **El reporte para el anunciante** está en `/admin` → Comercios: contadores de vistas y
+  toques. No identifican a nadie y no distinguen si la misma persona abrió la ficha dos
+  veces; cualquiera podría inflarlos con un script, así que sirven para mostrar interés,
+  no para facturar por clic.
 
-Si querés que el sello desaparezca del todo, decímelo y lo quitamos, pero esa es la
-decisión que hay detrás.
+Los comercios se gestionan desde `/admin`. En modo local, `src/data/comercios-ejemplo.json`
+es la carga inicial. ⚠️ Los diez del JSON son **inventados**: ningún negocio real ha
+contratado nada.
 
-Los comercios se gestionan desde `/admin` (pestaña *Comercios*). En modo local,
-`src/data/comercios-ejemplo.json` es la carga inicial y lo que se edite vive en memoria
-hasta reiniciar el servidor. ⚠️ Los diez del JSON son **inventados**: ningún negocio real
-ha contratado nada.
+## Avisos, compartir y fotos
+
+- **«Avisame cuando esté cerca».** En la barra del ETA. Con llaves VAPID en el servidor
+  (`npm run push:llaves`) el aviso llega aunque la app esté cerrada: cada vez que entra
+  una posición de la cabeza se revisa a quién le faltan 10 min o menos, se le notifica y
+  su suscripción se borra. Sin llaves, o si el navegador no soporta push, la propia app
+  vigila el ETA y avisa, pero solo mientras esté abierta — y lo dice.
+- **«Compartir mi punto».** Arma un enlace `/?encuentro=<metros>` con el texto «estoy por
+  Cristo Rey, llega en 20–35 min». Quien lo abre ve un pin en ese punto de la senda. Solo
+  viaja el metro de la senda, no la posición exacta.
+- **Termina de pasar en…** Con la cola reportando, el ETA también dice cuánto falta para
+  que el desfile acabe de pasar por donde está el usuario.
+- **Fotos.** Cualquiera sube; la foto se reduce en el celular (lo que además borra sus
+  metadatos, incluidas las coordenadas), queda **pendiente** y solo sale en el muro cuando
+  alguien del equipo la aprueba. Máximo 8 por dispositivo por hora.
+- **Por dónde pasó.** En «Desfiles», cada desfile que ya salió muestra a qué hora pasó la
+  cabeza por cada punto de referencia.
+- **Inglés.** La interfaz está en español e inglés (`src/lib/i18n-textos.ts`); se elige
+  solo según el idioma del celular y se puede cambiar. El contenido que carga el equipo
+  no se traduce.
 
 ## Mapa de gentío
 
@@ -366,6 +473,10 @@ a la misma persona.
 
 **El consentimiento es explícito.** Al encender la capa por primera vez se pregunta si
 quiere aportar su posición, con la opción de "solo mirar". Mirar no obliga a compartir.
+
+**«¿Dónde me hago?».** Con la capa encendida y muestra suficiente, sugiere hasta tres
+tramos con campo más adelante del desfile, con cuánto falta para que llegue a cada uno.
+Solo recomienda tramos que se SABE que están tranquilos; uno sin datos no se sugiere.
 
 **Lo que esta función NO puede hacer, y conviene tener presente:**
 
@@ -416,39 +527,41 @@ Decisiones que tuve que tomar porque el diseño no las cubría o no se podían m
 src/
   app/
     page.tsx              mapa en vivo
-    hoy/                  qué hay hoy
-    desfiles/             programación de los 6 días
-    fotos/                muro de fotos (armazón, sin backend)
-    reportero/            panel de los reporteros
-    admin/                panel de administración
+    hoy/ desfiles/ fotos/ las otras tres pestañas
+    privacidad/           qué datos usa la app (borrador)
+    reportero/ admin/     los paneles del equipo
+    error.tsx not-found.tsx robots.ts manifest.ts
     api/
       posiciones/         ingesta — la única puerta de entrada
-      estado/             snapshot + stream SSE
-      senda/              la ruta (cacheable)
-      comercios/          los comercios visibles (público)
+      estado/             snapshot + stream SSE del desfile actual
+      programacion/       desfiles y eventos (público)
+      desfiles/[id]/recorrido/  a qué hora pasó por cada hito
+      comercios/          los visibles (público) + contador de métricas
+      densidad/ dispositivo/    gentío e id anónimo firmado
+      avisos-push/        suscripción a «avisame cuando esté cerca»
+      fotos/              subir, listar y servir fotos
       reportero/sesion/   entrar y salir con el código
-      admin/              sesión, comercios, reporteros, estado del desfile
+      admin/              sesión, desfiles, eventos, avisos, comercios, reporteros, fotos
       simulacion/         el botón de demo (solo modo local)
+      salud/ senda/
   components/
-    Inicio.tsx            primera pantalla, antes de pedir el GPS
     MapaDesfile.tsx       MapLibre: senda en 3 tramos, marcadores, PDI
-    BarraEta.tsx          la hoja blanca: los 7 estados del ETA
-    Pantalla*.tsx         una por ruta
+    BarraEta.tsx          la hoja blanca: los estados del ETA, aviso y compartir
+    Pantalla*.tsx         una por pestaña
     PanelReportero.tsx    el panel de los reporteros
-    admin/                el panel de administración y su selector en el mapa
+    admin/                el panel de administración, una pestaña por archivo
   lib/
     senda.ts              proyección 1D (Turf)
-    eta.ts                velocidad, rangos, detención
-    mapa.ts               estilo y teselas del mapa base
-    sesion.ts             quién puede escribir: cookies firmadas, códigos, llave
-    datos/                adaptador local + adaptador Supabase (modo.ts: lo que ve el cliente)
-    simulacion/motor.ts   el desfile falso, compartido por script y botón
-  data/                   senda, programación, comercios de ejemplo y estilo del mapa
-design/                   el .dc.html original y lo extraído del export
-scripts/simular-desfile.ts
-scripts/generar-estilo-mapa.ts
+    eta.ts                velocidad, rangos, detención, sin señal
+    desfiles.ts fecha.ts  cuál es el desfile actual; fechas en hora de Pasto
+    sesion.ts             quién puede escribir: cookies firmadas, códigos, frenos
+    push.ts recorrido.ts  avisos de cercanía; paso por cada hito
+    i18n-textos.ts        español e inglés
+    datos/                adaptador local + Supabase (modo.ts: lo que ve el cliente)
+    *.test.ts             pruebas (npm test)
+  data/                   datos de ejemplo y estilo del mapa
+scripts/                  simular, generar estilo/íconos/llaves, copiar worker
 supabase/schema.sql
-public/sw.js              service worker
-public/fuentes/           Alfa Slab One (subconjunto latin)
-public/mapa/              teselas de Pasto (.pmtiles) y fuentes de las etiquetas
+public/sw.js              service worker: sin red, mapa y avisos push
+public/mapa/              teselas de Pasto y fuentes de las etiquetas
 ```

@@ -7,6 +7,7 @@
 <!-- Chequeos que corriste y pasos manuales para verificarlo. -->
 
 - [ ] `npm run typecheck`
+- [ ] `npm test`
 - [ ] Probado a mano en la app
 
 ## Capturas
