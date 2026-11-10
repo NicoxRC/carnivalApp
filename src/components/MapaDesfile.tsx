@@ -1,7 +1,8 @@
 "use client";
 
 import lineSliceAlong from "@turf/line-slice-along";
-import maplibregl, { type LngLatBoundsLike, type Map as MapaGL, type Marker } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import { type LngLatBoundsLike, type Map as MapaGL, type Marker } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 

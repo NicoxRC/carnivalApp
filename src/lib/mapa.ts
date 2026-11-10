@@ -1,4 +1,5 @@
-import maplibregl, { type LngLatBoundsLike } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import { type LngLatBoundsLike } from "maplibre-gl";
 import { Protocol } from "pmtiles";
 
 import capasBase from "@/data/estilo-mapa.json";

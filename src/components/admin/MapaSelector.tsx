@@ -1,6 +1,7 @@
 "use client";
 
-import maplibregl, { type Map as MapaGL, type Marker } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import { type Map as MapaGL, type Marker } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
 import { estiloMapa, LIMITES_TESELAS, ZOOM_MAX, ZOOM_MIN } from "@/lib/mapa";
