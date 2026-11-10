@@ -1,0 +1,10 @@
+# Finales de línea: siempre LF en el repo y en el disco. Antes había archivos
+# en CRLF y en LF mezclados, y cualquier herramienta que tocara uno lo
+# convertía entero: el diff mostraba el archivo completo como cambiado.
+* text=auto eol=lf
+
+# Binarios: git no debe intentar convertirlos ni mostrarlos como texto.
+*.pmtiles binary
+*.pbf binary
+*.woff2 binary
+*.png binary
