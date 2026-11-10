@@ -30,8 +30,12 @@ pidan: esta regla del repo tiene prioridad.
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npm run typecheck    # único chequeo que existe hoy (no hay lint ni tests todavía)
+npm run typecheck    # tipos
+npm test             # pruebas (node:test + tsx): src/**/*.test.ts. No hay lint todavía.
 npm run simular      # mueve un desfile falso por la senda
+npm run mapa:estilo  # regenera src/data/estilo-mapa.json (colores del mapa base)
+npm run push:llaves  # genera las llaves VAPID de los avisos push
+npm run iconos       # exporta los PNG desde public/icono.svg
 ```
 
 ## Skills
@@ -67,4 +71,25 @@ el lock) y actualiza esta tabla en el mismo PR.
 - **El adaptador de Supabase (`src/lib/datos/supabase.ts`) nunca se ejecutó** contra un
   proyecto real.
 - **Nunca expongas `SUPABASE_SERVICE_ROLE_KEY`** ni ninguna llave de servidor con prefijo
-  `NEXT_PUBLIC_`.
+  `NEXT_PUBLIC_`. Lo mismo para `ADMIN_CLAVE`, `SESION_SECRETO` e `INGESTA_TOKEN`.
+- **Toda escritura pasa por `src/lib/sesion.ts`.** Leer es público; escribir exige sesión
+  de admin, de reportero o la llave de ingesta. Una ruta nueva que escriba tiene que
+  pedirla. El rol de una posición lo pone el servidor, nunca el cuerpo del reportero.
+- **Los componentes de cliente importan `@/lib/datos/modo`, no `@/lib/datos`**: el índice
+  arrastra los adaptadores (código de servidor) al bundle del celular.
+- **No existe «el» desfile: existe el desfile ACTUAL**, que resuelve el servidor
+  (`resolverDesfile()` en `src/lib/datos`, regla en `src/lib/desfiles.ts`). El cliente
+  nunca manda un id de desfile. Un id que no existe da 404; jamás se crea por pedirlo.
+- **«Hoy» y «ahora» pasan por `src/lib/fecha.ts`** (hora de Pasto). Nada de
+  `toISOString().slice(0, 10)` ni `getHours()`.
+- **Un dato que el service worker sirvió desde la caché (`X-Desde-Cache`) no es un dato
+  nuevo.** `useEstadoDesfile` los distingue; no romper eso.
+- **Todo texto que ve el público va en `src/lib/i18n-textos.ts`**, en español e inglés.
+  El español conserva el voseo pastuso del diseño. Los paneles del equipo van solo en
+  español.
+- **Si el código empieza a guardar un dato nuevo de las personas, `/privacidad` cambia en
+  el mismo PR.**
+- **Si cambiás lógica de `eta.ts`, `senda.ts`, `desfiles.ts` o `fecha.ts`, agregá o
+  ajustá su prueba.**
+- **El mapa base es un archivo propio** (`public/mapa/pasto.pmtiles`). Si se cambia, hay
+  que subir `VERSION` en `public/sw.js`.

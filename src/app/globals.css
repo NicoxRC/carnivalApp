@@ -289,3 +289,8 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Punto de encuentro que alguien compartió: un pin, distinto de los círculos del desfile. */
+.marcador-encuentro {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}

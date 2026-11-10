@@ -7,24 +7,9 @@ import {
   INTERVALO_REPORTE_DENSIDAD_MS,
   type Densidad,
 } from "@/lib/densidad";
+import { obtenerDispositivo, olvidarDispositivo } from "@/lib/dispositivo";
 
-const CLAVE_DISPOSITIVO = "sed:dispositivo";
 const CLAVE_COMPARTIR = "sed:compartir-gentio";
-
-/** Aleatorio del navegador. Solo sirve para no contar dos veces al mismo celular. */
-function idDispositivo(): string {
-  try {
-    let id = localStorage.getItem(CLAVE_DISPOSITIVO);
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem(CLAVE_DISPOSITIVO, id);
-    }
-    return id;
-  } catch {
-    // Sin almacenamiento se genera uno por sesión: cuenta una vez y se olvida.
-    return crypto.randomUUID();
-  }
-}
 
 export type PermisoCompartir = "sin_decidir" | "si" | "no";
 
@@ -51,7 +36,6 @@ interface Resultado {
  * hace falta una respuesta explícita.
  */
 export function useDensidad(
-  desfileId: string,
   activo: boolean,
   metrosUsuario: number | null,
 ): Resultado {
@@ -80,9 +64,7 @@ export function useDensidad(
 
     const leer = async () => {
       try {
-        const r = await fetch(`/api/densidad?desfile=${encodeURIComponent(desfileId)}`, {
-          cache: "no-store",
-        });
+        const r = await fetch("/api/densidad", { cache: "no-store" });
         if (!r.ok) return;
         const d = (await r.json()) as Densidad;
         if (vivo) setDensidad(d);
@@ -98,7 +80,7 @@ export function useDensidad(
       vivo = false;
       clearInterval(t);
     };
-  }, [desfileId, activo]);
+  }, [activo]);
 
   // --- Aportar ---
   useEffect(() => {
@@ -108,15 +90,14 @@ export function useDensidad(
       const m = metros.current;
       if (m === null) return;
       try {
-        await fetch("/api/densidad", {
+        const dispositivo = await obtenerDispositivo();
+        if (!dispositivo) return;
+        const r = await fetch("/api/densidad", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            desfileId,
-            dispositivoId: idDispositivo(),
-            bin: binDeMetros(m),
-          }),
+          body: JSON.stringify({ dispositivo, bin: binDeMetros(m) }),
         });
+        if (r.status === 401) olvidarDispositivo();
       } catch {
         // Que no se pueda aportar no rompe nada: la capa se lee igual.
       }
@@ -125,7 +106,7 @@ export function useDensidad(
     void enviar();
     const t = setInterval(enviar, INTERVALO_REPORTE_DENSIDAD_MS);
     return () => clearInterval(t);
-  }, [desfileId, compartir]);
+  }, [compartir]);
 
   return { densidad, compartir, decidirCompartir };
 }

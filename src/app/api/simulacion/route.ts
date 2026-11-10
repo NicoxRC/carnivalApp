@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { datos, DESFILE_DEMO } from "@/lib/datos";
+import { datos, MODO_DATOS, resolverDesfile } from "@/lib/datos";
 import { SENDA } from "@/lib/senda";
 import { SimuladorDesfile } from "@/lib/simulacion/motor";
 
@@ -50,12 +50,36 @@ function resumen(desfileId: string) {
   };
 }
 
-export function GET(req: Request) {
-  const desfileId = new URL(req.url).searchParams.get("desfile") ?? DESFILE_DEMO;
+/**
+ * Solo existe en modo local. En modo supabase la app ya es «de verdad»: un
+ * botón público que mueve el desfile sería una puerta para mentirle a la senda.
+ */
+function soloLocal() {
+  return MODO_DATOS === "local"
+    ? null
+    : NextResponse.json({ error: "El simulador embebido solo funciona en modo local." }, { status: 404 });
+}
+
+/** El simulador mueve el desfile actual: el mismo que está viendo el público. */
+async function idActual(): Promise<string | null> {
+  return (await resolverDesfile())?.id ?? null;
+}
+
+const SIN_DESFILE = () =>
+  NextResponse.json({ error: "No hay ningún desfile programado. Creá uno en /admin." }, { status: 409 });
+
+export async function GET() {
+  const bloqueo = soloLocal();
+  if (bloqueo) return bloqueo;
+  const desfileId = await idActual();
+  if (!desfileId) return SIN_DESFILE();
   return NextResponse.json(resumen(desfileId));
 }
 
 export async function POST(req: Request) {
+  const bloqueo = soloLocal();
+  if (bloqueo) return bloqueo;
+
   let cuerpo: Record<string, unknown> = {};
   try {
     cuerpo = (await req.json()) as Record<string, unknown>;
@@ -63,8 +87,8 @@ export async function POST(req: Request) {
     // Cuerpo vacío = iniciar con valores por defecto.
   }
 
-  const desfileId =
-    typeof cuerpo.desfileId === "string" && cuerpo.desfileId ? cuerpo.desfileId : DESFILE_DEMO;
+  const desfileId = await idActual();
+  if (!desfileId) return SIN_DESFILE();
   const accion = typeof cuerpo.accion === "string" ? cuerpo.accion : "iniciar";
 
   if (accion === "detener") {
@@ -99,9 +123,7 @@ export async function POST(req: Request) {
 
   const tick = async () => {
     try {
-      for (const entrada of sim.avanzar(intervaloS, desfileId)) {
-        await adaptador.registrarPosicion(entrada);
-      }
+      await adaptador.registrarPosiciones(sim.avanzar(intervaloS, desfileId));
       if (sim.terminado) {
         detener(desfileId);
         await adaptador.fijarEstadoDesfile(desfileId, "finalizado");

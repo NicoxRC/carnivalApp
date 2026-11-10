@@ -10,12 +10,16 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0a0a0c",
-    theme_color: "#0a0a0c",
+    // El papel de la app, no el negro del tema oscuro que hubo antes: es el
+    // color de la pantalla de arranque al abrirla desde el ícono.
+    background_color: "#eceae2",
+    theme_color: "#eceae2",
     lang: "es-CO",
     icons: [
+      { src: "/icono-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icono-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icono-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       { src: "/icono.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-      { src: "/icono-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
     ],
   };
 }

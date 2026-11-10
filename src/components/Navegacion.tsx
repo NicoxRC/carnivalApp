@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { fijarIdioma, useIdioma } from "@/lib/i18n";
+
 /** Los cuatro iconos del diseño, como trazo de 2px sobre 24×24. */
 const ICONOS: Record<string, React.ReactNode> = {
   mapa: <path d="M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4l-5.5 2m0 12V6m0 0L9 4" />,
@@ -29,14 +31,19 @@ const ICONOS: Record<string, React.ReactNode> = {
 };
 
 const TABS = [
-  { href: "/", etiqueta: "Mapa", icono: "mapa" },
-  { href: "/hoy", etiqueta: "Hoy", icono: "hoy" },
-  { href: "/desfiles", etiqueta: "Desfiles", icono: "desfiles" },
-  { href: "/fotos", etiqueta: "Fotos", icono: "fotos" },
-];
+  { href: "/", clave: "nav.mapa", icono: "mapa" },
+  { href: "/hoy", clave: "nav.hoy", icono: "hoy" },
+  { href: "/desfiles", clave: "nav.desfiles", icono: "desfiles" },
+  { href: "/fotos", clave: "nav.fotos", icono: "fotos" },
+] as const;
 
 export function Navegacion() {
   const ruta = usePathname();
+  const { idioma, t } = useIdioma();
+
+  // Los paneles del equipo no son pestañas del público: no llevan esta barra,
+  // y al reportero le quita la tentación de salirse del panel en plena senda.
+  if (ruta.startsWith("/admin") || ruta.startsWith("/reportero")) return null;
 
   return (
     <nav
@@ -48,12 +55,12 @@ export function Navegacion() {
       }
     >
       <ul className="mx-auto flex max-w-lg px-1 pt-1.5 lg:mx-0 lg:max-w-none lg:flex-col lg:gap-1 lg:px-2 lg:pt-4">
-        {TABS.map((t) => {
-          const activo = ruta === t.href;
+        {TABS.map((tab) => {
+          const activo = ruta === tab.href;
           return (
-            <li key={t.href} className="flex-1 lg:flex-none">
+            <li key={tab.href} className="flex-1 lg:flex-none">
               <Link
-                href={t.href}
+                href={tab.href}
                 aria-current={activo ? "page" : undefined}
                 className="flex flex-col items-center gap-[3px] rounded-xl py-2 lg:py-3 lg:hover:bg-papel-2"
               >
@@ -68,19 +75,31 @@ export function Navegacion() {
                   strokeLinejoin="round"
                   aria-hidden
                 >
-                  {ICONOS[t.icono]}
+                  {ICONOS[tab.icono]}
                 </svg>
                 <span
                   className={`text-[11px] ${
                     activo ? "font-extrabold text-cabeza" : "font-bold text-tinta-4"
                   }`}
                 >
-                  {t.etiqueta}
+                  {t(tab.clave)}
                 </span>
               </Link>
             </li>
           );
         })}
+        {/* Solo en escritorio: en el celular el cambio de idioma está en la
+            pantalla de inicio y en la de privacidad, para no robarle una
+            quinta parte de la barra a algo que se toca una vez. */}
+        <li className="hidden lg:mt-auto lg:block">
+          <button
+            type="button"
+            onClick={() => fijarIdioma(idioma === "es" ? "en" : "es")}
+            className="w-full rounded-xl py-3 text-[11px] font-bold text-tinta-3 hover:bg-papel-2"
+          >
+            {t("nav.idioma")}
+          </button>
+        </li>
       </ul>
     </nav>
   );

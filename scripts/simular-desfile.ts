@@ -4,12 +4,16 @@
  *   npm run simular
  *   npm run simular -- --velocidad=1.5 --desfile=demo
  *   npm run simular -- --url=https://sigue-el-desfile.vercel.app --intervalo=12
+ *   INGESTA_TOKEN=… npm run simular -- --url=https://…
  *
  * Recorre la senda con un tracker falso y hace POST a /api/posiciones
  * exactamente igual que lo haría el celular de un reportero: mismo endpoint,
  * mismo payload, misma validación. No hay un camino "de mentiras" paralelo.
  *
  * Requiere que la app esté corriendo (`npm run dev` en otra terminal).
+ *
+ * Contra un despliegue (o en local con INGESTA_TOKEN definido) hace falta la
+ * llave de ingesta: se lee de la variable INGESTA_TOKEN o de --token.
  */
 
 import { SENDA } from "../src/lib/senda";
@@ -23,6 +27,7 @@ interface Opciones {
   separacion: number;
   paradas: boolean;
   inicio: number;
+  token: string | null;
 }
 
 function leerArgumentos(argv: string[]): Opciones {
@@ -51,6 +56,7 @@ function leerArgumentos(argv: string[]): Opciones {
     separacion: num("separacion", 550),
     paradas: mapa.get("paradas") !== "false",
     inicio: num("inicio", 0),
+    token: mapa.get("token") ?? process.env.INGESTA_TOKEN ?? null,
   };
 }
 
@@ -87,7 +93,10 @@ async function enviar() {
   try {
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(o.token ? { Authorization: `Bearer ${o.token}` } : {}),
+      },
       // Las tres posiciones en un solo POST: menos viajes, que es lo que hará
       // el reportero real cuando la red esté saturada.
       body: JSON.stringify(entradas),
@@ -97,6 +106,9 @@ async function enviar() {
       fallidos++;
       const texto = await res.text().catch(() => "");
       console.error(`  ✗ ${res.status} ${texto.slice(0, 160)}`);
+      if (res.status === 401) {
+        console.error("    Falta la llave: define INGESTA_TOKEN o pasa --token=…");
+      }
       return;
     }
     enviados++;

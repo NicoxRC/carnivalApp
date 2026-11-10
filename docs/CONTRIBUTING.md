@@ -103,6 +103,13 @@ El área afectada. Los alcances de este proyecto:
 | `datos` | Los adaptadores de datos (`src/lib/datos/`) |
 | `api` | Las rutas de `src/app/api/` |
 | `simulacion` | El motor de simulación y el script `simular` |
+| `reportero` | El panel de los reporteros (`/reportero`, `useReporte`) |
+| `admin` | El panel de administración (`/admin`, `src/app/api/admin/`) |
+| `programacion` | Desfiles y eventos: el desfile actual, «Hoy», «Desfiles» |
+| `fotos` | El muro de fotos y su moderación |
+| `avisos` | Avisos push de cercanía y mensajes del equipo a todos |
+| `i18n` | Textos en español e inglés |
+| `seguridad` | Sesiones, frenos, cabeceras, validación de entradas |
 | `ui` | Pantallas y componentes que no encajan en otro alcance |
 | `pwa` | Service worker, manifest, íconos |
 | `deps` | Dependencias |
@@ -148,8 +155,8 @@ descarta la medición y se usa la última velocidad válida.
 ### Antes de abrir el PR
 
 - [ ] La rama está actualizada con `trunk` (`git fetch origin && git rebase origin/trunk`)
-- [ ] Los chequeos del proyecto pasan localmente (hoy: `npm run typecheck`; cuando existan
-      `npm run lint` y `npm run test`, también)
+- [ ] Los chequeos del proyecto pasan localmente (`npm run typecheck` y `npm test`; cuando exista
+      `npm run lint`, también)
 - [ ] Probaste el cambio a mano (para la UI: abriste la app y lo viste funcionar)
 - [ ] No hay secretos en el diff: ni `.env`, ni llaves, ni tokens
 - [ ] No quedaron `console.log` de depuración ni código comentado
