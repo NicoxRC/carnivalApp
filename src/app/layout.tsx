@@ -10,6 +10,8 @@ export const metadata: Metadata = {
     "Dónde va el desfile del Carnaval de Negros y Blancos, en vivo, y cuánto falta para que llegue a donde estás.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Sigue el Desfile" },
+  // iOS no acepta SVG para el ícono de la pantalla de inicio.
+  icons: { icon: "/icono.svg", apple: "/icono-180.png" },
 };
 
 export const viewport: Viewport = {
