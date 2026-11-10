@@ -20,12 +20,13 @@
 
 // Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
 // se guarda por su ruta, así que sin esto los celulares se quedan con el viejo.
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE_APP = `sed-app-${VERSION}`;
 const CACHE_MAPA = `sed-mapa-${VERSION}`;
 const CACHE_DATOS = `sed-datos-${VERSION}`;
 
 const RUTA_TESELAS = "/mapa/pasto.pmtiles";
+const ICONO_AVISO = "/icono-192.png";
 
 const PRECARGA = [
   "/",
@@ -34,6 +35,10 @@ const PRECARGA = [
   "/fotos",
   "/api/senda",
   "/icono.svg",
+  "/icono-192.png",
+  "/mapa/maplibre-worker.mjs",
+  "/api/programacion",
+  "/api/comercios",
   "/manifest.webmanifest",
   // La tipografía de display va cacheada: sin ella el titular del ETA cae a
   // la serif del sistema, que descuadra la hoja entera.
@@ -126,24 +131,29 @@ async function cachePrimero(req, nombreCache) {
  */
 let bufferTeselas = null;
 
-async function archivoTeselas() {
-  if (bufferTeselas) return bufferTeselas;
+let rutaDelBuffer = null;
+
+/* `ruta` y no una constante: el archivo puede vivir en otra ruta del mismo
+   origen (NEXT_PUBLIC_MAPA_PMTILES). Solo se guarda uno en memoria. */
+async function archivoTeselas(ruta) {
+  if (bufferTeselas && rutaDelBuffer === ruta) return bufferTeselas;
   const cache = await caches.open(CACHE_MAPA);
-  let res = await cache.match(RUTA_TESELAS);
+  let res = await cache.match(ruta);
   if (!res) {
-    const red = await fetch(RUTA_TESELAS);
+    const red = await fetch(ruta);
     if (!red.ok || red.status !== 200) return null;
-    await cache.put(RUTA_TESELAS, red.clone());
+    await cache.put(ruta, red.clone());
     res = red;
   }
   bufferTeselas = await res.arrayBuffer();
+  rutaDelBuffer = ruta;
   return bufferTeselas;
 }
 
 async function servirTeselas(req) {
   let buffer = null;
   try {
-    buffer = await archivoTeselas();
+    buffer = await archivoTeselas(new URL(req.url).pathname);
   } catch {
     // Sin caché y sin red: abajo se intenta la petición original.
   }
@@ -184,7 +194,9 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname === RUTA_TESELAS) {
+  // Cualquier .pmtiles de nuestro origen. Uno servido desde OTRO dominio no pasa
+  // por aquí (ver el `return` de arriba) y por tanto no queda disponible sin red.
+  if (url.pathname.endsWith(".pmtiles")) {
     event.respondWith(servirTeselas(req).catch(() => Response.error()));
     return;
   }
@@ -192,7 +204,8 @@ self.addEventListener("fetch", (event) => {
   if (
     url.pathname === "/api/estado" ||
     url.pathname === "/api/senda" ||
-    url.pathname === "/api/comercios"
+    url.pathname === "/api/comercios" ||
+    url.pathname === "/api/programacion"
   ) {
     event.respondWith(redPrimeroConRespaldo(req, CACHE_DATOS).catch(() => Response.error()));
     return;
@@ -212,7 +225,43 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icono") ||
     url.pathname.startsWith("/fuentes/") ||
-    url.pathname.startsWith("/mapa/fuentes/")) {
+    url.pathname.startsWith("/mapa/fuentes/") ||
+    url.pathname === "/mapa/maplibre-worker.mjs") {
     event.respondWith(cachePrimero(req, CACHE_APP).catch(() => Response.error()));
   }
+});
+
+/* ------------------------------------------------------------------ */
+/* Avisos "el desfile está cerca"                                      */
+/* ------------------------------------------------------------------ */
+
+self.addEventListener("push", (event) => {
+  let datos = {};
+  try {
+    datos = event.data ? event.data.json() : {};
+  } catch {
+    // Un push sin cuerpo legible igual tiene que mostrar algo: el navegador lo exige.
+  }
+  event.waitUntil(
+    self.registration.showNotification(datos.titulo || "Sigue el Desfile", {
+      body: datos.cuerpo || "El desfile se está acercando a donde estás.",
+      icon: ICONO_AVISO,
+      badge: ICONO_AVISO,
+      tag: "desfile-cerca",
+      vibrate: [200, 100, 200],
+      data: { url: datos.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const destino = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      // Si la app ya está abierta se trae al frente, en vez de abrir otra.
+      for (const v of ventanas) if ("focus" in v) return v.focus();
+      return self.clients.openWindow(destino);
+    }),
+  );
 });

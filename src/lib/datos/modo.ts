@@ -10,5 +10,3 @@ export type ModoDatos = "local" | "supabase";
 
 export const MODO_DATOS: ModoDatos =
   process.env.NEXT_PUBLIC_DATOS === "supabase" ? "supabase" : "local";
-
-export { DESFILE_DEMO } from "@/lib/datos/adaptador";

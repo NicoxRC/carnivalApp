@@ -9,7 +9,13 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "simular": "tsx scripts/simular-desfile.ts",
-    "mapa:estilo": "tsx scripts/generar-estilo-mapa.ts"
+    "mapa:estilo": "tsx scripts/generar-estilo-mapa.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "push:llaves": "tsx scripts/generar-llaves-push.ts",
+    "iconos": "tsx scripts/generar-iconos.ts",
+    "mapa:worker": "node scripts/copiar-worker-mapa.mjs",
+    "predev": "npm run -s mapa:worker",
+    "prebuild": "npm run -s mapa:worker"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -33,6 +39,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/web-push": "^3.6.4",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.20.0",
     "typescript": "^5.9.2"

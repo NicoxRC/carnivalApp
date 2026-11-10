@@ -39,6 +39,9 @@ let protocoloRegistrado = false;
 export function estiloMapa(): maplibregl.StyleSpecification {
   if (!protocoloRegistrado) {
     maplibregl.addProtocol("pmtiles", new Protocol().tile);
+    // MapLibre 6 no trae el worker embebido: se sirve desde nuestro dominio
+    // (lo copia `npm run mapa:worker` antes de cada dev/build).
+    maplibregl.setWorkerUrl(`${window.location.origin}/mapa/maplibre-worker.mjs`);
     protocoloRegistrado = true;
   }
   // MapLibre exige URLs absolutas para las teselas y las fuentes.

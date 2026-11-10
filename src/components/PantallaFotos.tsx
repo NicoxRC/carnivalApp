@@ -1,123 +1,133 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { obtenerDispositivo, olvidarDispositivo } from "@/lib/dispositivo";
+import { useUbicacion } from "@/lib/hooks/useUbicacion";
+import { useIdioma } from "@/lib/i18n";
+import { reducirFoto } from "@/lib/imagen";
+import { DESVIO_MAX_USUARIO_M, hitoMasCercano } from "@/lib/senda";
+import type { Foto } from "@/lib/tipos";
 
 /**
- * Muro de fotos.
+ * Muro de fotos del público.
  *
- * La pantalla está montada pero SIN CONTENIDO REAL: subir fotos es Fase 2 y
- * necesita autenticación, almacenamiento y moderación. Las baldosas de abajo son
- * el hueco del diseño, no fotos.
+ * Cualquiera sube; nada se publica sin que alguien del equipo lo apruebe. El
+ * contenido inapropiado bajo el nombre del Carnaval es un problema de
+ * reputación, no un detalle de producto.
  *
- * Lo que sí se descartó a propósito son los @usuarios y los contadores de "me
- * gusta" que traía el diseño: inventar nombres de gente y cifras de likes en una
- * app que lleva el nombre del Carnaval es fabricar prueba social falsa. Se pintan
- * en cuanto haya fotos de verdad.
+ * No hay @usuarios ni contadores de "me gusta" (el diseño los traía): no hay
+ * cuentas, y una cifra de likes inventada es prueba social falsa. Cada foto
+ * dice lo único que se sabe de ella: por qué parte de la senda se tomó.
  */
-
-const HUECOS = [
-  { alto: 190, de: "#1487cc", a: "#0f6ba3", icono: "#bfe0f2" },
-  { alto: 130, de: "#ff6a1f", a: "#ffc61a", icono: "#fff5e0" },
-  { alto: 150, de: "#a06bff", a: "#6d3fd1", icono: "#e7dcff" },
-  { alto: 170, de: "#0f8f5f", a: "#0b6e49", icono: "#d6f0e4" },
-];
-
-const ORDENES = [
-  { id: "nuevo", etiqueta: "Lo más nuevo" },
-  { id: "pichanga", etiqueta: "Lo más pichanga" },
-] as const;
+type Subida = "nada" | "subiendo" | "enviada" | "error";
 
 export function PantallaFotos() {
-  const [orden, setOrden] = useState<(typeof ORDENES)[number]["id"]>("nuevo");
+  const { t } = useIdioma();
+  const { ubicacion } = useUbicacion();
+  const [fotos, setFotos] = useState<Foto[] | null>(null);
+  const [subida, setSubida] = useState<Subida>("nada");
+  const entrada = useRef<HTMLInputElement>(null);
+
+  const leer = useCallback(() => {
+    fetch("/api/fotos")
+      .then((r) => (r.ok ? (r.json() as Promise<{ fotos: Foto[] }>) : null))
+      .then((d) => d && setFotos(d.fotos))
+      .catch(() => setFotos((f) => f ?? []));
+  }, []);
+
+  useEffect(leer, [leer]);
+
+  const subir = async (archivo: File) => {
+    setSubida("subiendo");
+    try {
+      const [jpeg, dispositivo] = await Promise.all([reducirFoto(archivo), obtenerDispositivo()]);
+      if (!dispositivo) throw new Error("sin dispositivo");
+      const form = new FormData();
+      form.set("foto", jpeg, "foto.jpg");
+      form.set("dispositivo", dispositivo);
+      // Solo el tramo de la senda, y solo si está sobre ella: nunca lat/lng.
+      if (ubicacion && ubicacion.proyeccion.desvioM <= DESVIO_MAX_USUARIO_M) {
+        form.set("metros", String(Math.round(ubicacion.proyeccion.metros)));
+      }
+      const r = await fetch("/api/fotos", { method: "POST", body: form });
+      if (r.status === 401) olvidarDispositivo();
+      setSubida(r.ok ? "enviada" : "error");
+    } catch {
+      setSubida("error");
+    }
+  };
 
   return (
     <div className="flex-1 bg-papel-3">
       <div className="mx-auto w-full max-w-lg lg:max-w-5xl">
         <header className="pt-seguro px-5 pb-3 lg:px-6 lg:pt-8">
-          <h1 className="fuente-display text-[34px] leading-none text-tinta">Fotos</h1>
-          <p className="mt-1.5 text-sm text-tinta-3">
-            Subí las tuyas y mirá las de todo el mundo
-          </p>
+          <h1 className="fuente-display text-[34px] leading-none text-tinta">{t("fotos.titulo")}</h1>
+          <p className="mt-1.5 text-sm text-tinta-3">{t("fotos.sub")}</p>
         </header>
 
-        <div className="flex gap-2 px-4 pt-1.5 pb-3 lg:px-6">
-          {ORDENES.map((o) => {
-            const activo = orden === o.id;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setOrden(o.id)}
-                aria-pressed={activo}
-                className={`flex h-8 items-center rounded-2xl px-3.5 text-[13px] font-bold ${
-                  activo
-                    ? "bg-tinta text-papel"
-                    : "border border-borde-2 bg-blanco text-tinta-3"
-                }`}
-              >
-                {o.etiqueta}
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="mx-4 mb-3.5 rounded-xl bg-papel lg:mx-6 px-3 py-2 text-[11px] leading-snug font-semibold text-aviso-txt">
-          Así se va a ver. Todavía no hay fotos: subirlas llega en la fase 2, y ninguna se
-          publica sin pasar por moderación.
-        </p>
-
-        <div className="px-4 pb-6 lg:px-6">
-          <div className="[column-count:2] [column-gap:12px] lg:[column-count:4] lg:[column-gap:16px]">
-            {HUECOS.map((h, i) => (
-              <div
-                key={i}
-                className="mb-3 overflow-hidden rounded-2xl border border-[#e9e6dd] bg-blanco shadow-[0_6px_16px_-12px_rgba(0,0,0,0.4)] [break-inside:avoid]"
-                aria-hidden
-              >
-                <div
-                  className="grid place-items-center"
-                  style={{
-                    height: h.alto,
-                    background: `linear-gradient(140deg, ${h.de}, ${h.a})`,
-                  }}
-                >
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={h.icono}
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
-                    <circle cx="12" cy="13" r="3.5" />
-                  </svg>
-                </div>
-                <div className="px-3 py-2.5">
-                  <div className="h-2.5 w-2/3 rounded-full bg-borde" />
-                  <div className="mt-2 h-2.5 w-1/3 rounded-full bg-borde" />
-                </div>
-              </div>
-            ))}
-          </div>
-
+        <div className="px-4 lg:px-6">
+          <input
+            ref={entrada}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const archivo = e.target.files?.[0];
+              e.target.value = "";
+              if (archivo) void subir(archivo);
+            }}
+          />
           <button
             type="button"
-            disabled
-            title="Disponible en la fase 2"
-            className="mt-1 flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-tinta text-base font-extrabold text-papel opacity-45 lg:mx-auto lg:max-w-sm"
+            disabled={subida === "subiendo"}
+            onClick={() => entrada.current?.click()}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-tinta text-[15px] font-extrabold text-papel active:opacity-90 disabled:opacity-60 lg:w-auto lg:px-8"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-cabeza)" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-cabeza)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
               <circle cx="12" cy="13" r="3.2" />
             </svg>
-            Subí tu foto
+            {subida === "subiendo" ? t("fotos.subiendo") : t("fotos.subir")}
           </button>
-          <p className="mt-2 text-center text-[12px] text-tinta-4">
-            Se activa cuando esté lista la moderación.
+
+          <p
+            role="status"
+            className={`mt-2.5 rounded-xl px-3 py-2 text-[12px] leading-snug font-semibold ${
+              subida === "enviada"
+                ? "bg-[#e3f3ea] text-ok"
+                : subida === "error"
+                  ? "bg-[#fbe9e7] text-alerta"
+                  : "bg-papel text-aviso-txt"
+            }`}
+          >
+            {subida === "enviada" ? t("fotos.enviada") : subida === "error" ? t("fotos.error") : t("fotos.reglas")}
           </p>
+        </div>
+
+        <div className="px-4 pt-4 pb-6 lg:px-6">
+          {fotos !== null && fotos.length === 0 && (
+            <p className="py-8 text-center text-[15px] text-tinta-3">{t("fotos.vacio")}</p>
+          )}
+          <div className="[column-count:2] [column-gap:12px] lg:[column-count:4] lg:[column-gap:16px]">
+            {(fotos ?? []).map((f) => {
+              const lugar = f.metros !== null ? hitoMasCercano(f.metros)?.nombre : null;
+              return (
+                <figure
+                  key={f.id}
+                  className="mb-3 overflow-hidden rounded-2xl border border-[#e9e6dd] bg-blanco shadow-[0_6px_16px_-12px_rgba(0,0,0,0.4)] [break-inside:avoid]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- ya viene reducida; el optimizador de Next no aporta y abre superficie */}
+                  <img src={f.url} alt="" loading="lazy" className="block w-full" />
+                  {lugar && (
+                    <figcaption className="px-3 py-2 text-[12px] font-semibold text-tinta-3">
+                      {t("fotos.en", { lugar })}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

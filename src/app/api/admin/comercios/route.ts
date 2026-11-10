@@ -12,7 +12,8 @@ export async function GET() {
   const no = await requiereAdmin();
   if (no) return no;
   try {
-    return NextResponse.json({ comercios: await datos().listarComercios() }, sinCache);
+    const [comercios, metricas] = await Promise.all([datos().listarComercios(), datos().leerMetricas()]);
+    return NextResponse.json({ comercios, metricas }, sinCache);
   } catch (e) {
     return errorInterno(e);
   }

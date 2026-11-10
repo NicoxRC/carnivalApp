@@ -20,6 +20,9 @@ export async function leerJson(req: Request): Promise<Record<string, unknown> | 
 
 export function errorInterno(e: unknown) {
   const msg = e instanceof Error ? e.message : "Error desconocido.";
+  // Que quede en los registros del servidor: si no, un fallo de la base el día
+  // del desfile solo lo vería quien tuviera la app abierta.
+  console.error("[api]", e);
   return NextResponse.json({ error: msg }, { status: 500 });
 }
 

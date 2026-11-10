@@ -114,8 +114,7 @@ create index if not exists presencias_desfile_visto_idx
 create table if not exists comercios (
   id            text primary key,
   nombre        text not null,
-  categoria     text not null check (categoria in
-                  ('restaurante','tasca','cafe','heladeria','panaderia','tienda','bar','farmacia')),
+  categoria     text not null,
   descripcion   text,
   direccion     text,
   horario       text,
@@ -126,6 +125,64 @@ create table if not exists comercios (
   visible       boolean not null default true,
   actualizado_en timestamptz not null default now()
 );
+
+-- Menú, contacto y momento de la oferta: lo que se vende con el plan.
+alter table comercios add column if not exists menu jsonb not null default '[]';
+alter table comercios add column if not exists whatsapp text;
+alter table comercios add column if not exists enlace text;
+alter table comercios add column if not exists promo_momento text not null default 'siempre'
+  check (promo_momento in ('siempre','antes','despues'));
+
+-- La lista de categorías crece (servicios: baños, agua, salud…): el check se
+-- recrea entero para que este archivo se pueda volver a ejecutar.
+alter table comercios drop constraint if exists comercios_categoria_check;
+alter table comercios add constraint comercios_categoria_check check (categoria in
+  ('restaurante','tasca','cafe','heladeria','panaderia','tienda','bar','farmacia',
+   'bano','hidratacion','salud','policia','cierre'));
+
+-- Lo que se le cuenta al anunciante: vistas de ficha, toques en WhatsApp…
+-- Un contador por comercio, día y tipo; nunca quién lo tocó.
+create table if not exists comercio_metricas (
+  comercio_id text not null references comercios(id) on delete cascade,
+  dia         date not null default current_date,
+  tipo        text not null check (tipo in ('ficha','mapa','menu','whatsapp','enlace','oferta')),
+  conteo      integer not null default 0,
+  primary key (comercio_id, dia, tipo)
+);
+
+create or replace function sumar_metrica(p_comercio text, p_tipo text)
+returns void language sql as $$
+  insert into comercio_metricas (comercio_id, dia, tipo, conteo)
+  values (p_comercio, current_date, p_tipo, 1)
+  on conflict (comercio_id, dia, tipo) do update set conteo = comercio_metricas.conteo + 1;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Mensajes del equipo a todos los usuarios
+-- ---------------------------------------------------------------------
+create table if not exists avisos (
+  id        text primary key,
+  texto     text not null,
+  nivel     text not null default 'info' check (nivel in ('info','alerta')),
+  creado_en timestamptz not null default now(),
+  expira_en timestamptz
+);
+
+-- ---------------------------------------------------------------------
+-- Avisos push "el desfile está cerca". Una fila por dispositivo; se borra
+-- al avisar. No guarda quién es: solo a dónde mandar y en qué metro espera.
+-- ---------------------------------------------------------------------
+create table if not exists suscripciones_aviso (
+  endpoint   text primary key,
+  p256dh     text not null,
+  auth       text not null,
+  desfile_id text not null references desfiles(id) on delete cascade,
+  metros     numeric not null,
+  umbral_min integer not null default 10,
+  creado_en  timestamptz not null default now()
+);
+
+create index if not exists suscripciones_aviso_desfile_idx on suscripciones_aviso (desfile_id);
 
 -- ---------------------------------------------------------------------
 -- Fotos del público (Fase 2). Nada se publica sin aprobación.
@@ -149,7 +206,7 @@ create index if not exists fotos_estado_creado_idx on fotos (estado, creado_en d
 -- Programación del día
 -- ---------------------------------------------------------------------
 create table if not exists eventos (
-  id            uuid primary key default gen_random_uuid(),
+  id            text primary key default gen_random_uuid()::text,
   fecha         date not null,
   hora_inicio   time not null,
   hora_fin      time,
@@ -201,7 +258,25 @@ alter table eventos
 -- =====================================================================
 -- Realtime
 -- =====================================================================
-alter publication supabase_realtime add table posiciones;
+-- `add table` falla si la tabla ya está en la publicación; se atrapa para que
+-- este archivo se pueda ejecutar más de una vez.
+do $$
+begin
+  alter publication supabase_realtime add table posiciones;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table avisos;
+exception when duplicate_object then null;
+end $$;
+
+-- Bucket de fotos. Privado: las fotos se sirven por /api/fotos/[id], que solo
+-- entrega las aprobadas (o cualquiera, a un administrador).
+insert into storage.buckets (id, name, public)
+values ('fotos', 'fotos', false)
+on conflict (id) do nothing;
 
 -- =====================================================================
 -- RLS
@@ -219,6 +294,9 @@ alter table fotos      enable row level security;
 alter table presencias enable row level security;
 alter table comercios  enable row level security;
 alter table reporteros enable row level security;
+alter table avisos              enable row level security;
+alter table comercio_metricas   enable row level security;
+alter table suscripciones_aviso enable row level security;
 
 drop policy if exists "lectura publica sendas" on sendas;
 create policy "lectura publica sendas" on sendas for select using (true);
@@ -241,6 +319,12 @@ create policy "lectura fotos aprobadas" on fotos for select using (estado = 'apr
 drop policy if exists "lectura comercios visibles" on comercios;
 create policy "lectura comercios visibles" on comercios for select using (visible);
 
+-- Los avisos son públicos (y Realtime los necesita legibles).
+drop policy if exists "lectura publica avisos" on avisos;
+create policy "lectura publica avisos" on avisos for select using (true);
+
+-- `comercio_metricas` y `suscripciones_aviso` no llevan policy: solo el servidor.
+
 -- `reporteros` no lleva policy: sus nombres y el hash del código solo los lee
 -- el servidor (service_role).
 
@@ -259,3 +343,4 @@ create policy "lectura comercios visibles" on comercios for select using (visibl
 insert into desfiles (id, nombre, fecha, hora_inicio, estado)
 values ('demo', 'Desfile Magno (demo)', current_date, '09:00', 'programado')
 on conflict (id) do nothing;
+-- Los desfiles reales de cada día se crean desde /admin, pestaña Programación.

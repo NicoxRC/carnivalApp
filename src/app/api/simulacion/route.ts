@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { datos, DESFILE_DEMO, MODO_DATOS } from "@/lib/datos";
+import { datos, MODO_DATOS, resolverDesfile } from "@/lib/datos";
 import { SENDA } from "@/lib/senda";
 import { SimuladorDesfile } from "@/lib/simulacion/motor";
 
@@ -60,10 +60,19 @@ function soloLocal() {
     : NextResponse.json({ error: "El simulador embebido solo funciona en modo local." }, { status: 404 });
 }
 
-export function GET(req: Request) {
+/** El simulador mueve el desfile actual: el mismo que está viendo el público. */
+async function idActual(): Promise<string | null> {
+  return (await resolverDesfile())?.id ?? null;
+}
+
+const SIN_DESFILE = () =>
+  NextResponse.json({ error: "No hay ningún desfile programado. Creá uno en /admin." }, { status: 409 });
+
+export async function GET() {
   const bloqueo = soloLocal();
   if (bloqueo) return bloqueo;
-  const desfileId = new URL(req.url).searchParams.get("desfile") ?? DESFILE_DEMO;
+  const desfileId = await idActual();
+  if (!desfileId) return SIN_DESFILE();
   return NextResponse.json(resumen(desfileId));
 }
 
@@ -78,8 +87,8 @@ export async function POST(req: Request) {
     // Cuerpo vacío = iniciar con valores por defecto.
   }
 
-  const desfileId =
-    typeof cuerpo.desfileId === "string" && cuerpo.desfileId ? cuerpo.desfileId : DESFILE_DEMO;
+  const desfileId = await idActual();
+  if (!desfileId) return SIN_DESFILE();
   const accion = typeof cuerpo.accion === "string" ? cuerpo.accion : "iniciar";
 
   if (accion === "detener") {
@@ -114,9 +123,7 @@ export async function POST(req: Request) {
 
   const tick = async () => {
     try {
-      for (const entrada of sim.avanzar(intervaloS, desfileId)) {
-        await adaptador.registrarPosicion(entrada);
-      }
+      await adaptador.registrarPosiciones(sim.avanzar(intervaloS, desfileId));
       if (sim.terminado) {
         detener(desfileId);
         await adaptador.fijarEstadoDesfile(desfileId, "finalizado");

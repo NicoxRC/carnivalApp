@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { distanciaCorta, haceCuanto } from "@/lib/formato";
 import { useReloj } from "@/lib/hooks/useEstadoDesfile";
-import { INTERVALO_ENVIO_MS, useReporte, type Reporte } from "@/lib/hooks/useReporte";
+import { INTERVALO_ENVIO_MS, PRECISION_ACEPTABLE_M, useReporte, type Reporte } from "@/lib/hooks/useReporte";
 import { metrosEnSenda, referenciaEnSenda, SENDA } from "@/lib/senda";
 import type { Reportero, Rol } from "@/lib/tipos";
 
@@ -23,15 +23,26 @@ const ROL: Record<Rol, { nombre: string; color: string; ayuda: string }> = {
   cola: { nombre: "Cola", color: "bg-cola", ayuda: "Caminá con lo último del desfile." },
 };
 
-type Sesion = { estado: "cargando" } | { estado: "fuera" } | { estado: "dentro"; reportero: Reportero };
+type Sesion =
+  | { estado: "cargando" }
+  | { estado: "fuera" }
+  | { estado: "dentro"; reportero: Reportero; desfile: string | null };
 
 export function PanelReportero() {
   const [sesion, setSesion] = useState<Sesion>({ estado: "cargando" });
 
   useEffect(() => {
     fetch("/api/reportero/sesion", { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ reportero: Reportero | null }>) : { reportero: null }))
-      .then((d) => setSesion(d.reportero ? { estado: "dentro", reportero: d.reportero } : { estado: "fuera" }))
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{ reportero: Reportero | null; desfile?: string | null }>)
+          : { reportero: null, desfile: null },
+      )
+      .then((d) =>
+        setSesion(
+          d.reportero ? { estado: "dentro", reportero: d.reportero, desfile: d.desfile ?? null } : { estado: "fuera" },
+        ),
+      )
       .catch(() => setSesion({ estado: "fuera" }));
   }, []);
 
@@ -43,10 +54,11 @@ export function PanelReportero() {
         {sesion.estado === "cargando" ? (
           <p className="m-auto text-sm text-tinta-4">Cargando…</p>
         ) : sesion.estado === "fuera" ? (
-          <Entrar onEntrar={(reportero) => setSesion({ estado: "dentro", reportero })} />
+          <Entrar onEntrar={(reportero, desfile) => setSesion({ estado: "dentro", reportero, desfile })} />
         ) : (
           <Reportando
             reportero={sesion.reportero}
+            desfile={sesion.desfile}
             onSalir={() => setSesion({ estado: "fuera" })}
             onVencida={alVencer}
           />
@@ -58,7 +70,7 @@ export function PanelReportero() {
 
 /* --------------------------------- Entrar -------------------------------- */
 
-function Entrar({ onEntrar }: { onEntrar: (r: Reportero) => void }) {
+function Entrar({ onEntrar }: { onEntrar: (r: Reportero, desfile: string | null) => void }) {
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -73,9 +85,9 @@ function Entrar({ onEntrar }: { onEntrar: (r: Reportero) => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo }),
       });
-      const d = (await r.json()) as { reportero?: Reportero; error?: string };
+      const d = (await r.json()) as { reportero?: Reportero; desfile?: string | null; error?: string };
       if (!r.ok || !d.reportero) setError(d.error ?? "No se pudo entrar.");
-      else onEntrar(d.reportero);
+      else onEntrar(d.reportero, d.desfile ?? null);
     } catch {
       setError("Sin conexión. Intentá otra vez cuando tengas señal.");
     } finally {
@@ -118,16 +130,21 @@ function Entrar({ onEntrar }: { onEntrar: (r: Reportero) => void }) {
 
 function Reportando({
   reportero,
+  desfile,
   onSalir,
   onVencida,
 }: {
   reportero: Reportero;
+  desfile: string | null;
   onSalir: () => void;
   onVencida: () => void;
 }) {
   const r = useReporte(onVencida);
   const ahora = useReloj(1000);
   const rol = ROL[reportero.rol];
+  // El GPS, la pantalla encendida y la sesión solo funcionan en https (o localhost).
+  const [seguro, setSeguro] = useState(true);
+  useEffect(() => setSeguro(window.isSecureContext), []);
 
   const salir = async () => {
     r.terminar();
@@ -140,7 +157,10 @@ function Reportando({
       <header className="flex items-center gap-3">
         <span className={`size-4 shrink-0 rounded-full ${rol.color}`} aria-hidden />
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-tinta-4">{reportero.nombre}</p>
+          <p className="truncate text-[13px] font-semibold text-tinta-4">
+            {reportero.nombre}
+            {desfile ? ` · ${desfile}` : ""}
+          </p>
           <p className="fuente-display text-[24px] leading-none">{rol.nombre}</p>
         </div>
         {r.activo ? null : (
@@ -165,6 +185,12 @@ function Reportando({
             <li>· Llevá batería externa: la pantalla va a estar encendida.</li>
           </ul>
           {r.gps === "denegado" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
+          {seguro ? null : (
+            <p className="mt-4 rounded-2xl bg-[#3a1512] px-4 py-3 text-[14px] font-semibold text-[#ff8a7a]">
+              Esta página no está abierta por una conexión segura (https), y así el celular no
+              entrega el GPS. Abrila desde la dirección oficial de la app.
+            </p>
+          )}
           <button
             type="button"
             onClick={r.empezar}
@@ -188,6 +214,7 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
   const lejos = proy !== null && proy.desvioM > 150;
 
   const atrasado = r.ultimoEnvio !== null && ahora - r.ultimoEnvio > INTERVALO_ENVIO_MS * 3;
+  const impreciso = r.fix !== null && r.fix.precisionM > PRECISION_ACEPTABLE_M;
 
   const tocarEstoyAqui = () => {
     setAviso(r.estoyAqui() ? "Listo, ya saben por dónde vas." : "Todavía no hay GPS. Usá la lista de abajo.");
@@ -207,7 +234,9 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
           />
           {r.red === "sin_senal"
             ? "Sin señal: se guarda y se manda cuando vuelva"
-            : atrasado
+            : r.enEspera
+              ? "De respaldo: otro reportero lleva este rol"
+              : atrasado
               ? "Hace rato no sale nada"
               : "Mandando tu ubicación"}
         </p>
@@ -240,6 +269,20 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
       </section>
 
       {r.gps === "denegado" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
+
+      {r.enEspera ? (
+        <p className="rounded-2xl bg-[#1d2a3a] px-4 py-3 text-[14px] font-semibold text-[#9fd0f5]">
+          Otra persona con tu mismo rol está mandando su ubicación, así que la tuya no se usa por
+          ahora. Dejá el panel abierto: si la otra se queda sin señal un minuto, entrás vos solo.
+        </p>
+      ) : null}
+
+      {impreciso ? (
+        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
+          El GPS está muy impreciso (± {Math.round(r.fix!.precisionM)} m) y así no se manda. Salí a
+          cielo abierto, o marcá por punto de referencia abajo.
+        </p>
+      ) : null}
 
       {r.pantallaEncendida === false ? (
         <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">

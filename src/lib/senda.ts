@@ -5,7 +5,10 @@ import { point } from "@turf/helpers";
 import type { Feature, LineString } from "geojson";
 
 import { SENDA_DEFINICION } from "@/data/senda-carnaval";
+import { traducir, type Traductor } from "@/lib/i18n-textos";
 import type { Hito, Senda } from "@/lib/tipos";
+
+const enEspanol: Traductor = (clave, vars) => traducir("es", clave, vars);
 
 /**
  * El modelo mental de toda la app: la senda es 1D.
@@ -104,15 +107,16 @@ export interface Referencia {
  * alguien buscando dónde pararse. La gente se ubica por la iglesia y el centro
  * comercial, así que eso es lo que se dice.
  */
-export function referenciaEnSenda(metros: number, sujeto: "va" | "estas" = "va"): Referencia {
+export function referenciaEnSenda(
+  metros: number,
+  sujeto: "va" | "estas" = "va",
+  t: Traductor = enEspanol,
+): Referencia {
   if (SENDA.hitos.length === 0) return { frase: "", hito: null };
 
   const cerca = hitoMasCercano(metros);
   if (cerca && Math.abs(cerca.metros - metros) <= RADIO_HITO_M) {
-    return {
-      frase: sujeto === "va" ? `va por ${cerca.nombre}` : `estás por ${cerca.nombre}`,
-      hito: cerca,
-    };
+    return { frase: t(`ref.${sujeto}.por`, { a: cerca.nombre }), hito: cerca };
   }
 
   // Entre dos hitos: se nombran los dos, que es como se explica en la calle.
@@ -120,26 +124,10 @@ export function referenciaEnSenda(metros: number, sujeto: "va" | "estas" = "va")
   const siguiente = SENDA.hitos.find((h) => h.metros > metros) ?? null;
 
   if (anterior && siguiente) {
-    return {
-      frase:
-        sujeto === "va"
-          ? `va entre ${anterior.corto} y ${siguiente.corto}`
-          : `estás entre ${anterior.corto} y ${siguiente.corto}`,
-      hito: siguiente,
-    };
+    return { frase: t(`ref.${sujeto}.entre`, { a: anterior.corto, b: siguiente.corto }), hito: siguiente };
   }
-  if (siguiente) {
-    return {
-      frase: sujeto === "va" ? `va antes de ${siguiente.nombre}` : `estás antes de ${siguiente.nombre}`,
-      hito: siguiente,
-    };
-  }
-  if (anterior) {
-    return {
-      frase: sujeto === "va" ? `ya pasó ${anterior.nombre}` : `estás pasando ${anterior.nombre}`,
-      hito: anterior,
-    };
-  }
+  if (siguiente) return { frase: t(`ref.${sujeto}.antes`, { a: siguiente.nombre }), hito: siguiente };
+  if (anterior) return { frase: t(`ref.${sujeto}.paso`, { a: anterior.nombre }), hito: anterior };
   return { frase: "", hito: null };
 }
 

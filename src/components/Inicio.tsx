@@ -1,5 +1,9 @@
 "use client";
 
+import Link from "next/link";
+
+import { fijarIdioma, useIdioma } from "@/lib/i18n";
+
 /**
  * Primera pantalla: explica qué es la app antes de pedirle la ubicación a nadie.
  *
@@ -14,6 +18,7 @@ export function Inicio({
   onSeguir: () => void;
   onSaltar: () => void;
 }) {
+  const { idioma, t } = useIdioma();
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-marca">
       {/* Serpentinas */}
@@ -36,18 +41,17 @@ export function Inicio({
 
       <div className="pt-seguro relative flex flex-1 flex-col overflow-y-auto px-7 pb-8">
         <p className="mt-12 text-xs font-extrabold tracking-[2.4px] text-[#bfe0f2] uppercase">
-          Carnaval de Negros y Blancos
+          {t("inicio.sobre")}
         </p>
 
         <h1 className="fuente-display mt-3.5 text-[52px] leading-[0.98] text-papel">
-          Sigue el
+          {t("inicio.titulo1")}
           <br />
-          Desfile
+          {t("inicio.titulo2")}
         </h1>
 
         <p className="mt-4 max-w-[300px] text-[17px] leading-normal text-[#e4f1fa]">
-          Enterate por dónde va el desfile ahora mismo y cuánto le falta pa&apos; llegar a
-          donde estás parado. Sin moverte del puesto, ¿sí o qué pues?
+          {t("inicio.texto")}
         </p>
 
         <div className="mt-6 flex flex-col gap-4 rounded-[20px] border border-white/20 bg-white/10 p-4">
@@ -67,8 +71,7 @@ export function Inicio({
               </svg>
             </span>
             <p className="text-[15px] leading-tight text-papel">
-              <b className="text-base">Mapa</b> — seguí el desfile en vivo, con tarimas y
-              tascas.
+              <b className="text-base">{t("nav.mapa")}</b> — {t("inicio.mapa")}
             </p>
           </div>
 
@@ -89,8 +92,7 @@ export function Inicio({
               </svg>
             </span>
             <p className="text-[15px] leading-tight text-papel">
-              <b className="text-base">Hoy, Desfiles y Fotos</b> — todo lo del Carnaval en un
-              solo puesto.
+              <b className="text-base">{t("inicio.resto.t")}</b> — {t("inicio.resto")}
             </p>
           </div>
         </div>
@@ -104,7 +106,7 @@ export function Inicio({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden>
               <path d="M6 3l12 9-12 9z" />
             </svg>
-            Seguir el desfile
+            {t("inicio.seguir")}
           </button>
 
           <button
@@ -112,8 +114,21 @@ export function Inicio({
             onClick={onSaltar}
             className="mt-3.5 w-full text-center text-sm text-[#cfe6f4] underline-offset-4 active:underline"
           >
-            Ver primero sin ubicación
+            {t("inicio.saltar")}
           </button>
+
+          <p className="mt-5 flex items-center justify-center gap-4 text-[13px] text-[#cfe6f4]">
+            <Link href="/privacidad" className="underline underline-offset-4">
+              {t("inicio.privacidad")}
+            </Link>
+            <button
+              type="button"
+              onClick={() => fijarIdioma(idioma === "es" ? "en" : "es")}
+              className="font-bold underline underline-offset-4"
+            >
+              {t("nav.idioma")}
+            </button>
+          </p>
         </div>
       </div>
     </div>

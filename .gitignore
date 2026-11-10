@@ -9,3 +9,9 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# Copia en disco del modo local (lo editado desde /admin y las fotos subidas)
+.datos-local/
+
+# Se copia desde node_modules en cada dev/build (scripts/copiar-worker-mapa.mjs)
+public/mapa/maplibre-worker.mjs

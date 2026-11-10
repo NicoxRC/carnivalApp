@@ -1,4 +1,4 @@
-import { datos, DESFILE_DEMO, MODO_DATOS } from "@/lib/datos";
+import { datos, MODO_DATOS, resolverDesfile } from "@/lib/datos";
 import { suscribirLocal } from "@/lib/datos/local";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,14 @@ export async function GET(req: Request) {
     );
   }
 
-  const desfileId = new URL(req.url).searchParams.get("desfile") ?? DESFILE_DEMO;
+  const desfile = await resolverDesfile(new URL(req.url).searchParams.get("desfile"));
+  if (!desfile) {
+    return new Response(JSON.stringify({ error: "No hay desfile." }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const desfileId = desfile.id;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -33,7 +40,8 @@ export async function GET(req: Request) {
       };
 
       // Primer envío inmediato: la pantalla nunca debe quedarse en blanco esperando.
-      enviar(await datos().leerEstado(desfileId));
+      const inicial = await datos().leerEstado(desfileId);
+      if (inicial) enviar(inicial);
 
       const desuscribir = suscribirLocal(desfileId, enviar);
 

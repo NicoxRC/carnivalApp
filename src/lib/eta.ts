@@ -38,8 +38,19 @@ const VELOCIDAD_MAXIMA_MS = 6 / 3.6; // 6 km/h
 /** Dentro de este radio, el desfile está encima del usuario. */
 const RADIO_AQUI_M = 120;
 
+/** Rango de minutos, ya redondeado. */
+export interface RangoMin {
+  minMin: number;
+  maxMin: number;
+}
+
 export type Eta =
   | { tipo: "sin_datos"; motivo: "sin_reporte" | "sin_ubicacion" | "fuera_de_senda" }
+  /**
+   * La cabeza lleva más de MS_SIN_SENAL sin reportar. No se da un tiempo: sería
+   * un cálculo sobre dónde ESTABA el desfile, presentado como dónde está.
+   */
+  | { tipo: "sin_senal"; distanciaM: number; haceMin: number }
   | {
       tipo: "llegando";
       minMin: number;
@@ -50,10 +61,18 @@ export type Eta =
       velocidadMedida: boolean;
       /** Minutos sin avanzar, si ya pasó el umbral suave. null si viene fluido. */
       sinAvanzarMin: number | null;
+      /** En cuánto termina de pasar (la cola llega a donde está el usuario). */
+      colaEn: RangoMin | null;
     }
   | { tipo: "detenido"; distanciaM: number; detenidoHaceMin: number }
-  | { tipo: "ya_paso"; distanciaCabezaM: number; distanciaColaM: number | null; colaYaPaso: boolean }
-  | { tipo: "aqui"; distanciaM: number };
+  | {
+      tipo: "ya_paso";
+      distanciaCabezaM: number;
+      distanciaColaM: number | null;
+      colaYaPaso: boolean;
+      colaEn: RangoMin | null;
+    }
+  | { tipo: "aqui"; distanciaM: number; colaEn: RangoMin | null };
 
 export interface VelocidadEstimada {
   /** m/s, ya con el piso mínimo aplicado. */
@@ -146,7 +165,7 @@ function aMultiploDe5(n: number, modo: "abajo" | "arriba"): number {
  * Convierte un ETA puntual en un rango honesto.
  * −25% / +40%: asimétrico porque un desfile se atrasa mucho más fácil de lo que se adelanta.
  */
-export function aRango(minutos: number): { minMin: number; maxMin: number } {
+export function aRango(minutos: number): RangoMin {
   const bajo = Math.max(0, aMultiploDe5(minutos * 0.75, "abajo"));
   let alto = aMultiploDe5(minutos * 1.4, "arriba");
   if (alto - bajo < 5) alto = bajo + 5;
@@ -179,23 +198,41 @@ export function calcularEta({
 
   const distancia = metrosUsuario - cabeza.metros;
 
+  // Con la cabeza callada, lo único honesto es decir cuándo fue el último dato.
+  if (sinSenal(cabeza.ts, ahora) && distancia > RADIO_AQUI_M) {
+    return {
+      tipo: "sin_senal",
+      distanciaM: distancia,
+      haceMin: Math.round((ahora - cabeza.ts) / 60000),
+    };
+  }
+
+  const vel = estimarVelocidad(estado.historialCabeza, ahora);
+
+  // ¿En cuánto termina de pasar? La cola se mueve al ritmo de la cabeza; si
+  // está callada o el desfile detenido, no se promete nada.
+  const cola = estado.posiciones.cola;
+  const faltaCola = cola ? metrosUsuario - cola.metros : null;
+  const colaEn =
+    cola && faltaCola !== null && faltaCola > RADIO_AQUI_M && !vel.detenido && !sinSenal(cola.ts, ahora)
+      ? aRango(faltaCola / vel.ms / 60)
+      : null;
+
   if (Math.abs(distancia) <= RADIO_AQUI_M) {
-    return { tipo: "aqui", distanciaM: Math.abs(distancia) };
+    return { tipo: "aqui", distanciaM: Math.abs(distancia), colaEn };
   }
 
   // El usuario quedó detrás de la cabeza: el desfile ya pasó por donde está.
   if (distancia < 0) {
-    const cola = estado.posiciones.cola;
-    const brechaCola = cola ? metrosUsuario - cola.metros : null;
+    const brechaCola = faltaCola;
     return {
       tipo: "ya_paso",
       distanciaCabezaM: Math.abs(distancia),
       distanciaColaM: brechaCola === null ? null : Math.abs(brechaCola),
       colaYaPaso: brechaCola !== null && brechaCola < 0,
+      colaEn,
     };
   }
-
-  const vel = estimarVelocidad(estado.historialCabeza, ahora);
 
   if (vel.detenido) {
     return {
@@ -217,6 +254,7 @@ export function calcularEta({
     velocidadMedida: vel.medida,
     sinAvanzarMin:
       vel.sinAvanzarMs >= SIN_AVANZAR_AVISO_MS ? Math.round(vel.sinAvanzarMs / 60000) : null,
+    colaEn,
   };
 }
 

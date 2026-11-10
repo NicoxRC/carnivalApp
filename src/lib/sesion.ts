@@ -173,17 +173,24 @@ export function tokenIngestaValido(req: Request): boolean {
 /* ------------------------------ Fuerza bruta ----------------------------- */
 
 const intentos = new Map<string, { fallos: number; hasta: number }>();
-const MAX_FALLOS = 5;
-const BLOQUEO_MS = 60_000;
+const VENTANA_MS = 10 * 60 * 1000;
+const ESPERA_MAX_MS = 5000;
 
 /**
- * Freno simple a probar contraseñas o códigos a lo bruto: cinco fallos seguidos
- * desde la misma IP la bloquean un minuto. Vive en memoria del proceso, así que
- * en serverless es un freno, no una muralla.
+ * Freno a probar contraseñas o códigos a lo bruto: cada fallo reciente hace que
+ * la siguiente respuesta tarde más (hasta 5 s). No bloquea a nadie.
+ *
+ * Antes se bloqueaba la IP un minuto tras cinco fallos, y eso tenía dos
+ * problemas: detrás de un proxy que no manda la IP todos compartían el mismo
+ * contador (seis fallos de cualquiera dejaban fuera al administrador con la
+ * clave correcta), y la IP salía de una cabecera que el cliente puede inventar.
+ * Con espera en vez de bloqueo, lo peor que logra un atacante es que el login
+ * tarde 5 s; y probar 31^8 códigos a un intento cada 5 s no es un ataque.
  */
-export function bloqueado(req: Request): boolean {
+export async function frenar(req: Request): Promise<void> {
   const r = intentos.get(ip(req));
-  return Boolean(r && r.fallos >= MAX_FALLOS && r.hasta > Date.now());
+  if (!r || r.hasta < Date.now()) return;
+  await new Promise((ok) => setTimeout(ok, Math.min(r.fallos * 500, ESPERA_MAX_MS)));
 }
 
 export function registrarIntento(req: Request, ok: boolean) {
@@ -192,14 +199,64 @@ export function registrarIntento(req: Request, ok: boolean) {
     intentos.delete(clave);
     return;
   }
+  const ahora = Date.now();
   const r = intentos.get(clave);
-  const vencido = !r || r.hasta < Date.now();
-  intentos.set(clave, {
-    fallos: vencido ? 1 : r.fallos + 1,
-    hasta: Date.now() + BLOQUEO_MS,
-  });
+  intentos.set(clave, { fallos: r && r.hasta > ahora ? r.fallos + 1 : 1, hasta: ahora + VENTANA_MS });
+  // Que el mapa no crezca sin fin si alguien rota IPs.
+  if (intentos.size > 5000) {
+    for (const [k, v] of intentos) if (v.hasta < ahora) intentos.delete(k);
+  }
 }
 
-function ip(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+/**
+ * La IP de quien llama, para los frenos. Se prefieren las cabeceras que pone la
+ * plataforma (el cliente no las puede falsificar) y, de `x-forwarded-for`, el
+ * ÚLTIMO salto: el primero lo escribe quien hace la petición.
+ */
+export function ip(req: Request): string {
+  const h = req.headers;
+  const directa = h.get("x-vercel-forwarded-for") ?? h.get("x-real-ip");
+  if (directa) return directa.split(",")[0].trim();
+  const cadena = h.get("x-forwarded-for");
+  if (cadena) return cadena.split(",").pop()!.trim();
+  return "local";
+}
+
+/* ------------------------- Identidad de dispositivo ----------------------- */
+
+/**
+ * El gentío cuenta dispositivos. Antes el celular inventaba su propio id, así
+ * que un script podía mandar mil ids y pintar un tramo de «lleno». Ahora el id
+ * lo emite el servidor, firmado, y emitir tiene tope por IP: falsear el mapa
+ * exige muchas IPs, no un bucle.
+ *
+ * El tope es generoso a propósito: los operadores móviles sacan a miles de
+ * celulares por la misma IP, y un tope bajo dejaría fuera a gente real.
+ */
+const EMISIONES_POR_IP_HORA = 300;
+const emisiones = new Map<string, { n: number; hasta: number }>();
+
+export function emitirDispositivo(req: Request): string | null {
+  const clave = ip(req);
+  const ahora = Date.now();
+  const r = emisiones.get(clave);
+  if (r && r.hasta > ahora) {
+    if (r.n >= EMISIONES_POR_IP_HORA) return null;
+    r.n++;
+  } else {
+    emisiones.set(clave, { n: 1, hasta: ahora + 60 * 60 * 1000 });
+  }
+  if (emisiones.size > 5000) {
+    for (const [k, v] of emisiones) if (v.hasta < ahora) emisiones.delete(k);
+  }
+  const id = randomBytes(12).toString("base64url");
+  return `${id}.${firmar(`dispositivo:${id}`).slice(0, 22)}`;
+}
+
+/** Devuelve el id si el token lo emitió este servidor; si no, null. */
+export function dispositivoValido(token: unknown): string | null {
+  if (typeof token !== "string" || token.length > 64) return null;
+  const [id, firma] = token.split(".");
+  if (!id || !firma) return null;
+  return iguales(firma, firmar(`dispositivo:${id}`).slice(0, 22)) ? id : null;
 }

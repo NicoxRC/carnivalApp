@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { datos, DESFILE_DEMO } from "@/lib/datos";
+import { errorInterno } from "@/lib/api/respuestas";
+import { datos, resolverDesfile } from "@/lib/datos";
+import { avisarCercanos } from "@/lib/push";
 import { puntoEnMetro, SENDA } from "@/lib/senda";
-import { idReporteroSesion, ingestaAbierta, tokenIngestaValido } from "@/lib/sesion";
-import { ROLES, type EntradaPosicion, type Reportero, type Rol } from "@/lib/tipos";
+import { esAdmin, idReporteroSesion, ingestaAbierta, tokenIngestaValido } from "@/lib/sesion";
+import {
+  PRECISION_MAX_M,
+  RELEVO_MS,
+  ROLES,
+  type EntradaPosicion,
+  type Reportero,
+  type Rol,
+} from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +22,8 @@ export const dynamic = "force-dynamic";
  * Que sea la misma puerta es deliberado: lo que se prueba en octubre es lo que corre el 31.
  *
  * Quién puede entrar (ver `src/lib/sesion.ts`):
- *  - un reportero con sesión: su rol lo pone el servidor, no el cuerpo;
+ *  - un reportero con sesión: su rol y su desfile los pone el servidor, no el cuerpo;
+ *  - un administrador (para corregir una posición a mano);
  *  - quien traiga `Authorization: Bearer <INGESTA_TOKEN>` (el script `simular`);
  *  - cualquiera, solo en modo local sin INGESTA_TOKEN (desarrollo).
  */
@@ -31,7 +41,7 @@ const MAX_LOTE = 200;
 
 type Validado = { entradas: EntradaPosicion[]; descartadas: number } | { error: string };
 
-function validar(cuerpo: unknown, rolForzado: Rol | null, ahora: number): Validado {
+function validar(cuerpo: unknown, rolForzado: Rol | null, desfileId: string, ahora: number): Validado {
   const lista = Array.isArray(cuerpo) ? cuerpo : [cuerpo];
   if (lista.length > MAX_LOTE) return { error: `Máximo ${MAX_LOTE} posiciones por envío.` };
 
@@ -69,71 +79,97 @@ function validar(cuerpo: unknown, rolForzado: Rol | null, ahora: number): Valida
 
     const ts = o.ts === undefined ? ahora : Number(o.ts);
     if (!Number.isFinite(ts)) return { error: "ts inválido." };
-    // Un punto con mala hora no tumba el lote entero: si lo hiciera, la cola
-    // del celular quedaría atascada reintentando lo mismo para siempre.
-    if (ts > ahora + MARGEN_FUTURO_MS || ts < ahora - ANTIGUEDAD_MAX_MS) {
+    // Un punto malo no tumba el lote entero: si lo hiciera, la cola del celular
+    // quedaría atascada reintentando lo mismo para siempre. Se descarta:
+    //  - por mala hora (reloj corrido, o punto demasiado viejo);
+    //  - por mal GPS: con ±500 m el punto puede caer a cuadras de la senda y
+    //    la cabeza "saltaría" en el mapa.
+    if (
+      ts > ahora + MARGEN_FUTURO_MS ||
+      ts < ahora - ANTIGUEDAD_MAX_MS ||
+      (precision !== null && precision > PRECISION_MAX_M)
+    ) {
       descartadas++;
       continue;
     }
 
-    entradas.push({
-      desfileId: typeof o.desfileId === "string" && o.desfileId ? o.desfileId : DESFILE_DEMO,
-      rol: rol as Rol,
-      lat,
-      lng,
-      precisionM: precision,
-      ts,
-    });
+    entradas.push({ desfileId, rol: rol as Rol, lat, lng, precisionM: precision, ts });
   }
 
   return { entradas, descartadas };
 }
 
 export async function POST(req: Request) {
-  let reportero: Reportero | null = null;
-  const idSesion = await idReporteroSesion();
+  try {
+    let reportero: Reportero | null = null;
+    const idSesion = await idReporteroSesion();
 
-  if (idSesion) {
-    reportero = await datos().leerReportero(idSesion);
-    // Un código desactivado corta también las sesiones ya abiertas.
-    if (!reportero?.activo) {
-      return NextResponse.json({ error: "Tu acceso fue desactivado." }, { status: 401 });
+    if (idSesion) {
+      reportero = await datos().leerReportero(idSesion);
+      // Un código desactivado corta también las sesiones ya abiertas.
+      if (!reportero?.activo) {
+        return NextResponse.json({ error: "Tu acceso fue desactivado." }, { status: 401 });
+      }
+    } else if (!tokenIngestaValido(req) && !ingestaAbierta() && !(await esAdmin())) {
+      return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
     }
-  } else if (!tokenIngestaValido(req) && !ingestaAbierta()) {
-    return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
-  }
 
-  let cuerpo: unknown;
-  try {
-    cuerpo = await req.json();
-  } catch {
-    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
-  }
+    let cuerpo: unknown;
+    try {
+      cuerpo = await req.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    }
 
-  const ahora = Date.now();
-  const validado = validar(cuerpo, reportero?.rol ?? null, ahora);
-  if ("error" in validado) {
-    return NextResponse.json({ error: validado.error }, { status: 400 });
-  }
+    // Un reportero siempre escribe en el desfile actual. Los demás pueden
+    // nombrar uno, pero tiene que existir: no se crean desfiles por pedirlos.
+    const primero = (Array.isArray(cuerpo) ? cuerpo[0] : cuerpo) as { desfileId?: unknown } | null;
+    const pedido = !reportero && typeof primero?.desfileId === "string" ? primero.desfileId : null;
+    const desfile = await resolverDesfile(pedido);
+    if (!desfile) return NextResponse.json({ error: "Ese desfile no existe." }, { status: 404 });
 
-  // En orden de hora: si llegan desordenados, el último en escribirse tiene
-  // que ser el más reciente.
-  validado.entradas.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+    const ahora = Date.now();
+    const validado = validar(cuerpo, reportero?.rol ?? null, desfile.id, ahora);
+    if ("error" in validado) {
+      return NextResponse.json({ error: validado.error }, { status: 400 });
+    }
 
-  try {
     const adaptador = datos();
-    for (const entrada of validado.entradas) {
-      await adaptador.registrarPosicion(entrada, reportero?.id);
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error desconocido.";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
 
-  return NextResponse.json({
-    ok: true,
-    guardadas: validado.entradas.length,
-    descartadas: validado.descartadas,
-    servidorTs: ahora,
-  });
+    // Relevo: mientras otro reportero del mismo rol siga mandando, este queda
+    // de respaldo y sus puntos no entran. Dos celulares en el mismo rol, a
+    // cuadras uno del otro, hacían saltar la cabeza de un lado a otro.
+    if (reportero) {
+      const titular = await adaptador.ultimoEmisor(desfile.id, reportero.rol);
+      if (titular && titular.reporteroId && titular.reporteroId !== reportero.id && ahora - titular.ts < RELEVO_MS) {
+        return NextResponse.json({
+          ok: true,
+          guardadas: 0,
+          descartadas: validado.descartadas + validado.entradas.length,
+          enEspera: true,
+          servidorTs: ahora,
+        });
+      }
+    }
+
+    // En orden de hora: si llegan desordenados, el último en escribirse tiene
+    // que ser el más reciente.
+    validado.entradas.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+    await adaptador.registrarPosiciones(validado.entradas, reportero?.id);
+
+    if (validado.entradas.some((e) => e.rol === "cabeza")) {
+      const estado = await adaptador.leerEstado(desfile.id);
+      if (estado) await avisarCercanos(estado);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      guardadas: validado.entradas.length,
+      descartadas: validado.descartadas,
+      enEspera: false,
+      servidorTs: ahora,
+    });
+  } catch (e) {
+    return errorInterno(e);
+  }
 }

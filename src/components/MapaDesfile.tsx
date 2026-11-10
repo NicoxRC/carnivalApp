@@ -10,7 +10,7 @@ import { COLOR_NIVEL, type Densidad } from "@/lib/densidad";
 import { sinSenal } from "@/lib/eta";
 import { haceCuanto } from "@/lib/formato";
 import { estiloMapa, LIMITES_TESELAS, ZOOM_MAX, ZOOM_MIN } from "@/lib/mapa";
-import { SENDA } from "@/lib/senda";
+import { puntoEnMetro, SENDA } from "@/lib/senda";
 import { ROLES, type EstadoDesfile, type Rol, type TipoHito } from "@/lib/tipos";
 import type { Ubicacion } from "@/lib/hooks/useUbicacion";
 
@@ -41,7 +41,7 @@ export interface PuntoMapa {
   lat: number;
   lng: number;
   categoria: string;
-  grupo: "tarima" | "comercio";
+  grupo: "tarima" | "comercio" | "servicio";
   descripcion?: string;
   direccion?: string;
   horario?: string;
@@ -49,6 +49,10 @@ export interface PuntoMapa {
   promo?: string | null;
   /** null = aparece en el directorio sin haber pagado. */
   plan?: "basico" | "destacado" | null;
+  /** Solo con plan. */
+  menu?: { nombre: string; precio: string }[];
+  whatsapp?: string | null;
+  enlace?: string | null;
 }
 
 /**
@@ -62,8 +66,16 @@ export interface PuntoMapa {
  */
 const COLOR_COMERCIO = "#2fa898";
 
+/** Los servicios van en azul: es el color de "información", no de comercio. */
+const COLOR_SERVICIO = "#1487cc";
+
 const COLOR_PUNTO: Record<string, string> = {
   presentacion: "#a06bff",
+  bano: COLOR_SERVICIO,
+  hidratacion: COLOR_SERVICIO,
+  salud: "#c0271b",
+  policia: COLOR_SERVICIO,
+  cierre: "#8a5a00",
 };
 
 /** Iconos por categoría de comercio. */
@@ -77,6 +89,11 @@ const ICONO_PUNTO: Record<string, string> = {
   tienda: '<path d="M4 9h16v10H4zM4 9l1.5-5h13L20 9M9 19v-5h6v5"/>',
   bar: '<path d="M9 3h6v4c0 1-1 2-1 3v10h-4V10c0-1-1-2-1-3zM9 7h6"/>',
   farmacia: '<path d="M5 5h14v14H5zM12 8v8M8 12h8"/>',
+  bano: '<circle cx="8" cy="5" r="2"/><circle cx="16" cy="5" r="2"/><path d="M8 9v11M5.5 13h5M16 9l-2.5 6h5zM16 15v5"/>',
+  hidratacion: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  salud: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>',
+  policia: '<path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/>',
+  cierre: '<circle cx="12" cy="12" r="9"/><path d="M7 12h10"/>',
 };
 
 const ICONO_POR_DEFECTO = '<circle cx="12" cy="12" r="7"/>';
@@ -98,6 +115,8 @@ interface Props {
   modoMarcarPunto: boolean;
   onPuntoMarcado: (lat: number, lng: number) => void;
   encuadre: Encuadre | null;
+  /** Punto de encuentro que alguien compartió, en metros sobre la senda. */
+  encuentroM?: number | null;
 }
 
 function limitesSenda(): LngLatBoundsLike {
@@ -142,6 +161,7 @@ export default function MapaDesfile({
   modoMarcarPunto,
   onPuntoMarcado,
   encuadre,
+  encuentroM = null,
 }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaGL | null>(null);
@@ -156,6 +176,7 @@ export default function MapaDesfile({
   const marcadoresHito = useRef(new Map<string, Marker>());
   const [zoom, setZoom] = useState(13);
   const marcadorYo = useRef<Marker | null>(null);
+  const marcadorEncuentro = useRef<Marker | null>(null);
   const onPunto = useRef(onPuntoMarcado);
   const onClickPunto = useRef(onPuntoClick);
   const marcando = useRef(modoMarcarPunto);
@@ -278,6 +299,7 @@ export default function MapaDesfile({
       marcadoresPunto.current.clear();
       marcadoresHito.current.clear();
       marcadorYo.current = null;
+      marcadorEncuentro.current = null;
     };
   }, []);
 
@@ -490,6 +512,26 @@ export default function MapaDesfile({
       .setLngLat([ubicacion.lng, ubicacion.lat])
       .addTo(m);
   }, [ubicacion, mapaListo]);
+
+  // --- Punto de encuentro compartido ---
+  useEffect(() => {
+    const m = mapa.current;
+    if (!m || !listo.current) return;
+    marcadorEncuentro.current?.remove();
+    marcadorEncuentro.current = null;
+    if (encuentroM === null) return;
+    const { lat, lng } = puntoEnMetro(encuentroM);
+    const el = document.createElement("div");
+    el.className = "marcador-encuentro";
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", "Punto de encuentro");
+    el.innerHTML =
+      '<svg width="34" height="34" viewBox="0 0 24 24" fill="#141414" stroke="#fff" stroke-width="1.4" aria-hidden="true"><path d="M12 22s7-6.6 7-12a7 7 0 1 0-14 0c0 5.4 7 12 7 12z"/><circle cx="12" cy="10" r="2.6" fill="#ffc61a" stroke="none"/></svg>';
+    marcadorEncuentro.current = new maplibregl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat([lng, lat])
+      .addTo(m);
+    m.easeTo({ center: [lng, lat], zoom: 15.5, duration: 600 });
+  }, [encuentroM, mapaListo]);
 
   // --- Reencuadre a pedido ---
   useEffect(() => {

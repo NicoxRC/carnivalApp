@@ -14,7 +14,7 @@ interface EstadoSim {
  * El botón que permite mostrar la app funcionando en una sala de juntas en octubre,
  * sin desfile y sin salir a la calle. Escribe por la misma API que un reportero real.
  */
-export function PanelSimulacion({ desfileId }: { desfileId: string }) {
+export function PanelSimulacion() {
   const [sim, setSim] = useState<EstadoSim | null>(null);
   const [abierto, setAbierto] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -22,14 +22,12 @@ export function PanelSimulacion({ desfileId }: { desfileId: string }) {
 
   const leer = useCallback(async () => {
     try {
-      const r = await fetch(`/api/simulacion?desfile=${encodeURIComponent(desfileId)}`, {
-        cache: "no-store",
-      });
+      const r = await fetch("/api/simulacion", { cache: "no-store" });
       if (r.ok) setSim((await r.json()) as EstadoSim);
     } catch {
       // Si no responde, el panel simplemente no se muestra activo.
     }
-  }, [desfileId]);
+  }, []);
 
   useEffect(() => {
     void leer();
@@ -43,7 +41,7 @@ export function PanelSimulacion({ desfileId }: { desfileId: string }) {
       const r = await fetch("/api/simulacion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accion, desfileId, velocidadKmh: velocidad }),
+        body: JSON.stringify({ accion, velocidadKmh: velocidad }),
       });
       if (r.ok) setSim((await r.json()) as EstadoSim);
     } catch {

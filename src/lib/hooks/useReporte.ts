@@ -24,6 +24,12 @@ export const INTERVALO_ENVIO_MS = 20_000;
 /** Un fix de GPS más viejo que esto no se manda: el reportero ya no está ahí. */
 const FIX_VIEJO_MS = 60_000;
 const MAX_COLA = 200;
+/**
+ * Un GPS peor que esto no se manda: el punto podría caer a cuadras de la senda.
+ * Más estricto que el tope del servidor (PRECISION_MAX_M) a propósito: aquí se
+ * puede esperar al siguiente fix, que suele llegar en segundos.
+ */
+export const PRECISION_ACEPTABLE_M = 100;
 const CLAVE_COLA = "sed:reportero:cola";
 
 export interface Fix {
@@ -50,6 +56,11 @@ export interface Reporte {
   pendientes: number;
   /** null = el navegador no soporta mantener la pantalla encendida. */
   pantallaEncendida: boolean | null;
+  /**
+   * Otro reportero del mismo rol está mandando: este celular queda de respaldo
+   * y el servidor ignora sus puntos hasta que el otro se calle un minuto.
+   */
+  enEspera: boolean;
   empezar: () => void;
   terminar: () => void;
   /** Manda ya el GPS actual. false si todavía no hay GPS. */
@@ -85,6 +96,7 @@ export function useReporte(onSesionVencida: () => void): Reporte {
   const [ultimoEnvio, setUltimoEnvio] = useState<number | null>(null);
   const [pendientes, setPendientes] = useState(0);
   const [pantallaEncendida, setPantalla] = useState<boolean | null>(false);
+  const [enEspera, setEnEspera] = useState(false);
 
   const cola = useRef<Punto[]>([]);
   const fixRef = useRef<Fix | null>(null);
@@ -133,8 +145,9 @@ export function useReporte(onSesionVencida: () => void): Reporte {
         setRed("sin_senal");
         return;
       }
-      const res = (await r.json()) as { servidorTs?: number };
+      const res = (await r.json()) as { servidorTs?: number; enEspera?: boolean };
       if (typeof res.servidorTs === "number") desfaseMs.current = res.servidorTs - Date.now();
+      setEnEspera(res.enEspera === true);
       // Solo se quita lo que se mandó: mientras tanto pudo entrar otro punto.
       cola.current = cola.current.slice(lote.length);
       guardarCola(cola.current);
@@ -150,7 +163,7 @@ export function useReporte(onSesionVencida: () => void): Reporte {
 
   const encolarFix = useCallback((): boolean => {
     const f = fixRef.current;
-    if (!f || Date.now() - f.ts > FIX_VIEJO_MS) return false;
+    if (!f || Date.now() - f.ts > FIX_VIEJO_MS || f.precisionM > PRECISION_ACEPTABLE_M) return false;
     encolar({ lat: f.lat, lng: f.lng, precisionM: Math.round(f.precisionM), ts: Date.now() });
     return true;
   }, [encolar]);
@@ -189,7 +202,8 @@ export function useReporte(onSesionVencida: () => void): Reporte {
             precisionM: pos.coords.accuracy,
             ts: Date.now(),
           };
-          const primero = fixRef.current === null;
+          // "Primero" = el primer fix que sirve: uno impreciso no cuenta.
+          const primero = !fixRef.current || fixRef.current.precisionM > PRECISION_ACEPTABLE_M;
           fixRef.current = f;
           setFix(f);
           setGps("ok");
@@ -274,6 +288,7 @@ export function useReporte(onSesionVencida: () => void): Reporte {
     ultimoEnvio,
     pendientes,
     pantallaEncendida,
+    enEspera,
     empezar,
     terminar,
     estoyAqui,

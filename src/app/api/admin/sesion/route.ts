@@ -4,7 +4,7 @@ import { leerJson, sinCache } from "@/lib/api/respuestas";
 import {
   abrirSesionAdmin,
   adminConfigurado,
-  bloqueado,
+  frenar,
   cerrarSesion,
   claveAdminValida,
   COOKIE_ADMIN,
@@ -26,9 +26,7 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
-  if (bloqueado(req)) {
-    return NextResponse.json({ error: "Demasiados intentos. Esperá un minuto." }, { status: 429 });
-  }
+  await frenar(req);
 
   const cuerpo = await leerJson(req);
   const clave = typeof cuerpo?.clave === "string" ? cuerpo.clave : "";

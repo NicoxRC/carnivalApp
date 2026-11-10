@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { errorInterno, leerJson, sinCache } from "@/lib/api/respuestas";
-import { datos, DESFILE_DEMO } from "@/lib/datos";
+import { datos, resolverDesfile } from "@/lib/datos";
 import {
   abrirSesionReportero,
-  bloqueado,
+  frenar,
   cerrarSesion,
   COOKIE_REPORTERO,
   hashCodigo,
@@ -21,16 +21,15 @@ export async function GET() {
   try {
     const reportero = await datos().leerReportero(id);
     if (!reportero?.activo) return NextResponse.json({ reportero: null }, sinCache);
-    return NextResponse.json({ reportero, desfileId: DESFILE_DEMO }, sinCache);
+    const desfile = await resolverDesfile();
+    return NextResponse.json({ reportero, desfile: desfile?.nombre ?? null }, sinCache);
   } catch (e) {
     return errorInterno(e);
   }
 }
 
 export async function POST(req: Request) {
-  if (bloqueado(req)) {
-    return NextResponse.json({ error: "Demasiados intentos. Esperá un minuto." }, { status: 429 });
-  }
+  await frenar(req);
   const cuerpo = await leerJson(req);
   const codigo = typeof cuerpo?.codigo === "string" ? cuerpo.codigo : "";
   if (!codigo.trim()) return NextResponse.json({ error: "Escribí tu código." }, { status: 400 });
@@ -42,7 +41,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Ese código no sirve. Revisalo con el coordinador." }, { status: 401 });
     }
     await abrirSesionReportero(reportero.id);
-    return NextResponse.json({ reportero, desfileId: DESFILE_DEMO });
+    const desfile = await resolverDesfile();
+    return NextResponse.json({ reportero, desfile: desfile?.nombre ?? null });
   } catch (e) {
     return errorInterno(e);
   }
