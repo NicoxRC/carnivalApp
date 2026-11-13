@@ -63,6 +63,7 @@ just test        # pytest
 just check       # pre-commit on the whole repo
 just db-test     # checks the migrations against a throwaway Postgres in Docker
 just db-stop     # stops the local Postgres
+just create-admin <email> <name>   # creates an admin in the local database (asks for the password)
 ```
 
 Outside the Nix environment, prefix them with `nix develop -c` (for example
