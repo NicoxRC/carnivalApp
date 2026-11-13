@@ -26,13 +26,17 @@ Todos los comandos se corren desde la raíz del repo, dentro del entorno de Nix
 ## Día a día
 
 ```bash
-# Arrancar el backend con los secretos de desarrollo
+# Arrancar el backend con los secretos de desarrollo: enciende Postgres,
+# aplica las migraciones y levanta el servidor (ver el justfile)
+just dev
+
+# Lo mismo, a mano
 scripts/local-db.sh        # Postgres local; `scripts/local-db.sh stop` lo apaga
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'
 
 # Editar: abre el archivo descifrado en $EDITOR y lo vuelve a cifrar al guardar
-sops secrets/dev.enc.yaml
+just secrets               # o: sops secrets/dev.enc.yaml
 
 # Ver los valores en la terminal
 sops -d secrets/dev.enc.yaml
