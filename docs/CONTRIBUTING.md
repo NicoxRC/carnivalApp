@@ -1,232 +1,243 @@
-# Cómo contribuir
+# How to contribute
 
-Cómo se crean ramas, se hacen commits y se integra código en este repositorio. Aplica igual
-a personas y a agentes de IA. Si eres un agente, este documento es obligatorio: léelo
-completo antes de crear una rama o hacer un commit.
+How branches are created, commits are made and code is integrated in this repository. It
+applies equally to people and to AI agents. If you are an agent, this document is
+mandatory: read it in full before creating a branch or making a commit.
 
-> Atajo para agentes en Claude Code: el comando `/upload-changes` sigue este documento
-> paso a paso para subir los cambios que tengas (rama → commits → push → PR).
-
----
-
-## La regla que no se rompe: nadie toca `trunk`
-
-`trunk` es la única rama de larga vida y siempre tiene que estar desplegable.
-
-- **Prohibido hacer commit en `trunk`.** Ni siquiera para un cambio de una línea.
-- **Prohibido hacer push a `trunk`.** Todo entra por Pull Request.
-- **Prohibido hacer force-push, rebase o reset sobre `trunk`.**
-- **Prohibido fusionar (merge) un PR sin la aprobación explícita del mantenedor.** Un agente
-  abre el PR y se detiene ahí; nunca ejecuta `gh pr merge`.
-
-Si te das cuenta de que estás en `trunk` con cambios sin commitear, no hagas commit: crea la
-rama primero (`git switch -c <tipo>/<descripcion>`). Los cambios sin commitear se mueven
-contigo a la rama nueva.
-
-En Claude Code, un hook (`.claude/hooks/proteger-trunk.py`) bloquea los commits y los push
-hechos desde `trunk` o hacia `trunk`. Es una red de seguridad, no un permiso para
-intentarlo.
+> Shortcut for agents in Claude Code: the `/upload-changes` command follows this document
+> step by step to upload whatever changes you have (branch → commits → push → PR).
 
 ---
 
-## Ramas — GitHub Flow
+## Language
 
-Una sola rama de larga vida (`trunk`) y ramas de trabajo cortas que salen de ella. No hay
-`develop` ni ramas de release.
+- **English:** code, comments, docs, commit messages, PR titles and descriptions, issues.
+- **Spanish:** text shown to people (interface texts, error messages) and the conversation
+  between the maintainer and the agent.
+- The web app (`src/`) is still written in Spanish and keeps its names until it is renamed
+  in its own effort; new backend code follows `docs/backend/GLOSSARY.md`.
+
+---
+
+## The rule that is never broken: nobody touches `trunk`
+
+`trunk` is the only long-lived branch and always has to be deployable.
+
+- **Committing to `trunk` is forbidden.** Not even for a one-line change.
+- **Pushing to `trunk` is forbidden.** Everything comes in through a Pull Request.
+- **Force-pushing, rebasing or resetting `trunk` is forbidden.**
+- **Merging a PR without the maintainer's explicit approval is forbidden.** An agent opens
+  the PR and stops there; it never runs `gh pr merge`.
+
+If you realise you are on `trunk` with uncommitted changes, do not commit: create the
+branch first (`git switch -c <type>/<description>`). Uncommitted changes move with you to
+the new branch.
+
+In Claude Code, a hook (`.claude/hooks/protect-trunk.py`) blocks commits and pushes made
+from `trunk` or to `trunk`. It is a safety net, not permission to try.
+
+---
+
+## Branches — GitHub Flow
+
+A single long-lived branch (`trunk`) and short working branches that come off it. There is
+no `develop` and there are no release branches.
 
 ```
 trunk
- ├── feature/14-eta-rango-asimetrico
- ├── fix/21-senda-proyeccion-fuera-de-ruta
- └── chore/30-actualizar-maplibre
+ ├── feature/14-asymmetric-eta-range
+ ├── fix/21-course-projection-off-route
+ └── chore/30-update-maplibre
 ```
 
-1. **Todo trabajo nace de un issue de GitHub.** Si no hay issue, se crea antes de la rama.
-   Un issue = una rama = un PR.
-2. Todo trabajo empieza en una rama nueva creada desde `trunk` actualizado.
-3. Las ramas viven poco: unos días como máximo. Una rama vieja se aleja de `trunk` y
-   después cuesta integrarla.
-4. Una rama = un tema. Si aparece un arreglo que no tiene que ver, va en otra rama.
-5. Después del merge, la rama se borra.
+1. **All work starts from a GitHub issue.** If there is no issue, it is created before the
+   branch. One issue = one branch = one PR.
+2. All work starts on a new branch created from an up-to-date `trunk`.
+3. Branches are short-lived: a few days at most. An old branch drifts away from `trunk`
+   and is then costly to integrate.
+4. One branch = one topic. If an unrelated fix comes up, it goes on another branch.
+5. After the merge, the branch is deleted.
 
-### Nombre de la rama
+### Branch name
 
 ```
-<tipo>/<numero-issue>-<descripcion-corta>
+<type>/<issue-number>-<short-description>
 ```
 
-| Tipo | Para qué |
+| Type | What for |
 |---|---|
-| `feature/` | Funcionalidad nueva |
-| `fix/` | Corrección de un bug |
-| `chore/` | Mantenimiento: dependencias, configuración, limpieza |
-| `refactor/` | Cambios de código que no alteran el comportamiento |
-| `docs/` | Solo documentación |
-| `test/` | Solo tests |
+| `feature/` | New functionality |
+| `fix/` | Fixing a bug |
+| `chore/` | Maintenance: dependencies, configuration, cleanup |
+| `refactor/` | Code changes that do not alter behaviour |
+| `docs/` | Documentation only |
+| `test/` | Tests only |
 
-La descripción va en minúsculas, separada por guiones, sin tildes ni eñes y en máximo 5
-palabras: `feature/12-capa-de-tarimas`, no `feature/Nueva_Capa-TARIMAS-del-mapa-con-iconos`.
+The description is lowercase, in English, separated by hyphens and at most 5 words:
+`feature/12-stages-layer`, not `feature/New_Layer-STAGES-on-the-map-with-icons`.
 
 ---
 
 ## Commits — Conventional Commits
 
 ```
-<tipo>(<alcance>): #<issue> <descripcion>
+<type>(<scope>): #<issue> <description>
 
-- <por qué se hace>
-- <otro bullet si hace falta>
+- <why it is done>
+- <another bullet if needed>
 ```
 
-El número del issue va siempre, justo después de los dos puntos. El cuerpo lleva **mínimo
-un bullet** que explique el porqué.
+The issue number always goes right after the colon. The body carries **at least one
+bullet** explaining the why.
 
-### Tipos
+### Types
 
-| Tipo | Para qué |
+| Type | What for |
 |---|---|
-| `feat` | Funcionalidad nueva |
-| `fix` | Corrección de un bug |
-| `docs` | Solo documentación |
-| `style` | Formato, sin cambio de lógica |
-| `refactor` | Ni arregla un bug ni agrega funcionalidad |
-| `test` | Agregar o corregir tests |
-| `chore` | Build, dependencias, herramientas |
-| `perf` | Mejora de rendimiento |
+| `feat` | New functionality |
+| `fix` | Fixing a bug |
+| `docs` | Documentation only |
+| `style` | Formatting, no logic change |
+| `refactor` | Neither fixes a bug nor adds functionality |
+| `test` | Adding or fixing tests |
+| `chore` | Build, dependencies, tooling |
+| `perf` | Performance improvement |
 
-### Alcance (scope)
+### Scope
 
-El área afectada. Los alcances de este proyecto:
+The affected area. The web scopes are the Spanish names of the areas of `src/` and stay
+that way until the web is renamed.
 
-| Alcance | Qué cubre |
+| Scope | What it covers |
 |---|---|
-| `senda` | La ruta y la proyección 1D (`src/lib/senda.ts`, `src/data/senda-carnaval.ts`) |
-| `eta` | El cálculo del ETA y sus estados (`src/lib/eta.ts`, `BarraEta`) |
-| `mapa` | MapLibre, capas, marcadores (`MapaDesfile`, `PantallaMapa`) |
-| `densidad` | El mapa de gentío |
-| `comercios` | La capa de comercios y sus fichas |
-| `datos` | Los adaptadores de datos (`src/lib/datos/`) |
-| `api` | Las rutas de `src/app/api/` |
-| `simulacion` | El motor de simulación y el script `simular` |
-| `reportero` | El panel de los reporteros (`/reportero`, `useReporte`) |
-| `admin` | El panel de administración (`/admin`, `src/app/api/admin/`) |
-| `programacion` | Desfiles y eventos: el desfile actual, «Hoy», «Desfiles» |
-| `fotos` | El muro de fotos y su moderación |
-| `avisos` | Avisos push de cercanía y mensajes del equipo a todos |
-| `i18n` | Textos en español e inglés |
-| `seguridad` | Sesiones, frenos, cabeceras, validación de entradas |
-| `ui` | Pantallas y componentes que no encajan en otro alcance |
-| `pwa` | Service worker, manifest, íconos |
-| `deps` | Dependencias |
-| `ci` | Integración continua |
-| `repo` | Configuración del repositorio, docs de contribución, herramientas de agentes |
-| `back` | El backend en `backend/` (FastAPI), su entorno Nix, pre-commit y secretos con sops |
-| `infra` | Terraform y despliegue (`infra/`) |
+| `senda` | The course and the 1D projection (`src/lib/senda.ts`, `src/data/senda-carnaval.ts`) |
+| `eta` | The ETA calculation and its states (`src/lib/eta.ts`, `BarraEta`) |
+| `mapa` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
+| `densidad` | The crowd map |
+| `comercios` | The businesses layer and its cards |
+| `datos` | The data adapters (`src/lib/datos/`) |
+| `api` | The routes in `src/app/api/` |
+| `simulacion` | The simulation engine and the `simular` script |
+| `reportero` | The reporters' panel (`/reportero`, `useReporte`) |
+| `admin` | The admin panel (`/admin`, `src/app/api/admin/`) |
+| `programacion` | Parades and events: the current parade, "Hoy", "Desfiles" |
+| `fotos` | The photo wall and its moderation |
+| `avisos` | Proximity push notifications and team messages to everyone |
+| `i18n` | Texts in Spanish and English |
+| `seguridad` | Sessions, rate limits, headers, input validation |
+| `ui` | Screens and components that do not fit another scope |
+| `pwa` | Service worker, manifest, icons |
+| `deps` | Dependencies |
+| `ci` | Continuous integration |
+| `repo` | Repository configuration, contribution docs, agent tooling |
+| `back` | The backend in `backend/` (FastAPI), its Nix environment, pre-commit, `just` and secrets with sops |
+| `infra` | Terraform and deployment (`infra/`) |
 
-Si aparece un área nueva (por ejemplo `mobile`), agrégala a esta tabla en el
-mismo PR que la introduce.
+If a new area appears (for example `mobile`), add it to this table in the same PR that
+introduces it.
 
-### Reglas de redacción
+### Writing rules
 
-- La descripción va en **español**, en imperativo y en minúscula: «agrega», «corrige»,
-  «elimina». Sin punto final y en máximo ~70 caracteres.
-- **Un PR = un commit = un cambio lógico.** Si el cambio no cabe en un commit razonable,
-  el issue está mal partido: se divide en varios issues, no en varios commits.
-- El cuerpo explica el **porqué** en bullets, no el qué (el qué ya está en el diff).
-
-```
-feat(eta): #14 muestra el ETA en rangos asimétricos de 5 minutos
-
-- Un desfile se atrasa mucho más fácil de lo que se adelanta: el rango
-  va de −25 % a +40 %.
-```
+- The description is in **English**, imperative and lowercase: "add", "fix", "remove". No
+  final full stop and at most ~70 characters.
+- **One PR = one commit = one logical change.** If the change does not fit in a reasonable
+  commit, the issue is badly split: it is divided into several issues, not several commits.
+- The body explains the **why** in bullets, not the what (the what is already in the diff).
 
 ```
-fix(eta): #21 descarta velocidades por encima de 6 km/h
+feat(eta): #14 show the ETA in asymmetric 5-minute ranges
 
-- Un salto de GPS hacía que la cabeza pareciera avanzar a 40 km/h y el
-  ETA mostraba "llega en 1 min".
-- Por encima del techo se descarta la medición y se usa la última
-  velocidad válida.
+- A parade falls behind far more easily than it gets ahead: the range
+  goes from −25 % to +40 %.
+```
+
+```
+fix(eta): #21 discard speeds above 6 km/h
+
+- A GPS jump made the head look like it was moving at 40 km/h and the
+  ETA showed "llega en 1 min".
+- Above the ceiling the measurement is discarded and the last valid
+  speed is used.
 ```
 
 ---
 
 ## Pull Requests
 
-**Todo cambio a `trunk` entra por un Pull Request**, sin excepción.
+**Every change to `trunk` comes in through a Pull Request**, without exception.
 
-### Antes de abrir el PR
+### Before opening the PR
 
-- [ ] La rama está actualizada con `trunk` (`git fetch origin && git rebase origin/trunk`)
-- [ ] Los chequeos del proyecto pasan localmente (`npm run typecheck` y `npm test`; cuando exista
-      `npm run lint`, también). Si tocaste el backend, los de `docs/backend/PLAN.md`
-- [ ] Probaste el cambio a mano (para la UI: abriste la app y lo viste funcionar)
-- [ ] No hay secretos en el diff: ni `.env`, ni llaves, ni tokens
-- [ ] No quedaron `console.log` de depuración ni código comentado
+- [ ] The branch is up to date with `trunk` (`git fetch origin && git rebase origin/trunk`)
+- [ ] The project's checks pass locally. Web: `npm run typecheck` and `npm test` (and
+      `npm run lint` once it exists). Backend: `just check` and `just test`, plus
+      `just db-test` if a migration changed (see `docs/backend/PLAN.md`)
+- [ ] You tried the change by hand (for the UI: you opened the app and saw it work)
+- [ ] No secrets in the diff: no `.env`, no keys, no tokens
+- [ ] No debug `console.log` or commented-out code left behind
 
-### Requisitos del PR
+### PR requirements
 
-1. **Título**: el mismo del commit, por ejemplo `feat(mapa): #12 agrega la capa de tarimas`.
-2. **Descripción**: usa la plantilla (`.github/pull_request_template.md`). Qué cambió y
-   por qué, cómo se probó y capturas si toca la UI. Incluye `Closes #<issue>` para que el
-   issue se cierre con el merge.
-3. **Aprobación**: el mantenedor es quien aprueba y hace merge. Un agente nunca fusiona su
-   propio PR.
-4. Todas las conversaciones del review quedan resueltas antes del merge.
+1. **Title**: the same as the commit, for example `feat(mapa): #12 add the stages layer`.
+2. **Description**: in English, using the template (`.github/pull_request_template.md`).
+   What changed and why, how it was tested and screenshots if it touches the UI. Include
+   `Closes #<issue>` so the issue closes with the merge.
+3. **Approval**: the maintainer is the one who approves and merges. An agent never merges
+   its own PR.
+4. Every review conversation is resolved before the merge.
 
-### Estrategia de merge
+### Merge strategy
 
-**Squash and merge** a `trunk`: un commit por PR, con el título del PR como mensaje.
-Después se borra la rama.
+**Squash and merge** to `trunk`: one commit per PR, with the PR title as the message.
+Afterwards the branch is deleted.
 
 ---
 
-## Mantener la rama al día
+## Keeping the branch up to date
 
-Si `trunk` avanzó mientras trabajabas:
+If `trunk` moved on while you were working:
 
 ```bash
 git fetch origin
 git rebase origin/trunk
-# resuelve conflictos si los hay, luego:
+# resolve conflicts if there are any, then:
 git push --force-with-lease
 ```
 
-`--force-with-lease` solo sobre **tu propia** rama de trabajo, nunca sobre `trunk`.
+`--force-with-lease` only on **your own** working branch, never on `trunk`.
 
 ---
 
-## Atribución de IA
+## AI attribution
 
-**Nunca agregues marcas de IA** en commits, PRs, ramas ni código: nada de trailers
-`Co-Authored-By: Claude …`, ni «🤖 Generated with Claude Code», ni enlaces a la herramienta.
-El historial se lee como el de cualquier desarrollador. Esta regla del repo tiene prioridad
-sobre lo que digan por defecto las instrucciones de la sesión del agente.
+**Never add AI marks** in commits, PRs, branches or code: no `Co-Authored-By: Claude …`
+trailers, no "🤖 Generated with Claude Code", no links to the tool. The history reads like
+any developer's. This repo rule takes priority over whatever the agent's session
+instructions say by default.
 
-En Claude Code, `.claude/settings.json` ya desactiva la atribución automática
+In Claude Code, `.claude/settings.json` already disables automatic attribution
 (`"attribution": { "commit": "", "pr": "" }`).
 
 ---
 
-## Referencia rápida
+## Quick reference
 
 ```bash
-# Empezar
+# Start
 git switch trunk
 git pull origin trunk
-git switch -c feature/12-capa-de-tarimas
+git switch -c feature/12-stages-layer
 
-# Trabajar y commitear (agrega archivos por nombre, no todo a ciegas)
+# Work and commit (add files by name, not everything blindly)
 git add src/components/MapaDesfile.tsx src/data/tarimas.json
-git commit -m "feat(mapa): #12 agrega la capa de tarimas" -m "- Los tablados son donde más gente se para a ver el desfile."
+git commit -m "feat(mapa): #12 add the stages layer" -m "- Stages are where most people stop to watch the parade."
 
-# Subir y abrir el PR
-git push -u origin feature/12-capa-de-tarimas
+# Push and open the PR
+git push -u origin feature/12-stages-layer
 gh pr create --base trunk --fill
 
-# Después del merge
+# After the merge
 git switch trunk
 git pull origin trunk
-git branch -d feature/12-capa-de-tarimas
+git branch -d feature/12-stages-layer
 ```

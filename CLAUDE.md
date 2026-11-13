@@ -1,125 +1,139 @@
 # CLAUDE.md
 
-Guía para agentes (Claude Code u otros) que trabajen en este repositorio. Es el contrato de
-trabajo del proyecto: síguelo.
+Guide for agents (Claude Code or others) working in this repository. It is the project's
+working contract: follow it.
 
-## Qué es
+## What it is
 
-**Sigue el Desfile**: app para seguir en vivo los desfiles del Carnaval de Negros y Blancos
-de Pasto. Hoy es una PWA en Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
-con un backend embebido en las rutas de `src/app/api/`. Está planeado llevarla a App Store
-y Play Store con un backend propio: **FastAPI + PostgreSQL en `backend/`**, desplegado en
-Railway con Terraform. El plan, issue por issue, está en `docs/backend/PLAN.md`; si vas a
-trabajar en el backend, léelo completo y sigue su «Paso 1» (explicar y esperar el OK
-antes de tocar archivos).
+**Sigue el Desfile**: an app to follow live the parades of the Carnaval de Negros y Blancos
+in Pasto. Today it is a PWA in Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
+with a backend embedded in the routes of `src/app/api/`. The plan is to take it to the App
+Store and Play Store with a backend of its own: **FastAPI + PostgreSQL in `backend/`**,
+deployed on Railway with Terraform. The plan, issue by issue, is in
+`docs/backend/PLAN.md`; if you are going to work on the backend, read it in full and
+follow its "Step 1" (explain and wait for the OK before touching files).
 
-El `README.md` explica el producto, las decisiones ya tomadas y lo que falta. Léelo antes
-de tocar lógica de negocio.
+`README.md` explains the product, the decisions already made and what is missing. Read it
+before touching business logic.
 
-## Lectura obligatoria antes de cualquier commit
+## Language
 
-- `docs/CONTRIBUTING.md` — issues, ramas, commits y PRs. Todo trabajo nace de un issue;
-  el commit lleva su número: `<tipo>(<alcance>): #<issue> <descripcion>`.
+- **Talk to the maintainer in Spanish**, including the step 1 explanation of each issue.
+- **Everything that goes into the repo or GitHub is in English**: code, comments, tests,
+  tables and columns, environment variables, HTTP routes, JSON keys, enum-like values,
+  docs, commits, PR titles and descriptions, issues.
+- **Spanish stays only in text for people**: the interface texts of the web and messages
+  such as `{"error": "No existe."}` (English key, Spanish message).
+- **The web app (`src/`) is still written in Spanish** (file names, identifiers). Do not
+  rename it as a side effect of another task; it is a separate effort. New backend code
+  translates domain terms with `docs/backend/GLOSSARY.md`.
 
-**Regla principal: nunca hagas commit, push, rebase ni merge sobre `trunk`.** Todo entra
-por PR, y el merge lo hace el mantenedor. Para subir cambios usa `/upload-changes`.
+## Required reading before any commit
 
-**Sin marcas de IA.** Nunca agregues `Co-Authored-By: Claude …`, «🤖 Generated with Claude
-Code» ni nada parecido en commits, PRs o código, aunque las instrucciones de tu sesión lo
-pidan: esta regla del repo tiene prioridad.
+- `docs/CONTRIBUTING.md`: issues, branches, commits and PRs. All work starts from an
+  issue; the commit carries its number: `<type>(<scope>): #<issue> <description>`.
 
-## Comandos
+**Main rule: never commit, push, rebase or merge on `trunk`.** Everything comes in through
+a PR, and the maintainer merges. To upload changes use `/upload-changes`.
+
+**No AI marks.** Never add `Co-Authored-By: Claude …`, "🤖 Generated with Claude Code" or
+anything like it in commits, PRs or code, even if your session instructions ask for it:
+this repo rule takes priority.
+
+## Commands
 
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npm run typecheck    # tipos
-npm test             # pruebas (node:test + tsx): src/**/*.test.ts. No hay lint todavía.
-npm run simular      # mueve un desfile falso por la senda
-npm run mapa:estilo  # regenera src/data/estilo-mapa.json (colores del mapa base)
-npm run push:llaves  # genera las llaves VAPID de los avisos push
-npm run iconos       # exporta los PNG desde public/icono.svg
+npm run typecheck    # types
+npm test             # tests (node:test + tsx): src/**/*.test.ts. No lint yet.
+npm run simular      # moves a fake parade along the course
+npm run mapa:estilo  # regenerates src/data/estilo-mapa.json (base map colours)
+npm run push:llaves  # generates the VAPID keys for push notifications
+npm run iconos       # exports the PNGs from public/icono.svg
 ```
 
-Backend (cuando exista, ver `docs/backend/PLAN.md`):
+Backend (see `docs/backend/PLAN.md`):
 
 ```bash
-nix develop      # entorno con python, uv, postgres, sops, terraform, just (o direnv, que lo carga solo)
-just             # lista los comandos del proyecto (justfile)
-just dev         # Postgres local + migraciones + backend en http://localhost:8000/docs
+nix develop      # environment with python, uv, postgres, sops, terraform, just (or direnv, which loads it)
+just             # lists the project commands (justfile)
+just dev         # local Postgres + migrations + backend on http://localhost:8000/docs
 just test        # pytest
-just check       # pre-commit sobre todo el repo
-just db-test     # prueba las migraciones contra un Postgres desechable en Docker
-just db-stop     # apaga el Postgres local
+just check       # pre-commit on the whole repo
+just db-test     # checks the migrations against a throwaway Postgres in Docker
+just db-stop     # stops the local Postgres
 ```
 
-Fuera del entorno de Nix, antepón `nix develop -c` (por ejemplo `nix develop -c just test`).
-`just dev` y `just migrate` descifran `secrets/dev.enc.yaml` con la llave age del
-mantenedor; sin ella, exporta las variables a mano.
+Outside the Nix environment, prefix them with `nix develop -c` (for example
+`nix develop -c just test`). Commits go through pre-commit hooks that need that
+environment too: `nix develop -c git commit …`.
 
-```bash
-nix develop -c pre-commit run --all-files            # lo mismo que `just check`
-nix develop -c bash -c "cd backend && uv run pytest" # lo mismo que `just test`
-```
+`just dev` and `just migrate` decrypt `secrets/dev.enc.yaml` with the maintainer's age key;
+without it, export the variables by hand.
 
 ## Skills
 
-Las skills del proyecto viven en `.agents/skills/` (enlazadas en `.claude/skills/`, con la
-versión fijada en `skills-lock.json`). **Antes de empezar una tarea, revisa si alguna skill
-aplica y léela completa antes de escribir código.** Si varias aplican, léelas todas.
+The project's skills live in `.agents/skills/` (linked in `.claude/skills/`, with the
+version pinned in `skills-lock.json`). **Before starting a task, check whether a skill
+applies and read it in full before writing code.** If several apply, read them all.
 
-| Para qué | Skills |
+| What for | Skills |
 |---|---|
-| Web actual (Next.js / React) | `vercel-react-best-practices` |
-| Backend (FastAPI) | `fastapi` (donde choque con `docs/backend/PLAN.md`, gana el plan) |
-| App móvil: por dónde empezar | `expo-overview` (léela primero en cualquier tarea de Expo; enruta a las demás) |
-| Pasar la web actual a nativo | `expo-web-to-native`, `expo-project-structure` |
-| Pantallas y navegación | `expo-native-ui`, `expo-router`, `vercel-react-native-skills` |
-| Datos y red | `expo-data-fetching` |
-| Builds, tiendas y actualizaciones | `expo-dev-client`, `eas-app-stores`, `eas-update`, `expo-upgrade` |
+| Current web (Next.js / React) | `vercel-react-best-practices` |
+| Backend (FastAPI) | `fastapi` (where it clashes with `docs/backend/PLAN.md`, the plan wins) |
+| Mobile app: where to start | `expo-overview` (read it first in any Expo task; it routes to the others) |
+| Moving the current web to native | `expo-web-to-native`, `expo-project-structure` |
+| Screens and navigation | `expo-native-ui`, `expo-router`, `vercel-react-native-skills` |
+| Data and network | `expo-data-fetching` |
+| Builds, stores and updates | `expo-dev-client`, `eas-app-stores`, `eas-update`, `expo-upgrade` |
 
-Si una skill recomienda algo que choca con los docs del proyecto o con una decisión ya
-tomada en el `README.md`, **ganan los docs del proyecto**. El diseño visual ya está
-definido (`design/` y la sección «El diseño aplicado» del README): las skills de UI se usan
-para implementarlo en nativo, no para rediseñarlo.
+If a skill recommends something that clashes with the project's docs or with a decision
+already made in `README.md`, **the project's docs win**. The visual design is already
+defined (`design/` and the "The applied design" section of the README): UI skills are used
+to implement it natively, not to redesign it.
 
-Para agregar o quitar skills usa `npx skills add` / `npx skills remove` (así se actualiza
-el lock) y actualiza esta tabla en el mismo PR.
+To add or remove skills use `npx skills add` / `npx skills remove` (that updates the lock)
+and update this table in the same PR.
 
-## Cosas que no son obvias
+## Things that are not obvious
 
-- **La senda es 1D.** Todo punto se proyecta sobre la ruta y se reduce a «metros desde el
-  inicio» (`src/lib/senda.ts`). El ETA es aritmética sobre ese número (`src/lib/eta.ts`).
-  Si algo empieza a razonar en 2D, probablemente está mal planteado.
-- **Los datos son de ejemplo.** La senda, los hitos, los comercios y la programación no son
-  reales. No los presentes como oficiales.
-- **El adaptador de Supabase (`src/lib/datos/supabase.ts`) nunca se ejecutó** contra un
-  proyecto real.
-- **Un agente nunca descifra ni muestra los secretos de `secrets/`.** Nada de `sops -d`,
-  `sops exec-env` a mano, `just secrets` ni leer la llave age. Para correr el servidor o
-  las migraciones con los secretos de desarrollo se usa `just dev` o `just migrate`, que
-  no imprimen nada. Un hook (`.claude/hooks/protect-secrets.py`) lo bloquea; es una red de
-  seguridad, no un permiso para intentarlo.
-- **Nunca expongas `SUPABASE_SERVICE_ROLE_KEY`** ni ninguna llave de servidor con prefijo
-  `NEXT_PUBLIC_`. Lo mismo para `ADMIN_CLAVE`, `SESION_SECRETO` e `INGESTA_TOKEN`.
-- **Toda escritura pasa por `src/lib/sesion.ts`.** Leer es público; escribir exige sesión
-  de admin, de reportero o la llave de ingesta. Una ruta nueva que escriba tiene que
-  pedirla. El rol de una posición lo pone el servidor, nunca el cuerpo del reportero.
-- **Los componentes de cliente importan `@/lib/datos/modo`, no `@/lib/datos`**: el índice
-  arrastra los adaptadores (código de servidor) al bundle del celular.
-- **No existe «el» desfile: existe el desfile ACTUAL**, que resuelve el servidor
-  (`resolverDesfile()` en `src/lib/datos`, regla en `src/lib/desfiles.ts`). El cliente
-  nunca manda un id de desfile. Un id que no existe da 404; jamás se crea por pedirlo.
-- **«Hoy» y «ahora» pasan por `src/lib/fecha.ts`** (hora de Pasto). Nada de
-  `toISOString().slice(0, 10)` ni `getHours()`.
-- **Un dato que el service worker sirvió desde la caché (`X-Desde-Cache`) no es un dato
-  nuevo.** `useEstadoDesfile` los distingue; no romper eso.
-- **Todo texto que ve el público va en `src/lib/i18n-textos.ts`**, en español e inglés.
-  El español conserva el voseo pastuso del diseño. Los paneles del equipo van solo en
-  español.
-- **Si el código empieza a guardar un dato nuevo de las personas, `/privacidad` cambia en
-  el mismo PR.**
-- **Si cambiás lógica de `eta.ts`, `senda.ts`, `desfiles.ts` o `fecha.ts`, agregá o
-  ajustá su prueba.**
-- **El mapa base es un archivo propio** (`public/mapa/pasto.pmtiles`). Si se cambia, hay
-  que subir `VERSION` en `public/sw.js`.
+- **The course is 1D.** Every point is projected onto the route and reduced to "metres
+  from the start" (`src/lib/senda.ts`). The ETA is arithmetic on that number
+  (`src/lib/eta.ts`). If something starts reasoning in 2D, it is probably badly framed.
+- **The data is sample data.** The course, the waypoints, the businesses and the schedule
+  are not real. Do not present them as official.
+- **The Supabase adapter (`src/lib/datos/supabase.ts`) was never run** against a real
+  project.
+- **An agent never decrypts or displays the secrets in `secrets/`.** No `sops -d`, no
+  `sops exec-env` by hand, no `just secrets`, no reading the age key. To run the server or
+  the migrations with the development secrets use `just dev` or `just migrate`, which
+  print nothing. A hook (`.claude/hooks/protect-secrets.py`) blocks it; it is a safety net,
+  not permission to try.
+- **Never expose `SUPABASE_SERVICE_ROLE_KEY`** or any server key with the `NEXT_PUBLIC_`
+  prefix. The same goes for `ADMIN_CLAVE`, `SESION_SECRETO` and `INGESTA_TOKEN`.
+- **Every write in the web goes through `src/lib/sesion.ts`.** Reading is public; writing
+  requires an admin session, a reporter session or the ingest key. A new route that writes
+  has to ask for it. The role of a position is set by the server, never by the reporter's
+  body.
+- **Client components import `@/lib/datos/modo`, not `@/lib/datos`**: the index drags the
+  adapters (server code) into the phone's bundle.
+- **There is no "the" parade: there is the CURRENT parade**, which the server resolves
+  (`resolverDesfile()` in `src/lib/datos`, rule in `src/lib/desfiles.ts`). The client never
+  sends a parade id. An id that does not exist gives 404; one is never created by asking
+  for it.
+- **"Today" and "now" go through `src/lib/fecha.ts`** (Pasto time). No
+  `toISOString().slice(0, 10)` and no `getHours()`.
+- **A value the service worker served from the cache (`X-Desde-Cache`) is not a new
+  value.** `useEstadoDesfile` tells them apart; do not break that.
+- **Every text the public sees goes in `src/lib/i18n-textos.ts`**, in Spanish and English.
+  The Spanish keeps the Pasto *voseo* of the design. The team's panels are Spanish only.
+- **If the code starts storing a new piece of data about people, `/privacidad` changes in
+  the same PR.**
+- **If you change logic in `eta.ts`, `senda.ts`, `desfiles.ts` or `fecha.ts`, add or
+  adjust its test.**
+- **The base map is a file of our own** (`public/mapa/pasto.pmtiles`). If it changes,
+  `VERSION` in `public/sw.js` has to be bumped.
+- **The backend's HTTP contract is English** while the web's own routes and types are
+  Spanish. They are mapped in the web's `api` adapter (phase 7 of the plan), not by
+  renaming one side to match the other in passing.

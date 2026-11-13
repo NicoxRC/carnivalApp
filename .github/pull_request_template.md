@@ -1,24 +1,28 @@
-Closes #<!-- número del issue -->
+Closes #<!-- issue number -->
 
-## Qué cambia y por qué
+## What changes and why
 
-<!-- Una o dos frases. El porqué importa más que el qué: el qué ya está en el diff. -->
+<!-- One or two sentences. The why matters more than the what: the what is already in the diff. -->
 
-## Cómo se probó
+## How it works
 
-<!-- Chequeos que corriste y pasos manuales para verificarlo. -->
+<!-- Backend issues: the step 1 explanation, adjusted to what was built. Delete if it does not apply. -->
 
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] Probado a mano en la app
+## How it was tested
 
-## Capturas
+<!-- Checks you ran and manual steps to verify it. Tick only what you actually ran. -->
 
-<!-- Solo si toca la UI. Borra esta sección si no aplica. -->
+- [ ] Web: `npm run typecheck` and `npm test`
+- [ ] Backend: `just check` and `just test` (`just db-test` if a migration changed)
+- [ ] Tried by hand
+
+## Screenshots
+
+<!-- Only if it touches the UI. Delete this section if it does not apply. -->
 
 ## Checklist
 
-- [ ] La rama sale de `trunk` y está actualizada con él
-- [ ] Un solo commit, con título `<tipo>(<alcance>): #<issue> <descripcion>` y al menos un bullet (`docs/CONTRIBUTING.md`)
-- [ ] Sin secretos, `console.log` de depuración ni código comentado
-- [ ] Si cambia la configuración o el setup local, el README está actualizado
+- [ ] The branch comes from `trunk` and is up to date with it
+- [ ] A single commit, titled `<type>(<scope>): #<issue> <description>` with at least one bullet (`docs/CONTRIBUTING.md`)
+- [ ] No secrets, no debug output, no commented-out code
+- [ ] If configuration or local setup changes, the docs are updated

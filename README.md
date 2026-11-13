@@ -1,568 +1,584 @@
 # Sigue el Desfile
 
-App web (PWA) para seguir en vivo los desfiles del Carnaval de Negros y Blancos de Pasto.
+Web app (PWA) to follow live the parades of the Carnaval de Negros y Blancos in Pasto,
+Colombia.
 
-**Estado: funciona de punta a punta en modo local; el camino de producción (Supabase)
-está escrito y sin probar.** Se puede abrir, mover un desfile por la senda, ver el ETA,
-recibir un aviso cuando se acerca, subir fotos y administrar todo desde `/admin`. Lo que
-falta para salir al público está en «Lo que falta antes de que esto sirva de verdad».
+**Status: it works end to end in local mode; the production path (Supabase) is written and
+untested.** You can open it, move a parade along the course, see the ETA, get a
+notification when it gets close, upload photos and manage everything from `/admin`. What is
+missing before going public is in "What is missing before this is really useful".
+
+A backend of its own (FastAPI + PostgreSQL, in `backend/`) is being built to replace the
+one embedded in the web app; see `docs/backend/PLAN.md`. The web app is written in Spanish
+(file names, identifiers and interface texts); the backend and all the docs are in English.
 
 ---
 
-## Arrancar
+## Getting started
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abrir <http://localhost:3000>. El desfile no se mueve solo: hay tres formas de moverlo.
+Open <http://localhost:3000>. The parade does not move on its own: there are three ways to
+move it.
 
-**1. El botón (para enseñarlo).** En el mapa, abajo a la izquierda: *Modo demo →
-Iniciar desfile*. Corre dentro del proceso de Next. Es lo que se usa en una sala de juntas.
+**1. The button (to show it).** On the map, bottom left: *Modo demo → Iniciar desfile*. It
+runs inside the Next process. It is what you use in a meeting room.
 
-**2. El script (para desarrollar).** En otra terminal:
+**2. The script (to develop).** In another terminal:
 
 ```bash
 npm run simular -- --velocidad=1.5 --desfile=demo
 ```
 
-| Opción | Por defecto | Qué hace |
+| Option | Default | What it does |
 |---|---|---|
-| `--velocidad` | `1.5` | km/h de la cabeza cuando anda |
-| `--intervalo` | `12` | segundos entre reportes |
-| `--separacion` | `550` | metros entre cabeza-mitad-cola |
-| `--paradas` | `true` | `false` para que no se detenga nunca |
-| `--inicio` | `0` | metros iniciales de la cabeza |
-| `--desfile` | `demo` | id del desfile |
-| `--url` | `http://localhost:3000` | contra qué despliegue apuntar |
+| `--velocidad` | `1.5` | km/h of the head when it moves |
+| `--intervalo` | `12` | seconds between reports |
+| `--separacion` | `550` | metres between head, middle and tail |
+| `--paradas` | `true` | `false` so it never stops |
+| `--inicio` | `0` | starting metres of the head |
+| `--desfile` | `demo` | parade id |
+| `--url` | `http://localhost:3000` | which deployment to point at |
 
-Contra un despliegue hace falta la llave de ingesta: `INGESTA_TOKEN=… npm run simular --
---url=https://…` (o `--token=…`).
+Against a deployment you need the ingest key: `INGESTA_TOKEN=… npm run simular --
+--url=https://…` (or `--token=…`).
 
-**3. Un reportero de verdad.** Poner `ADMIN_CLAVE` en `.env.local`, entrar a `/admin`,
-crear un reportero en la pestaña *Reporteros* y abrir `/reportero` con ese código en un
-celular. Ver «Panel de reporteros».
+**3. A real reporter.** Set `ADMIN_CLAVE` in `.env.local`, go to `/admin`, create a
+reporter in the *Reporteros* tab and open `/reportero` with that code on a phone. See
+"Reporters' panel".
 
-Los tres caminos hacen `POST /api/posiciones` con el mismo payload. **No hay un camino
-"de mentiras" paralelo al real**: lo que se prueba en octubre es el mismo código que corre
-el 31 de diciembre.
+All three paths do `POST /api/posiciones` with the same payload. **There is no "pretend"
+path parallel to the real one**: what is tested in October is the same code that runs on
+December 31.
 
 ---
 
 ```bash
-npm run typecheck    # tipos
-npm test             # pruebas del ETA, la senda, las fechas y las validaciones
+npm run typecheck    # types
+npm test             # tests of the ETA, the course, dates and validations
 npm run build
 ```
 
-Córrelos antes de abrir un PR: la web todavía no tiene CI (el del backend está en
+Run them before opening a PR: the web has no CI yet (the backend's is in
 `.github/workflows/backend-ci.yml`).
 
 ---
 
-## La idea que sostiene todo: la senda es 1D
+## The idea that holds everything up: the course is 1D
 
-La senda es una ruta fija conocida. Cualquier punto —la cabeza, la cola, el usuario— se
-proyecta sobre esa línea y se reduce a **un solo número: metros desde el inicio**
-(`src/lib/senda.ts`). El ETA es aritmética sobre ese número (`src/lib/eta.ts`).
+The course is a known fixed route. Any point (the head, the tail, the user) is projected
+onto that line and reduced to **a single number: metres from the start**
+(`src/lib/senda.ts`). The ETA is arithmetic on that number (`src/lib/eta.ts`).
 
-Nada en la app razona en dos dimensiones. Si algo empieza a necesitarlo, casi seguro está
-mal planteado.
+Nothing in the app reasons in two dimensions. If something starts needing to, it is almost
+certainly badly framed.
 
 ---
 
-## Los dos adaptadores de datos
+## The two data adapters
 
-Una sola interfaz (`src/lib/datos/adaptador.ts`), dos implementaciones. El interruptor es
+A single interface (`src/lib/datos/adaptador.ts`), two implementations. The switch is
 `NEXT_PUBLIC_DATOS`.
 
-| | `local` (por defecto) | `supabase` |
+| | `local` (default) | `supabase` |
 |---|---|---|
-| Almacén | memoria del proceso Next + copia en `.datos-local/` de lo editado en `/admin` | Postgres + Storage |
-| Tiempo real | SSE (`/api/estado/stream`) | Supabase Realtime |
-| Sobrevive a un reinicio | lo editado sí (comercios, reporteros, programación, fotos); lo en vivo no | sí |
-| Sirve en Vercel | **no** | sí |
-| Probado | sí, de punta a punta | **no** |
+| Store | memory of the Next process + a copy in `.datos-local/` of what was edited in `/admin` | Postgres + Storage |
+| Real time | SSE (`/api/estado/stream`) | Supabase Realtime |
+| Survives a restart | edited data does (businesses, reporters, schedule, photos); live data does not | yes |
+| Works on Vercel | **no** | yes |
+| Tested | yes, end to end | **no** |
 
-### Estado honesto del adaptador de Supabase
+### Honest status of the Supabase adapter
 
-Está **escrito pero nunca ejecutado contra un proyecto real**, porque todavía no hay
-credenciales. Conectarlo debería ser solo variables de entorno, pero hay que darlo por no
-probado hasta que alguien lo corra:
+It is **written but never run against a real project**, because there are no credentials
+yet. Connecting it should be environment variables only, but it has to be treated as
+untested until someone runs it:
 
-1. Crear el proyecto en Supabase (eso lo tienes que hacer tú: son credenciales).
-2. Pegar `supabase/schema.sql` en el SQL Editor y ejecutarlo.
-3. Copiar `.env.example` a `.env.local` y llenar las tres variables de Supabase (la
-   `service_role` es obligatoria: el servidor la usa para escribir y para leer los
-   reporteros) y las de los paneles.
-4. Poner `NEXT_PUBLIC_DATOS=supabase`.
-5. Cargar la senda real en la tabla `sendas`.
+1. Create the project on Supabase (you have to do that: they are credentials).
+2. Paste `supabase/schema.sql` into the SQL Editor and run it.
+3. Copy `.env.example` to `.env.local` and fill in the three Supabase variables (the
+   `service_role` one is required: the server uses it to write and to read the reporters)
+   and those of the panels.
+4. Set `NEXT_PUBLIC_DATOS=supabase`.
+5. Load the real course into the `sendas` table.
 
-El adaptador local **no funciona en Vercel**: cada invocación serverless es un proceso
-distinto, así que el store en memoria y el `setInterval` del simulador no sobreviven.
-Para un demo desplegado hay que conectar Supabase.
-
----
-
-## Cambiar la senda
-
-⚠️ **El trazado que viene NO es la senda oficial.** Es una polilínea aproximada sobre
-Pasto, dibujada a mano para poder desarrollar. Las calles que nombran los hitos son
-orientativas, no verificadas. La app lo advierte en pantalla mientras siga así.
-
-Para reemplazarla, editar `src/data/senda-carnaval.ts`:
-
-- `geojson.geometry.coordinates`: el recorrido oficial como `[lng, lat]` (¡en ese orden!),
-  del punto de salida al de llegada.
-- `hitos`: nombres de referencia, cada uno apuntando a un índice del array de coordenadas.
-- `oficial: true` cuando de verdad lo sea — eso apaga el aviso amarillo.
-
-La longitud y los metros de cada hito se calculan solos al cargar. Va en TypeScript y no
-en JSON porque el script `npm run simular` corre fuera del bundler.
+The local adapter **does not work on Vercel**: each serverless invocation is a different
+process, so the in-memory store and the simulator's `setInterval` do not survive. For a
+deployed demo Supabase has to be connected.
 
 ---
 
-## Lo que falta antes de que esto sirva de verdad
+## Changing the course
 
-Ordenado por lo que más duele si se ignora.
+⚠️ **The route that ships is NOT the official course.** It is an approximate polyline over
+Pasto, drawn by hand to be able to develop. The streets the waypoints name are indicative,
+not verified. The app warns about it on screen while that is so.
 
-**1. Conectar Supabase y desplegar con HTTPS.** Todo lo de este README se probó en modo
-local. El adaptador de Supabase, el bucket de fotos y Realtime **nunca se han ejecutado**.
-Y sin HTTPS no se puede probar el panel de reporteros en un celular: el navegador no
-entrega el GPS ni mantiene la pantalla encendida por `http://` (salvo en `localhost`).
+To replace it, edit `src/data/senda-carnaval.ts`:
 
-**2. Probar el panel de reporteros caminando.** En iPhone y en Android, con la pantalla
-encendida cuatro horas, batería externa y señal mala. En la web el GPS se detiene con la
-pantalla bloqueada: si el Wake Lock falla en algún celular del equipo, hay que saberlo
-antes del 31, no ese día.
+- `geojson.geometry.coordinates`: the official route as `[lng, lat]` (in that order!),
+  from the starting point to the finish.
+- `hitos`: reference names, each pointing to an index of the coordinates array.
+- `oficial: true` when it really is: that turns off the yellow warning.
 
-**3. Probarlo con red mala.** Está pensado para eso —service worker que guarda el armazón,
-el mapa y la programación; reconexión con backoff y jitter; siempre el último dato con su
-hora— y se probó apagando el servidor, pero **no con throttling 3G real**.
-
-**4. Los avisos push en iPhone.** Solo funcionan con la app instalada en la pantalla de
-inicio (iOS 16.4+). Sin eso queda el aviso local, que suena solo con la app abierta. Hay
-que probarlo en un iPhone de verdad y decidir si se le pide a la gente instalarla.
-
-**5. La política de privacidad.** `/privacidad` describe con exactitud lo que hace el
-código, pero es un **borrador**: falta el responsable del tratamiento, un contacto real y
-la revisión de un abogado frente a la Ley 1581 de 2012.
-
-**6. El piloto en otro evento.** Una ciclovía, una procesión, cualquier cosa con recorrido.
-Si el 31 de diciembre falla, no hay segunda oportunidad hasta el año siguiente.
-
-**7. Corpocarnaval.** Sin el aval no hay senda oficial, ni programación real, ni servicios
-(baños, hidratación) que cargar, ni legitimidad para vender pauta sobre patrimonio de la
-UNESCO.
-
-**Limitaciones conocidas que siguen abiertas:**
-
-- **Un solo administrador con una sola contraseña.** No hay usuarios, ni registro de quién
-  cambió qué, ni forma de cerrar una sesión robada antes de 12 horas. Resolverlo bien es
-  parte de decidir el backend definitivo.
-- **El gentío se puede seguir falseando con muchas IPs.** Los ids de dispositivo los firma
-  el servidor y emitirlos tiene tope por IP, así que ya no basta un bucle; pero no es
-  inviolable. Y sigue midiendo usuarios de la app, no gente.
-- **La CSP permite scripts en línea** (`'unsafe-inline'`): quitarlo exige nonces por
-  petición. Y queda una vulnerabilidad alta en el `postcss` que trae empaquetado Next 15;
-  se va subiendo a Next 16.
-- **No hay lint ni monitoreo de errores.** Los fallos de la API quedan en los registros
-  del servidor (`[api]`) y `/api/salud` sirve para un monitor externo, pero nadie avisa
-  solo si algo se cae.
-- **La proyección 1D asume que la senda no pasa dos veces por el mismo sitio.** Si el
-  recorrido oficial tiene tramos casi paralelos, un punto puede pegarse al tramo
-  equivocado; habría que acotar la proyección al entorno de la última posición.
+The length and the metres of each waypoint are computed on load. It is TypeScript and not
+JSON because the `npm run simular` script runs outside the bundler.
 
 ---
 
-## Decisiones que quedaron tomadas en el código
+## What is missing before this is really useful
 
-Cosas que la spec no cerraba y que se resolvieron de una manera concreta. Si alguna no
-convence, aquí está el porqué:
+Ordered by what hurts most if ignored.
 
-- **El ETA se muestra en rangos de 5 minutos**, asimétricos (−25 % / +40 %): un desfile se
-  atrasa mucho más fácil de lo que se adelanta.
-- **Con menos de 90 segundos de historial no se usa la velocidad medida**, sino una
-  nominal de 1,2 km/h, y la UI lo dice ("a ritmo estimado"). Con 30 segundos de datos el
-  ruido del GPS domina la señal y el número medido no mide nada.
-- **Techo de 6 km/h.** Por encima es un salto de GPS, no un desfile veloz: se descarta la
-  medición en vez de mostrar un ETA absurdo.
-- **Dos umbrales de detención, no uno.** La spec pedía avisar a los 10 minutos detenido;
-  eso deja al usuario sin señal útil durante nueve. A los 3 minutos aparece un aviso suave
-  ("sin avanzar hace 4 min") y a los 10 el titular en rojo.
-- **La senda va en el bundle**, no se pide por red. Son ~2 KB y así el mapa se dibuja sin
-  depender de la celda. `/api/senda` queda para el service worker y herramientas.
-- **`posiciones.rol` está desnormalizado** en el esquema SQL. La lectura corre cada pocos
-  segundos con miles de clientes encima y no puede pagar un join.
-- **La app sigue UN desfile: el «actual».** El que está en curso; si no hay, el de hoy; si
-  no, el próximo (`src/lib/desfiles.ts`). No se le pregunta al usuario cuál quiere ver, y
-  los reporteros siempre escriben en ese. Pedir un desfile que no existe da 404: nunca se
-  crea uno por nombrarlo.
-- **Con la cabeza más de 5 min callada no se da un tiempo.** El titular pasa a «sin
-  noticias del desfile hace 8 min». Un «llega en 20–35 min» calculado sobre dónde ESTABA
-  el desfile es un dato viejo disfrazado de nuevo.
-- **Un dato servido desde la caché no cuenta como dato nuevo.** Sin red, el service worker
-  devuelve la última copia; la app la muestra, pero no la marca «en vivo» ni reinicia su
-  antigüedad, y nunca deja que pise algo más reciente.
-- **Un rol, un emisor.** Si dos reporteros tienen el mismo rol, manda el que ya venía
-  mandando; el otro queda de respaldo y toma el rol solo si el titular se calla un minuto
-  (`RELEVO_MS`). Dos celulares a cuadras de distancia hacían saltar la cabeza.
-- **Un GPS de más de ±150 m se descarta** en el servidor (y de más de ±100 m ni se envía).
-- **«Hoy» es la fecha de Pasto**, no la del celular ni UTC (`src/lib/fecha.ts`).
-- **El freno a adivinar contraseñas es una espera, no un bloqueo.** Cada fallo hace que
-  la siguiente respuesta tarde más (hasta 5 s). Con bloqueo, seis intentos de cualquiera
-  dejaban fuera al administrador.
-- **Sin política de INSERT en RLS.** Solo el backend escribe. En Fase 2, cuando el celular
-  del reportero mande GPS directo, hay que añadir una que valide `auth.uid()`.
+**1. Connect Supabase and deploy with HTTPS.** Everything in this README was tested in
+local mode. The Supabase adapter, the photos bucket and Realtime **have never been run**.
+And without HTTPS the reporters' panel cannot be tested on a phone: the browser does not
+hand over GPS or keep the screen on over `http://` (except on `localhost`).
+
+**2. Test the reporters' panel while walking.** On iPhone and on Android, with the screen
+on for four hours, an external battery and bad signal. On the web GPS stops when the screen
+locks: if Wake Lock fails on some phone of the team, that has to be known before the 31st,
+not that day.
+
+**3. Test it with a bad network.** It is designed for that (a service worker that keeps the
+shell, the map and the schedule; reconnection with backoff and jitter; always the last
+value with its time) and it was tested by switching the server off, but **not with real 3G
+throttling**.
+
+**4. Push notifications on iPhone.** They only work with the app installed on the home
+screen (iOS 16.4+). Without that there is the local notification, which only sounds with
+the app open. It has to be tested on a real iPhone, and a decision made on whether to ask
+people to install it.
+
+**5. The privacy policy.** `/privacidad` describes exactly what the code does, but it is a
+**draft**: the data controller, a real contact and a lawyer's review against Colombia's Ley
+1581 de 2012 are missing.
+
+**6. The pilot at another event.** An open-streets day, a procession, anything with a
+route. If December 31 fails, there is no second chance until the following year.
+
+**7. Corpocarnaval.** Without its endorsement there is no official course, no real
+schedule, no services (toilets, water) to load, and no legitimacy to sell advertising on
+UNESCO heritage.
+
+**Known limitations still open:**
+
+- **A single administrator with a single password.** There are no users, no record of who
+  changed what, and no way to close a stolen session before 12 hours. Solving it properly
+  is part of the backend plan (`docs/backend/PLAN.md`).
+- **The crowd map can still be faked with many IPs.** Device ids are signed by the server
+  and issuing them is capped per IP, so a loop is no longer enough; but it is not
+  tamper-proof. And it still measures users of the app, not people.
+- **The CSP allows inline scripts** (`'unsafe-inline'`): removing it requires per-request
+  nonces. And there is a high-severity vulnerability in the `postcss` bundled with Next 15;
+  it goes away by moving to Next 16.
+- **There is no lint and no error monitoring.** API failures stay in the server logs
+  (`[api]`) and `/api/salud` is there for an external monitor, but nothing alerts on its
+  own if something goes down.
+- **The 1D projection assumes the course does not pass twice through the same place.** If
+  the official route has nearly parallel stretches, a point can snap to the wrong one; the
+  projection would have to be bounded to the surroundings of the last position.
 
 ---
 
-## El mapa base
+## Decisions that were settled in the code
 
-Las teselas son propias: `public/mapa/pasto.pmtiles` (≈2,4 MB, Pasto entero hasta z15,
-derivado de OpenStreetMap por Protomaps) y las fuentes de las etiquetas en
-`public/mapa/fuentes/`. No se depende de `tile.openstreetmap.org`, cuya política de uso no
-admite una app masiva.
+Things the spec did not close and that were resolved in a concrete way. If any is not
+convincing, here is the why:
 
-- **Abre sin red.** El service worker guarda el archivo entero en la primera visita y
-  recorta desde la caché los pedazos que pide el visor. Probado: con la red cortada el
-  mapa se dibuja completo.
-- **El estilo** (colores de papel, sin puntos de interés del mapa base) se genera con
-  `npm run mapa:estilo` y queda versionado en `src/data/estilo-mapa.json`, para no mandarle
-  al celular la librería de estilos.
-- **El worker de MapLibre** se copia desde `node_modules` a `public/mapa/` antes de cada
-  `dev` y `build` (`npm run mapa:worker`): desde la versión 6 no viene embebido.
-- **Actualizar las teselas** (una vez al año basta):
+- **The ETA is shown in 5-minute ranges**, asymmetric (−25 % / +40 %): a parade falls
+  behind far more easily than it gets ahead.
+- **With less than 90 seconds of history the measured speed is not used**, but a nominal
+  one of 1.2 km/h, and the UI says so ("a ritmo estimado"). With 30 seconds of data GPS
+  noise dominates the signal and the measured number measures nothing.
+- **6 km/h ceiling.** Above that it is a GPS jump, not a fast parade: the measurement is
+  discarded instead of showing an absurd ETA.
+- **Two stop thresholds, not one.** The spec asked to warn after 10 minutes stopped; that
+  leaves the user without a useful signal for nine. After 3 minutes a soft notice appears
+  ("sin avanzar hace 4 min") and after 10 the headline turns red.
+- **The course goes in the bundle**, it is not fetched over the network. It is ~2 KB and
+  that way the map draws without depending on the cell tower. `/api/senda` is there for the
+  service worker and tools.
+- **`posiciones.rol` is denormalised** in the SQL schema. The read runs every few seconds
+  with thousands of clients on top and cannot afford a join.
+- **The app follows ONE parade: the "current" one.** The one in progress; if there is
+  none, today's; otherwise the next one (`src/lib/desfiles.ts`). The user is not asked
+  which one to watch, and reporters always write to that one. Asking for a parade that
+  does not exist gives 404: one is never created by naming it.
+- **With the head silent for more than 5 min no time is given.** The headline becomes
+  «sin noticias del desfile hace 8 min». A «llega en 20–35 min» computed on where the
+  parade WAS is old data dressed up as new.
+- **A value served from the cache does not count as a new value.** Without a network, the
+  service worker returns the last copy; the app shows it, but does not mark it "live" or
+  reset its age, and never lets it overwrite something more recent.
+- **One role, one sender.** If two reporters have the same role, the one already sending
+  wins; the other stays as backup and takes the role only if the holder goes silent for a
+  minute (`RELEVO_MS`). Two phones blocks apart made the head jump.
+- **A GPS fix worse than ±150 m is discarded** on the server (and worse than ±100 m is
+  not even sent).
+- **"Today" is Pasto's date**, not the phone's and not UTC (`src/lib/fecha.ts`).
+- **The brake on guessing passwords is a wait, not a block.** Each failure makes the next
+  answer take longer (up to 5 s). With a block, six attempts by anyone locked the
+  administrator out.
+- **No INSERT policy in RLS.** Only the backend writes. In phase 2, when the reporter's
+  phone sends GPS directly, one validating `auth.uid()` has to be added.
+
+---
+
+## The base map
+
+The tiles are our own: `public/mapa/pasto.pmtiles` (≈2.4 MB, all of Pasto up to z15,
+derived from OpenStreetMap by Protomaps) and the label fonts in `public/mapa/fuentes/`.
+There is no dependency on `tile.openstreetmap.org`, whose usage policy does not allow a
+mass-market app.
+
+- **It opens without a network.** The service worker stores the whole file on the first
+  visit and cuts from the cache the pieces the viewer asks for. Tested: with the network
+  cut the map draws completely.
+- **The style** (paper colours, without the base map's points of interest) is generated
+  with `npm run mapa:estilo` and versioned in `src/data/estilo-mapa.json`, so the style
+  library is not sent to the phone.
+- **MapLibre's worker** is copied from `node_modules` to `public/mapa/` before every `dev`
+  and `build` (`npm run mapa:worker`): since version 6 it is not embedded.
+- **Updating the tiles** (once a year is enough):
 
   ```bash
   go install github.com/protomaps/go-pmtiles@latest
-  pmtiles extract https://build.protomaps.com/AAAAMMDD.pmtiles public/mapa/pasto.pmtiles \
+  pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/mapa/pasto.pmtiles \
     --bbox=-77.33,1.16,-77.23,1.26 --maxzoom=15
   ```
 
-  Y subir `VERSION` en `public/sw.js`, o los celulares se quedan con el archivo viejo.
-  `NEXT_PUBLIC_MAPA_PMTILES` permite apuntar a otra ruta **del mismo dominio**. Si el
-  archivo se sirve desde otro dominio (R2, S3), el mapa funciona con red pero el service
-  worker no lo guarda: se pierde el mapa sin señal.
+  And bump `VERSION` in `public/sw.js`, or phones keep the old file.
+  `NEXT_PUBLIC_MAPA_PMTILES` lets you point to another path **on the same domain**. If the
+  file is served from another domain (R2, S3), the map works with a network but the
+  service worker does not store it: the map is lost without signal.
 
-## Quién puede escribir
+## Who can write
 
-Leer el desfile es público. Escribir no: una cabeza falsa le miente a toda la senda a la
-vez. Todo pasa por `src/lib/sesion.ts`:
+Reading the parade is public. Writing is not: a fake head lies to the whole course at once.
+Everything goes through `src/lib/sesion.ts`:
 
-| Quién | Cómo entra | Qué puede hacer |
+| Who | How they get in | What they can do |
 |---|---|---|
-| Administrador | `/admin` con `ADMIN_CLAVE` | Todo: programación, comercios, reporteros, avisos, fotos, corregir posiciones |
-| Reportero | `/reportero` con un código que genera el admin | Mandar posiciones del desfile actual, siempre con su rol |
-| Público | sin cuenta; un id de dispositivo firmado por el servidor | Aportar al gentío y subir fotos (quedan pendientes de moderación) |
-| Script / herramientas | `Authorization: Bearer <INGESTA_TOKEN>` | Mandar posiciones |
+| Administrator | `/admin` with `ADMIN_CLAVE` | Everything: schedule, businesses, reporters, announcements, photos, correcting positions |
+| Reporter | `/reportero` with a code the admin generates | Send positions of the current parade, always with their role |
+| Public | no account; a device id signed by the server | Contribute to the crowd map and upload photos (pending moderation) |
+| Script / tools | `Authorization: Bearer <INGESTA_TOKEN>` | Send positions |
 
-- Las sesiones son cookies firmadas con `SESION_SECRETO`. No hay tabla de sesiones.
-- Del código del reportero se guarda solo el hash. Se muestra una vez al crearlo; si se
-  pierde, se genera otro y el viejo deja de servir. Desactivar a un reportero corta
-  también las sesiones que tenga abiertas.
-- Cada intento fallido hace más lenta la siguiente respuesta desde esa IP (hasta 5 s).
-  Vive en memoria del proceso: en serverless es un freno, no una muralla.
-- El público no tiene cuenta. Para el gentío y las fotos se usa un id de dispositivo que
-  emite y firma el servidor (`POST /api/dispositivo`), con tope de emisiones por IP.
-- **En modo local sin `INGESTA_TOKEN` la ingesta queda abierta**, para desarrollar. En
-  modo supabase siempre hace falta llave. El simulador embebido solo existe en modo local.
-- Es deliberadamente pequeño: cuando se decida el backend definitivo se cambia por su
-  auth sin tocar las pantallas.
+- Sessions are cookies signed with `SESION_SECRETO`. There is no sessions table.
+- Only the hash of the reporter's code is stored. It is shown once on creation; if it is
+  lost, another is generated and the old one stops working. Deactivating a reporter also
+  cuts whatever sessions they have open.
+- Each failed attempt slows down the next answer from that IP (up to 5 s). It lives in
+  process memory: on serverless it is a brake, not a wall.
+- The public has no account. For the crowd map and photos a device id issued and signed by
+  the server is used (`POST /api/dispositivo`), with a cap on issuing per IP.
+- **In local mode without `INGESTA_TOKEN` ingestion is open**, to develop. In supabase mode
+  a key is always needed. The embedded simulator only exists in local mode.
+- It is deliberately small: the backend in `backend/` replaces it with users, roles and
+  permissions without touching the screens.
 
-## Panel de reporteros
+## Reporters' panel
 
-`/reportero`. Pantalla oscura y mínima, pensada para cuatro horas en la mano a pleno sol.
+`/reportero`. A dark, minimal screen, designed for four hours in the hand in full sun.
 
-1. El reportero escribe su código (una vez por día) y toca **Empezar a reportar**.
-2. Desde ahí **el GPS sale solo cada 20 s**. No hay que tocar nada.
-3. **«Estoy aquí»** manda al instante. Para cuando el desfile se para o vuelve a arrancar.
-4. Si el GPS no sirve, se marca **por punto de referencia** (la lista de hitos).
+1. The reporter types their code (once a day) and taps **Empezar a reportar**.
+2. From there **GPS goes out on its own every 20 s**. Nothing has to be touched.
+3. **«Estoy aquí»** sends instantly. For when the parade stops or starts again.
+4. If GPS is no good, they mark **by reference point** (the list of waypoints).
 
-Lo que aguanta: si se cae la red, los puntos se guardan en el celular y salen juntos al
-volver la señal; la hora se corrige con el reloj del servidor; y se pide mantener la
-pantalla encendida (Wake Lock), porque **con la pantalla bloqueada el navegador deja de
-leer el GPS**. Si el navegador no lo permite, el panel lo dice. La pantalla también le
-confirma al reportero por dónde cree la app que va («estás por Colegio Champagnat»): si
-dice algo raro, lo nota al instante.
+What it withstands: if the network drops, points are stored on the phone and go out
+together when signal returns; the time is corrected with the server clock; and it asks to
+keep the screen on (Wake Lock), because **with the screen locked the browser stops reading
+GPS**. If the browser does not allow it, the panel says so. The screen also confirms to the
+reporter where the app thinks they are («estás por Colegio Champagnat»): if it says
+something odd, they notice at once.
 
-**Suplentes.** Conviene un suplente por rol, con su propio código y el panel abierto. No
-estorba: mientras el titular manda, el suplente ve «de respaldo» y sus puntos no entran;
-si el titular se calla un minuto, el suplente toma el rol solo.
+**Substitutes.** A substitute per role is advisable, with their own code and the panel
+open. They do not get in the way: while the holder sends, the substitute sees «de
+respaldo» and their points do not go in; if the holder goes silent for a minute, the
+substitute takes the role on their own.
 
-**Necesita HTTPS.** Por `http://` (fuera de `localhost`) el navegador no entrega el GPS; el
-panel lo avisa.
+**It needs HTTPS.** Over `http://` (outside `localhost`) the browser does not hand over
+GPS; the panel warns about it.
 
-## Panel de administración
+## Admin panel
 
-`/admin`, con `ADMIN_CLAVE`. Cinco pestañas:
+`/admin`, with `ADMIN_CLAVE`. Five tabs:
 
-- **En vivo**: el desfile actual en un mapa, dónde va cada rol, hace cuánto mandó y quién
-  lo reporta. Botones para marcar en curso, finalizar o reiniciar.
-  - **Corregir**: poner a mano un rol en el mapa cuando un reportero mandó algo absurdo o
-    se quedó sin señal.
-  - **Alertas**: si un rol lleva más de 5 min callado con el desfile en curso, sale un
-    aviso rojo, suena un pitido y (si se activó) llega una notificación. Solo con el
-    panel abierto en algún navegador.
-  - **Mensaje para todos**: un texto que sale arriba del mapa de todo el mundo al
-    instante («arranca con 40 min de retraso»). Vence solo.
-- **Programación**: los desfiles de cada día y los demás eventos. Es lo que alimenta
-  «Hoy», «Desfiles» y la capa Tarimas.
-- **Reporteros**: crear (genera el código), cambiar de rol, desactivar, regenerar código,
-  borrar.
-- **Comercios**: alta y edición con la ubicación en el mapa, plan, oferta, menú, WhatsApp
-  y enlace; y los servicios (baños, hidratación…). Cada comercio muestra **sus números**:
-  cuántos vieron la oferta, abrieron la ficha, vieron el menú o tocaron WhatsApp.
-- **Fotos**: la cola de moderación. Nada sale en el muro sin pasar por aquí.
+- **En vivo**: the current parade on a map, where each role is, how long ago it sent and
+  who reports it. Buttons to mark it in progress, finish it or restart it.
+  - **Corregir**: place a role on the map by hand when a reporter sent something absurd or
+    lost signal.
+  - **Alertas**: if a role has been silent for more than 5 min with the parade in
+    progress, a red notice shows, a beep sounds and (if enabled) a notification arrives.
+    Only with the panel open in some browser.
+  - **Mensaje para todos**: a text that shows above everyone's map instantly («arranca
+    con 40 min de retraso»). It expires on its own.
+- **Programación**: each day's parades and the other events. It is what feeds «Hoy»,
+  «Desfiles» and the Tarimas layer.
+- **Reporteros**: create (generates the code), change role, deactivate, regenerate code,
+  delete.
+- **Comercios**: creating and editing with the location on the map, plan, offer, menu,
+  WhatsApp and link; and the services (toilets, water…). Each business shows **its
+  numbers**: how many saw the offer, opened the card, saw the menu or tapped WhatsApp.
+- **Fotos**: the moderation queue. Nothing reaches the wall without going through here.
 
-## Ubicarse por referencias, no por calles
+## Finding your way by landmarks, not by streets
 
-La gente no se ubica por "carrera 27 con calle 18": se ubica por la iglesia, el centro
-comercial, el colegio. Por eso los hitos de la senda son **puntos reconocibles**, no
-cruces de calles, y la app habla en esos términos:
+People do not locate themselves by "carrera 27 con calle 18": they do it by the church, the
+shopping centre, the school. That is why the course's waypoints are **recognisable
+places**, not street crossings, and the app speaks in those terms:
 
-- En el mapa, cada hito lleva su icono y su nombre. Por debajo de cierto zoom se ocultan
-  los nombres para que no se pisen.
-- El ETA dice "va por Iglesia de Cristo Rey" o "va entre Champagnat y Cristo Rey".
-- Al usuario se le confirma dónde cree la app que está — "estás por Unicentro" — que es
-  la única forma de que se dé cuenta si el punto está mal.
+- On the map, each waypoint has its icon and its name. Below a certain zoom the names are
+  hidden so they do not overlap.
+- The ETA says "va por Iglesia de Cristo Rey" or "va entre Champagnat y Cristo Rey".
+- The user gets confirmation of where the app thinks they are ("estás por Unicentro"),
+  which is the only way they can notice if the point is wrong.
 
-Los hitos se editan en `src/data/senda-carnaval.ts`: nombre, nombre corto, tipo y
-coordenada. Cada uno se proyecta solo sobre la senda.
+Waypoints are edited in `src/data/senda-carnaval.ts`: name, short name, type and
+coordinate. Each one is projected onto the course on its own.
 
-⚠️ **Los hitos que vienen son una plantilla.** Los nombres son de sitios que existen en
-Pasto, pero las coordenadas están puestas a ojo sobre un trazado que tampoco es el real.
-Hay que corregirlos con conocimiento local antes de usarlos.
+⚠️ **The waypoints that ship are a template.** The names are of places that exist in
+Pasto, but the coordinates were placed by eye on a route that is not the real one either.
+They have to be corrected with local knowledge before being used.
 
-## PC y móvil
+## Desktop and mobile
 
-Un solo código, dos formas. El corte está en `lg` (1024 px).
+One codebase, two shapes. The cut is at `lg` (1024 px).
 
-| | Móvil | Escritorio |
+| | Mobile | Desktop |
 |---|---|---|
-| Navegación | barra de pestañas abajo, dentro del área segura | riel lateral de 92 px, alto completo |
-| Barra de ETA / ficha | hoja a todo el ancho, pegada abajo | tarjeta de 420 px flotando abajo a la izquierda |
-| Controles del mapa | abajo a la izquierda | abajo a la derecha, para no chocar con la tarjeta |
-| Hoy · Desfiles | una columna | dos columnas; la tarjeta en vivo ocupa las dos |
-| Fotos | dos columnas | cuatro columnas |
+| Navigation | tab bar at the bottom, inside the safe area | 92 px side rail, full height |
+| ETA bar / card | full-width sheet, stuck to the bottom | 420 px card floating bottom left |
+| Map controls | bottom left | bottom right, so they do not collide with the card |
+| Hoy · Desfiles | one column | two columns; the live card spans both |
+| Fotos | two columns | four columns |
 
-El razonamiento: a 1.500 px de ancho, un titular de 26 px centrado en toda la pantalla se
-lee **peor**, no mejor, y una barra de cuatro pestañas repartida en metro y medio no la usa
-nadie. Por eso en escritorio la información se agrupa a un lado y el mapa se queda con todo
-el espacio, que es lo único que gana de verdad con una pantalla grande.
+The reasoning: at 1,500 px wide, a 26 px headline centred across the whole screen reads
+**worse**, not better, and a four-tab bar spread over a metre and a half is used by nobody.
+That is why on desktop the information is grouped to one side and the map keeps all the
+space, which is the only thing that really gains from a big screen.
 
-También se quitó `maximum-scale=1` del viewport: bloquear el zoom deja fuera a quien
-necesita agrandar el texto, y MapLibre ya captura sus propios gestos dentro del mapa.
+`maximum-scale=1` was also removed from the viewport: blocking zoom shuts out whoever
+needs to enlarge the text, and MapLibre already captures its own gestures inside the map.
 
-## Subirlo a producción
+## Going to production
 
-⚠️ **Tal como está no se puede desplegar en Vercel.** El adaptador `local` guarda todo en
-memoria del proceso, y en serverless cada petición es un proceso distinto: las posiciones
-del desfile y el gentío se perderían entre una carga y la siguiente. No es un bug, es la
-frontera del modo de desarrollo.
+⚠️ **As it stands it cannot be deployed on Vercel.** The `local` adapter keeps everything
+in process memory, and on serverless each request is a different process: the parade's
+positions and the crowd map would be lost between one load and the next. It is not a bug,
+it is the boundary of development mode.
 
-Pasos, en orden:
+Steps, in order:
 
-**1. Supabase (lo hacés vos — son credenciales).**
-   1. Crear un proyecto en supabase.com (plan gratuito sobra).
-   2. SQL Editor → pegar `supabase/schema.sql` → Run.
-   3. Project Settings → API → copiar `URL`, `anon public` y `service_role`.
+**1. Supabase (the maintainer does it: they are credentials).**
+   1. Create a project on supabase.com (the free plan is plenty).
+   2. SQL Editor → paste `supabase/schema.sql` → Run.
+   3. Project Settings → API → copy `URL`, `anon public` and `service_role`.
 
-**2. Conectar (lo hago yo con esas tres llaves).**
-   - `.env.local` con `NEXT_PUBLIC_DATOS=supabase`, las tres variables de Supabase y
-     `ADMIN_CLAVE`, `SESION_SECRETO` e `INGESTA_TOKEN` (ver `.env.example`).
-   - Cargar la senda en la tabla `sendas` y crear la fila del desfile.
-   - **Probar el adaptador de Supabase de punta a punta**, que hoy está escrito pero nunca
-     ejecutado contra un proyecto real. Hay que dar por hecho que algo falla la primera vez.
+**2. Connect (with those three keys).**
+   - `.env.local` with `NEXT_PUBLIC_DATOS=supabase`, the three Supabase variables and
+     `ADMIN_CLAVE`, `SESION_SECRETO` and `INGESTA_TOKEN` (see `.env.example`).
+   - Load the course into the `sendas` table and create the parade's row.
+   - **Test the Supabase adapter end to end**, which today is written but never run
+     against a real project. Assume something fails the first time.
 
-**3. Vercel (cuenta tuya).**
-   - Importar el repo en Vercel y poner las mismas variables de entorno.
-   - `SUPABASE_SERVICE_ROLE_KEY` va solo como variable de servidor. Nunca con prefijo
-     `NEXT_PUBLIC_`, que la publicaría al navegador.
+**3. Vercel (the maintainer's account).**
+   - Import the repo into Vercel and set the same environment variables.
+   - `SUPABASE_SERVICE_ROLE_KEY` goes only as a server variable. Never with the
+     `NEXT_PUBLIC_` prefix, which would publish it to the browser.
 
-### Lo que hay que saber antes de enseñárselo a alguien
+### What you need to know before showing it to someone
 
-- **El simulador embebido (`Modo demo`) no funciona en Vercel**, porque es un `setInterval`
-  dentro del proceso. Para mover el desfile en el despliegue se usa el script:
-  `INGESTA_TOKEN=… npm run simular -- --url=https://tu-despliegue.vercel.app`.
-- **Sigue sin probarse con red mala**, que es el riesgo número uno del proyecto.
-- La senda, los hitos, los comercios y la programación siguen siendo **datos de ejemplo**.
+- **The embedded simulator (`Modo demo`) does not work on Vercel**, because it is a
+  `setInterval` inside the process. To move the parade on the deployment the script is
+  used: `INGESTA_TOKEN=… npm run simular -- --url=https://your-deployment.vercel.app`.
+- **It is still untested with a bad network**, which is the project's number one risk.
+- The course, the waypoints, the businesses and the schedule are still **sample data**.
 
-## Comercios en el mapa
+## Businesses on the map
 
-La capa **Comercios** reúne restaurantes, tascas, cafés, tiendas y droguerías. Cada uno es
-un marcador tocable: al tocarlo se abre su ficha abajo, en lugar de la barra de ETA, con
-qué es, dónde queda, a cuánto está de vos, a qué hora abre y —si contrató— su oferta, su
-menú y su WhatsApp.
+The **Comercios** layer brings together restaurants, *tascas*, cafés, shops and
+pharmacies. Each one is a tappable marker: tapping it opens its card at the bottom, in
+place of the ETA bar, with what it is, where it is, how far it is from you, when it opens
+and (if it signed up) its offer, its menu and its WhatsApp.
 
-Va todo junto en un solo filtro a propósito: para alguien parado en la senda, «dónde como,
-dónde compro» es la misma pregunta. El icono distingue de qué tipo es cada sitio; el color
-no cambia por categoría porque con ocho colores el mapa se vuelve ilegible justo donde hay
-más cosas.
+It all goes together in a single filter on purpose: for someone standing on the course,
+"where do I eat, where do I buy" is the same question. The icon tells what kind each place
+is; the colour does not change by category because with eight colours the map becomes
+unreadable exactly where there is the most.
 
-La capa **Servicios** (baños, hidratación, primeros auxilios, policía, cierres) usa el
-mismo almacén y formulario, pero solo aparece si el equipo cargó alguno. ⚠️ Solo con datos
-oficiales: un baño inventado en un mapa que alguien usa para buscar un baño es peor que no
-ofrecer la capa.
+The **Servicios** layer (toilets, water, first aid, police, closures) uses the same store
+and form, but only appears if the team loaded any. ⚠️ Only with official data: an invented
+toilet on a map someone uses to find a toilet is worse than not offering the layer.
 
-### Qué se vende
+### What is sold
 
-| | Sin plan | Básico | Destacado |
+| | No plan | Básico | Destacado |
 |---|---|---|---|
-| Aparece en el mapa con su ficha | sí | sí | sí |
-| Oferta, menú, WhatsApp y enlace en la ficha | — | sí | sí |
-| «Oferta cerca» a quien pase a menos de 300 m | — | — | sí |
-| Vitrina en la pantalla Hoy (rota cada 30 min) | — | — | sí |
+| Appears on the map with its card | yes | yes | yes |
+| Offer, menu, WhatsApp and link on the card | — | yes | yes |
+| «Oferta cerca» to whoever passes within 300 m | — | — | yes |
+| Showcase on the Hoy screen (rotates every 30 min) | — | — | yes |
 
-- **Aparecer en el mapa no depende de pagar.** El directorio vale por completo, no por
-  pagado.
-- **La oferta puede ser por momento**: todo el día, solo antes de que pase el desfile
-  frente al comercio, o solo después («2x1 en hervidos cuando pase el desfile»).
-- **Lo pagado lleva el sello «PAUTA»**, discreto, junto al botón. Discreto porque no es lo
-  primero que importa; presente porque si el usuario no puede distinguir qué es pauta y qué
-  no, la confianza que se le vende al anunciante deja de existir — y en Colombia la
-  publicidad no identificada es un problema con la SIC, no solo de estilo.
-- **El reporte para el anunciante** está en `/admin` → Comercios: contadores de vistas y
-  toques. No identifican a nadie y no distinguen si la misma persona abrió la ficha dos
-  veces; cualquiera podría inflarlos con un script, así que sirven para mostrar interés,
-  no para facturar por clic.
+- **Appearing on the map does not depend on paying.** The directory is valuable for being
+  complete, not for being paid.
+- **The offer can be by moment**: all day, only before the parade passes the business, or
+  only after («2x1 en hervidos cuando pase el desfile»).
+- **What is paid carries the «PAUTA» label**, discreet, next to the button. Discreet
+  because it is not the first thing that matters; present because if the user cannot tell
+  what is advertising and what is not, the trust being sold to the advertiser stops
+  existing. In Colombia unidentified advertising is a problem with the SIC, not just one of
+  style.
+- **The report for the advertiser** is in `/admin` → Comercios: counters of views and
+  taps. They identify nobody and do not tell whether the same person opened the card
+  twice; anyone could inflate them with a script, so they are good for showing interest,
+  not for billing per click.
 
-Los comercios se gestionan desde `/admin`. En modo local, `src/data/comercios-ejemplo.json`
-es la carga inicial. ⚠️ Los diez del JSON son **inventados**: ningún negocio real ha
-contratado nada.
+Businesses are managed from `/admin`. In local mode, `src/data/comercios-ejemplo.json` is
+the initial load. ⚠️ The ten in the JSON are **made up**: no real business has signed up
+for anything.
 
-## Avisos, compartir y fotos
+## Notifications, sharing and photos
 
-- **«Avisame cuando esté cerca».** En la barra del ETA. Con llaves VAPID en el servidor
-  (`npm run push:llaves`) el aviso llega aunque la app esté cerrada: cada vez que entra
-  una posición de la cabeza se revisa a quién le faltan 10 min o menos, se le notifica y
-  su suscripción se borra. Sin llaves, o si el navegador no soporta push, la propia app
-  vigila el ETA y avisa, pero solo mientras esté abierta — y lo dice.
-- **«Compartir mi punto».** Arma un enlace `/?encuentro=<metros>` con el texto «estoy por
-  Cristo Rey, llega en 20–35 min». Quien lo abre ve un pin en ese punto de la senda. Solo
-  viaja el metro de la senda, no la posición exacta.
-- **Termina de pasar en…** Con la cola reportando, el ETA también dice cuánto falta para
-  que el desfile acabe de pasar por donde está el usuario.
-- **Fotos.** Cualquiera sube; la foto se reduce en el celular (lo que además borra sus
-  metadatos, incluidas las coordenadas), queda **pendiente** y solo sale en el muro cuando
-  alguien del equipo la aprueba. Máximo 8 por dispositivo por hora.
-- **Por dónde pasó.** En «Desfiles», cada desfile que ya salió muestra a qué hora pasó la
-  cabeza por cada punto de referencia.
-- **Inglés.** La interfaz está en español e inglés (`src/lib/i18n-textos.ts`); se elige
-  solo según el idioma del celular y se puede cambiar. El contenido que carga el equipo
-  no se traduce.
+- **«Avisame cuando esté cerca».** In the ETA bar. With VAPID keys on the server
+  (`npm run push:llaves`) the notification arrives even with the app closed: every time a
+  position of the head comes in, it is checked who has 10 min or less left, they are
+  notified and their subscription is deleted. Without keys, or if the browser does not
+  support push, the app itself watches the ETA and notifies, but only while it is open,
+  and it says so.
+- **«Compartir mi punto».** It builds a link `/?encuentro=<metres>` with the text «estoy
+  por Cristo Rey, llega en 20–35 min». Whoever opens it sees a pin at that point of the
+  course. Only the course metre travels, not the exact position.
+- **Termina de pasar en…** With the tail reporting, the ETA also says how long until the
+  parade finishes passing where the user is.
+- **Photos.** Anyone uploads; the photo is reduced on the phone (which also wipes its
+  metadata, coordinates included), stays **pending** and only reaches the wall when
+  someone on the team approves it. Maximum 8 per device per hour.
+- **Where it went.** In «Desfiles», each parade that has already gone out shows at what
+  time the head passed each reference point.
+- **English.** The interface is in Spanish and English (`src/lib/i18n-textos.ts`); it is
+  chosen automatically from the phone's language and can be changed. Content loaded by the
+  team is not translated.
 
-## Mapa de gentío
+## Crowd map
 
-La capa "Gentío" pinta el recorrido de verde a rojo según cuánta gente hay en cada tramo
-de 100 m. Sirve para decidir dónde pararse.
+The "Gentío" layer paints the route from green to red according to how many people are in
+each 100 m stretch. It helps decide where to stand.
 
-**Cómo se mide.** Cada celular manda una vez por minuto **el número de tramo** en el que
-está — nunca lat/lng, nunca un historial. En la base hay una fila por dispositivo que se
-sobrescribe; el id es un aleatorio del navegador que solo sirve para no contar dos veces
-a la misma persona.
+**How it is measured.** Each phone sends once a minute **the number of the stretch** it is
+in: never lat/lng, never a history. In the database there is one row per device that is
+overwritten; the id only serves not to count the same person twice.
 
-**Dos salvaguardas, y por qué existen:**
+**Two safeguards, and why they exist:**
 
-1. **Umbral global.** Por debajo de 50 usuarios activos la capa no pinta nada y dice que
-   no hay muestra suficiente. Sin esto, el 31 de diciembre a las 9 de la mañana el mapa
-   diría "vacío" en una cuadra con cinco mil personas, que es la peor manera posible de
-   equivocarse.
-2. **Un tramo sin muestras no es un tramo vacío.** Los tramos con menos de 3 reportes
-   quedan sin dato en vez de pintarse de verde.
+1. **Global threshold.** Below 50 active users the layer paints nothing and says there is
+   not enough of a sample. Without this, on December 31 at 9 in the morning the map would
+   say "empty" on a block with five thousand people, which is the worst possible way to be
+   wrong.
+2. **A stretch without samples is not an empty stretch.** Stretches with fewer than 3
+   reports are left without data instead of being painted green.
 
-**El consentimiento es explícito.** Al encender la capa por primera vez se pregunta si
-quiere aportar su posición, con la opción de "solo mirar". Mirar no obliga a compartir.
+**Consent is explicit.** On turning the layer on for the first time the user is asked
+whether they want to contribute their position, with the option of "solo mirar". Looking
+does not oblige sharing.
 
-**«¿Dónde me hago?».** Con la capa encendida y muestra suficiente, sugiere hasta tres
-tramos con campo más adelante del desfile, con cuánto falta para que llegue a cada uno.
-Solo recomienda tramos que se SABE que están tranquilos; uno sin datos no se sugiere.
+**«¿Dónde me hago?».** With the layer on and enough of a sample, it suggests up to three
+stretches with room further ahead of the parade, with how long until it reaches each. It
+only recommends stretches KNOWN to be calm; one without data is not suggested.
 
-**Lo que esta función NO puede hacer, y conviene tener presente:**
+**What this feature CANNOT do, and is worth keeping in mind:**
 
-- **Mide usuarios de la app, no gente.** Si en una cuadra hay 3.000 personas y ninguna
-  tiene la app, sale sin dato. La correlación mejora con la adopción, y el primer año la
-  adopción es una incógnita.
-- **Solo mide sobre la senda.** El modelo es 1D: no sabe nada de las calles laterales ni
-  de las plazas fuera del recorrido.
-- **Decir "acá hay campo" tiene un riesgo que decir "allá está lleno" no tiene.** Mandar
-  gente a un punto puede llenarlo, o dejarla en un sitio sin visibilidad. Si el dato
-  resulta flojo en el piloto, lo prudente es dejar solo los tramos rojos.
+- **It measures users of the app, not people.** If there are 3,000 people on a block and
+  none has the app, it shows no data. The correlation improves with adoption, and in the
+  first year adoption is an unknown.
+- **It only measures on the course.** The model is 1D: it knows nothing about side streets
+  or squares off the route.
+- **Saying "there is room here" carries a risk that saying "it is full there" does not.**
+  Sending people to a spot can fill it, or leave them somewhere with no view. If the data
+  turns out weak in the pilot, the prudent thing is to keep only the red stretches.
 
-## El diseño aplicado
+## The applied design
 
-La interfaz viene de `design/Sigue el Desfile.dc.html`. Cambió el tema (de oscuro a
-papel claro de alto contraste), la tipografía (Alfa Slab One para los titulares), la voz
-(pastuso con voseo) y la navegación (de 2 pestañas a 4).
+The interface comes from `design/Sigue el Desfile.dc.html`. What changed: the theme (from
+dark to high-contrast light paper), the typography (Alfa Slab One for headlines), the voice
+(Pasto Spanish with *voseo*) and the navigation (from 2 tabs to 4).
 
-Decisiones que tuve que tomar porque el diseño no las cubría o no se podían montar tal cual:
+Decisions that had to be made because the design did not cover them or they could not be
+built as they were:
 
-- **Agua y Baños quedaron fuera de las capas del mapa.** El diseño proponía Desfile ·
-  Agua · Baños · Tarima, pero no existe ninguna fuente de datos para agua ni baños. Un
-  baño inventado en un mapa que alguien va a usar para buscar un baño es peor que no
-  ofrecer el filtro. En su lugar van **Desfile · Tarimas · Tascas**, que sí salen de
-  datos reales. Vuelven en cuanto Corpocarnaval publique esos puntos.
-- **En Fotos no se pintan @usuarios ni contadores de "me gusta".** El diseño los traía,
-  pero inventar nombres de gente y cifras de likes en una app con el nombre del Carnaval
-  es fabricar prueba social falsa. La pantalla muestra el armazón con un aviso de que las
-  fotos llegan en Fase 2, con moderación.
-- **El diseño solo resolvió el estado feliz del ETA.** Los otros seis (detenido, ya pasó,
-  te está pasando, sin ubicación, lejos de la senda, sin reportes) están escritos en el
-  mismo registro. Hicieron falta dos colores que el diseño no traía: un rojo de alerta y
-  un ámbar oscuro legible sobre blanco.
-- **La cabeza, la mitad y la cola siguen las tres en el mapa.** El artboard solo dibujaba
-  la cabeza, pero saber dónde va cada una es la promesa número uno del producto.
-- **Los PDI se distinguen por forma, no por color.** El diseño usa morado para Tarima, que
-  es el mismo morado de la cola. Los PDI son cuadrados redondeados y el desfile círculos.
-- **De la fuente solo se sirve el subconjunto `latin`** (19 KB). El export traía además
-  latin-ext y vietnamita: 27 KB que nadie iba a usar el 31 de diciembre.
-- **Erratas del diseño corregidas:** «segueí» → «seguí», y «toda la programa» → «toda la
+- **Water and Toilets were left out of the map layers.** The design proposed Desfile ·
+  Agua · Baños · Tarima, but there is no data source for water or toilets. An invented
+  toilet on a map someone is going to use to find a toilet is worse than not offering the
+  filter. In their place go **Desfile · Tarimas · Tascas**, which do come from real data.
+  They come back as soon as Corpocarnaval publishes those points.
+- **In Fotos no @users or "like" counters are painted.** The design had them, but
+  inventing people's names and like counts in an app with the Carnival's name is
+  fabricating fake social proof. The wall only shows photos the team approved.
+- **The design only solved the ETA's happy state.** The other six (stopped, already
+  passed, passing you now, no location, far from the course, no reports) are written in
+  the same register. Two colours the design did not have were needed: an alert red and a
+  dark amber readable on white.
+- **The head, the middle and the tail are all three still on the map.** The artboard only
+  drew the head, but knowing where each one is is the product's number one promise.
+- **Points of interest are told apart by shape, not by colour.** The design uses purple
+  for Tarima, which is the same purple as the tail. Points of interest are rounded squares
+  and the parade is circles.
+- **Only the `latin` subset of the font is served** (19 KB). The export also had
+  latin-ext and Vietnamese: 27 KB nobody was going to use on December 31.
+- **Typos in the design fixed:** «segueí» → «seguí», and «toda la programa» → «toda la
   programación».
-- **Copia ajustada a lo que existe:** el inicio decía «con baños, agua y tarima»; ahora
-  dice «con tarimas y tascas», que es lo que la app enseña de verdad.
+- **Copy adjusted to what exists:** the home said «con baños, agua y tarima»; now it says
+  «con tarimas y tascas», which is what the app actually shows.
 
-## Estructura
+## Structure
 
 ```
 src/
   app/
-    page.tsx              mapa en vivo
-    hoy/ desfiles/ fotos/ las otras tres pestañas
-    privacidad/           qué datos usa la app (borrador)
-    reportero/ admin/     los paneles del equipo
+    page.tsx              live map
+    hoy/ desfiles/ fotos/ the other three tabs
+    privacidad/           which data the app uses (draft)
+    reportero/ admin/     the team's panels
     error.tsx not-found.tsx robots.ts manifest.ts
     api/
-      posiciones/         ingesta — la única puerta de entrada
-      estado/             snapshot + stream SSE del desfile actual
-      programacion/       desfiles y eventos (público)
-      desfiles/[id]/recorrido/  a qué hora pasó por cada hito
-      comercios/          los visibles (público) + contador de métricas
-      densidad/ dispositivo/    gentío e id anónimo firmado
-      avisos-push/        suscripción a «avisame cuando esté cerca»
-      fotos/              subir, listar y servir fotos
-      reportero/sesion/   entrar y salir con el código
-      admin/              sesión, desfiles, eventos, avisos, comercios, reporteros, fotos
-      simulacion/         el botón de demo (solo modo local)
+      posiciones/         ingestion: the only way in
+      estado/             snapshot + SSE stream of the current parade
+      programacion/       parades and events (public)
+      desfiles/[id]/recorrido/  at what time it passed each waypoint
+      comercios/          the visible ones (public) + metrics counter
+      densidad/ dispositivo/    crowd map and signed anonymous id
+      avisos-push/        subscription to «avisame cuando esté cerca»
+      fotos/              upload, list and serve photos
+      reportero/sesion/   log in and out with the code
+      admin/              session, parades, events, announcements, businesses, reporters, photos
+      simulacion/         the demo button (local mode only)
       salud/ senda/
   components/
-    MapaDesfile.tsx       MapLibre: senda en 3 tramos, marcadores, PDI
-    BarraEta.tsx          la hoja blanca: los estados del ETA, aviso y compartir
-    Pantalla*.tsx         una por pestaña
-    PanelReportero.tsx    el panel de los reporteros
-    admin/                el panel de administración, una pestaña por archivo
+    MapaDesfile.tsx       MapLibre: course in 3 stretches, markers, points of interest
+    BarraEta.tsx          the white sheet: the ETA states, notification and sharing
+    Pantalla*.tsx         one per tab
+    PanelReportero.tsx    the reporters' panel
+    admin/                the admin panel, one tab per file
   lib/
-    senda.ts              proyección 1D (Turf)
-    eta.ts                velocidad, rangos, detención, sin señal
-    desfiles.ts fecha.ts  cuál es el desfile actual; fechas en hora de Pasto
-    sesion.ts             quién puede escribir: cookies firmadas, códigos, frenos
-    push.ts recorrido.ts  avisos de cercanía; paso por cada hito
-    i18n-textos.ts        español e inglés
-    datos/                adaptador local + Supabase (modo.ts: lo que ve el cliente)
-    *.test.ts             pruebas (npm test)
-  data/                   datos de ejemplo y estilo del mapa
-scripts/                  simular, generar estilo/íconos/llaves, copiar worker
+    senda.ts              1D projection (Turf)
+    eta.ts                speed, ranges, stops, no signal
+    desfiles.ts fecha.ts  which is the current parade; dates in Pasto time
+    sesion.ts             who can write: signed cookies, codes, rate limits
+    push.ts recorrido.ts  proximity notifications; passing each waypoint
+    i18n-textos.ts        Spanish and English
+    datos/                local + Supabase adapter (modo.ts: what the client sees)
+    *.test.ts             tests (npm test)
+  data/                   sample data and map style
+scripts/                  simulate, generate style/icons/keys, copy worker; backend helpers
 supabase/schema.sql
-public/sw.js              service worker: sin red, mapa y avisos push
-public/mapa/              teselas de Pasto y fuentes de las etiquetas
+public/sw.js              service worker: offline, map and push notifications
+public/mapa/              Pasto tiles and label fonts
+backend/                  the FastAPI backend (see docs/backend/PLAN.md)
+docs/backend/             backend plan and glossary
+secrets/                  encrypted secrets (sops + age)
 ```
