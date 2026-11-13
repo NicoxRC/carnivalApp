@@ -36,21 +36,23 @@ Una sola rama de larga vida (`trunk`) y ramas de trabajo cortas que salen de ell
 
 ```
 trunk
- ├── feature/eta-rango-asimetrico
- ├── fix/senda-proyeccion-fuera-de-ruta
- └── chore/actualizar-maplibre
+ ├── feature/14-eta-rango-asimetrico
+ ├── fix/21-senda-proyeccion-fuera-de-ruta
+ └── chore/30-actualizar-maplibre
 ```
 
-1. Todo trabajo empieza en una rama nueva creada desde `trunk` actualizado.
-2. Las ramas viven poco: unos días como máximo. Una rama vieja se aleja de `trunk` y
+1. **Todo trabajo nace de un issue de GitHub.** Si no hay issue, se crea antes de la rama.
+   Un issue = una rama = un PR.
+2. Todo trabajo empieza en una rama nueva creada desde `trunk` actualizado.
+3. Las ramas viven poco: unos días como máximo. Una rama vieja se aleja de `trunk` y
    después cuesta integrarla.
-3. Una rama = un tema. Si aparece un arreglo que no tiene que ver, va en otra rama.
-4. Después del merge, la rama se borra.
+4. Una rama = un tema. Si aparece un arreglo que no tiene que ver, va en otra rama.
+5. Después del merge, la rama se borra.
 
 ### Nombre de la rama
 
 ```
-<tipo>/<descripcion-corta>
+<tipo>/<numero-issue>-<descripcion-corta>
 ```
 
 | Tipo | Para qué |
@@ -63,18 +65,21 @@ trunk
 | `test/` | Solo tests |
 
 La descripción va en minúsculas, separada por guiones, sin tildes ni eñes y en máximo 5
-palabras: `feature/capa-de-tarimas`, no `feature/Nueva_Capa-TARIMAS-del-mapa-con-iconos`.
-
-No se usan IDs de tickets en el nombre: el proyecto no usa issues ni un gestor de tareas
-por ahora.
+palabras: `feature/12-capa-de-tarimas`, no `feature/Nueva_Capa-TARIMAS-del-mapa-con-iconos`.
 
 ---
 
 ## Commits — Conventional Commits
 
 ```
-<tipo>(<alcance>): <descripcion>
+<tipo>(<alcance>): #<issue> <descripcion>
+
+- <por qué se hace>
+- <otro bullet si hace falta>
 ```
+
+El número del issue va siempre, justo después de los dos puntos. El cuerpo lleva **mínimo
+un bullet** que explique el porqué.
 
 ### Tipos
 
@@ -115,35 +120,34 @@ El área afectada. Los alcances de este proyecto:
 | `deps` | Dependencias |
 | `ci` | Integración continua |
 | `repo` | Configuración del repositorio, docs de contribución, herramientas de agentes |
+| `back` | El backend en `backend/` (FastAPI), su entorno Nix, pre-commit y secretos con sops |
+| `infra` | Terraform y despliegue (`infra/`) |
 
-Si aparece un área nueva (por ejemplo `backend` o `mobile`), agrégala a esta tabla en el
+Si aparece un área nueva (por ejemplo `mobile`), agrégala a esta tabla en el
 mismo PR que la introduce.
 
 ### Reglas de redacción
 
 - La descripción va en **español**, en imperativo y en minúscula: «agrega», «corrige»,
   «elimina». Sin punto final y en máximo ~70 caracteres.
-- **Un commit = un cambio lógico.** Nada de un commit gigante «implementa todo» que toque
-  quince archivos de temas distintos.
-- Para cambios no triviales, agrega un cuerpo que explique el **porqué**, no el qué (el
-  qué ya está en el diff).
+- **Un PR = un commit = un cambio lógico.** Si el cambio no cabe en un commit razonable,
+  el issue está mal partido: se divide en varios issues, no en varios commits.
+- El cuerpo explica el **porqué** en bullets, no el qué (el qué ya está en el diff).
 
 ```
-feat(eta): muestra el ETA en rangos asimétricos de 5 minutos
-fix(senda): proyecta bien los puntos antes del inicio de la ruta
-test(eta): cubre el caso de desfile detenido más de 10 minutos
-docs(readme): agrega instrucciones para correr el simulador
-chore(deps): actualiza maplibre-gl a 5.7
+feat(eta): #14 muestra el ETA en rangos asimétricos de 5 minutos
+
+- Un desfile se atrasa mucho más fácil de lo que se adelanta: el rango
+  va de −25 % a +40 %.
 ```
 
-Con cuerpo:
-
 ```
-fix(eta): descarta velocidades por encima de 6 km/h
+fix(eta): #21 descarta velocidades por encima de 6 km/h
 
-Un salto de GPS hacía que la cabeza pareciera avanzar a 40 km/h
-y el ETA mostraba "llega en 1 min". Por encima del techo se
-descarta la medición y se usa la última velocidad válida.
+- Un salto de GPS hacía que la cabeza pareciera avanzar a 40 km/h y el
+  ETA mostraba "llega en 1 min".
+- Por encima del techo se descarta la medición y se usa la última
+  velocidad válida.
 ```
 
 ---
@@ -156,17 +160,17 @@ descarta la medición y se usa la última velocidad válida.
 
 - [ ] La rama está actualizada con `trunk` (`git fetch origin && git rebase origin/trunk`)
 - [ ] Los chequeos del proyecto pasan localmente (`npm run typecheck` y `npm test`; cuando exista
-      `npm run lint`, también)
+      `npm run lint`, también). Si tocaste el backend, los de `docs/backend/PLAN.md`
 - [ ] Probaste el cambio a mano (para la UI: abriste la app y lo viste funcionar)
 - [ ] No hay secretos en el diff: ni `.env`, ni llaves, ni tokens
 - [ ] No quedaron `console.log` de depuración ni código comentado
 
 ### Requisitos del PR
 
-1. **Título**: misma convención que los commits, por ejemplo
-   `feat(mapa): agrega la capa de tarimas`.
+1. **Título**: el mismo del commit, por ejemplo `feat(mapa): #12 agrega la capa de tarimas`.
 2. **Descripción**: usa la plantilla (`.github/pull_request_template.md`). Qué cambió y
-   por qué, cómo se probó y capturas si toca la UI.
+   por qué, cómo se probó y capturas si toca la UI. Incluye `Closes #<issue>` para que el
+   issue se cierre con el merge.
 3. **Aprobación**: el mantenedor es quien aprueba y hace merge. Un agente nunca fusiona su
    propio PR.
 4. Todas las conversaciones del review quedan resueltas antes del merge.
@@ -211,18 +215,18 @@ En Claude Code, `.claude/settings.json` ya desactiva la atribución automática
 # Empezar
 git switch trunk
 git pull origin trunk
-git switch -c feature/capa-de-tarimas
+git switch -c feature/12-capa-de-tarimas
 
 # Trabajar y commitear (agrega archivos por nombre, no todo a ciegas)
 git add src/components/MapaDesfile.tsx src/data/tarimas.json
-git commit -m "feat(mapa): agrega la capa de tarimas"
+git commit -m "feat(mapa): #12 agrega la capa de tarimas" -m "- Los tablados son donde más gente se para a ver el desfile."
 
 # Subir y abrir el PR
-git push -u origin feature/capa-de-tarimas
+git push -u origin feature/12-capa-de-tarimas
 gh pr create --base trunk --fill
 
 # Después del merge
 git switch trunk
 git pull origin trunk
-git branch -d feature/capa-de-tarimas
+git branch -d feature/12-capa-de-tarimas
 ```

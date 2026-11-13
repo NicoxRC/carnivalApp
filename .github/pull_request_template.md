@@ -1,3 +1,5 @@
+Closes #<!-- número del issue -->
+
 ## Qué cambia y por qué
 
 <!-- Una o dos frases. El porqué importa más que el qué: el qué ya está en el diff. -->
@@ -17,6 +19,6 @@
 ## Checklist
 
 - [ ] La rama sale de `trunk` y está actualizada con él
-- [ ] Título y commits siguen `docs/CONTRIBUTING.md`
+- [ ] Un solo commit, con título `<tipo>(<alcance>): #<issue> <descripcion>` y al menos un bullet (`docs/CONTRIBUTING.md`)
 - [ ] Sin secretos, `console.log` de depuración ni código comentado
 - [ ] Si cambia la configuración o el setup local, el README está actualizado

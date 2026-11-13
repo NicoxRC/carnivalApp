@@ -8,15 +8,18 @@ trabajo del proyecto: síguelo.
 **Sigue el Desfile**: app para seguir en vivo los desfiles del Carnaval de Negros y Blancos
 de Pasto. Hoy es una PWA en Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
 con un backend embebido en las rutas de `src/app/api/`. Está planeado llevarla a App Store
-y Play Store con un backend propio; esa arquitectura todavía no está decidida, así que no
-la anticipes en el código.
+y Play Store con un backend propio: **FastAPI + PostgreSQL en `backend/`**, desplegado en
+Railway con Terraform. El plan, issue por issue, está en `docs/backend/PLAN.md`; si vas a
+trabajar en el backend, léelo completo y sigue su «Paso 1» (explicar y esperar el OK
+antes de tocar archivos).
 
 El `README.md` explica el producto, las decisiones ya tomadas y lo que falta. Léelo antes
 de tocar lógica de negocio.
 
 ## Lectura obligatoria antes de cualquier commit
 
-- `docs/CONTRIBUTING.md` — ramas, commits y PRs.
+- `docs/CONTRIBUTING.md` — issues, ramas, commits y PRs. Todo trabajo nace de un issue;
+  el commit lleva su número: `<tipo>(<alcance>): #<issue> <descripcion>`.
 
 **Regla principal: nunca hagas commit, push, rebase ni merge sobre `trunk`.** Todo entra
 por PR, y el merge lo hace el mantenedor. Para subir cambios usa `/upload-changes`.
@@ -38,6 +41,15 @@ npm run push:llaves  # genera las llaves VAPID de los avisos push
 npm run iconos       # exporta los PNG desde public/icono.svg
 ```
 
+Backend (cuando exista, ver `docs/backend/PLAN.md`):
+
+```bash
+nix develop                                          # entorno con python, uv, postgres, sops, terraform
+nix develop -c pre-commit run --all-files            # chequeos
+nix develop -c bash -c "cd backend && uv run pytest" # tests
+cd backend && uv run fastapi dev                     # http://localhost:8000/docs
+```
+
 ## Skills
 
 Las skills del proyecto viven en `.agents/skills/` (enlazadas en `.claude/skills/`, con la
@@ -47,6 +59,7 @@ aplica y léela completa antes de escribir código.** Si varias aplican, léelas
 | Para qué | Skills |
 |---|---|
 | Web actual (Next.js / React) | `vercel-react-best-practices` |
+| Backend (FastAPI) | `fastapi` (donde choque con `docs/backend/PLAN.md`, gana el plan) |
 | App móvil: por dónde empezar | `expo-overview` (léela primero en cualquier tarea de Expo; enruta a las demás) |
 | Pasar la web actual a nativo | `expo-web-to-native`, `expo-project-structure` |
 | Pantallas y navegación | `expo-native-ui`, `expo-router`, `vercel-react-native-skills` |
