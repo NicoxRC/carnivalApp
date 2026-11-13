@@ -39,6 +39,9 @@
             sops
             age
 
+            # Project commands (see the justfile)
+            just
+
             # Checks
             pre-commit
             gitleaks

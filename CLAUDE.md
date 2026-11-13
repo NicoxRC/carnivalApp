@@ -44,12 +44,22 @@ npm run iconos       # exporta los PNG desde public/icono.svg
 Backend (cuando exista, ver `docs/backend/PLAN.md`):
 
 ```bash
-nix develop                                          # entorno con python, uv, postgres, sops, terraform
-nix develop -c pre-commit run --all-files            # chequeos
-nix develop -c bash -c "cd backend && uv run pytest" # tests
-scripts/local-db.sh                                  # Postgres local (`stop` para apagarlo)
-sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'  # migraciones
-sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'  # http://localhost:8000/docs
+nix develop      # entorno con python, uv, postgres, sops, terraform, just (o direnv, que lo carga solo)
+just             # lista los comandos del proyecto (justfile)
+just dev         # Postgres local + migraciones + backend en http://localhost:8000/docs
+just test        # pytest
+just check       # pre-commit sobre todo el repo
+just db-test     # prueba las migraciones contra un Postgres desechable en Docker
+just db-stop     # apaga el Postgres local
+```
+
+Fuera del entorno de Nix, antepón `nix develop -c` (por ejemplo `nix develop -c just test`).
+`just dev` y `just migrate` descifran `secrets/dev.enc.yaml` con la llave age del
+mantenedor; sin ella, exporta las variables a mano.
+
+```bash
+nix develop -c pre-commit run --all-files            # lo mismo que `just check`
+nix develop -c bash -c "cd backend && uv run pytest" # lo mismo que `just test`
 ```
 
 ## Skills
@@ -85,6 +95,11 @@ el lock) y actualiza esta tabla en el mismo PR.
   reales. No los presentes como oficiales.
 - **El adaptador de Supabase (`src/lib/datos/supabase.ts`) nunca se ejecutó** contra un
   proyecto real.
+- **Un agente nunca descifra ni muestra los secretos de `secrets/`.** Nada de `sops -d`,
+  `sops exec-env` a mano, `just secrets` ni leer la llave age. Para correr el servidor o
+  las migraciones con los secretos de desarrollo se usa `just dev` o `just migrate`, que
+  no imprimen nada. Un hook (`.claude/hooks/protect-secrets.py`) lo bloquea; es una red de
+  seguridad, no un permiso para intentarlo.
 - **Nunca expongas `SUPABASE_SERVICE_ROLE_KEY`** ni ninguna llave de servidor con prefijo
   `NEXT_PUBLIC_`. Lo mismo para `ADMIN_CLAVE`, `SESION_SECRETO` e `INGESTA_TOKEN`.
 - **Toda escritura pasa por `src/lib/sesion.ts`.** Leer es público; escribir exige sesión

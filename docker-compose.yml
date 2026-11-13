@@ -1,0 +1,21 @@
+# Throwaway Postgres for checking migrations: `just db-test`.
+#
+# It is not the development database (that one is scripts/local-db.sh, without
+# Docker). Data lives in memory and disappears with the container, and it
+# listens on 5433 so both can run at once.
+services:
+  db-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: parade
+      POSTGRES_PASSWORD: parade
+      POSTGRES_DB: parade_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username parade --dbname parade_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
