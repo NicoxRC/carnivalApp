@@ -56,7 +56,8 @@ npm test             # pruebas del ETA, la senda, las fechas y las validaciones
 npm run build
 ```
 
-Los tres corren en cada PR (`.github/workflows/ci.yml`).
+Córrelos antes de abrir un PR: la web todavía no tiene CI (el del backend está en
+`.github/workflows/backend-ci.yml`).
 
 ---
 

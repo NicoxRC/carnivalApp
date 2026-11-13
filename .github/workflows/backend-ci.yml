@@ -1,0 +1,60 @@
+name: Backend
+
+# Los mismos chequeos que pide docs/backend/PLAN.md antes de abrir un PR, con
+# las herramientas del flake: «en mi máquina funciona» y «en el CI funciona»
+# significan lo mismo.
+#
+# Solo corre cuando el PR toca el backend o su entorno. Cada job es un
+# chequeo con nombre propio; en el PR se ven como «Backend / pytest».
+on:
+  pull_request:
+    branches: [trunk]
+    paths:
+      - "backend/**"
+      - "flake.nix"
+      - "flake.lock"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+# Un push nuevo al mismo PR cancela la corrida anterior.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - run: nix develop -c pre-commit run --all-files
+
+  # El hook de gitleaks mira lo que está en staging, y en el CI no hay nada:
+  # aquí se revisan los commits que trae el PR.
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Historia completa, para comparar contra la rama base.
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - env:
+          RAMA_BASE: ${{ github.base_ref }}
+        run: nix develop -c gitleaks git --log-opts="origin/$RAMA_BASE..HEAD" --redact --no-banner --verbose
+
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - run: nix develop -c bash -c "cd backend && uv sync --frozen && uv run pytest"
