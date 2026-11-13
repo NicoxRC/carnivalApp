@@ -18,3 +18,10 @@ public/mapa/maplibre-worker.mjs
 
 # direnv (entorno de Nix)
 .direnv/
+
+# Backend (Python)
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
