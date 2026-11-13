@@ -15,3 +15,6 @@ next-env.d.ts
 
 # Se copia desde node_modules en cada dev/build (scripts/copiar-worker-mapa.mjs)
 public/mapa/maplibre-worker.mjs
+
+# direnv (entorno de Nix)
+.direnv/
