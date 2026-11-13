@@ -1,0 +1,70 @@
+# Chequeos que corren en cada `git commit` (y en el CI con `--all-files`).
+# Se activan una vez por copia del repo: nix develop -c pre-commit install
+#
+# Casi todos son hooks locales: usan las herramientas del flake y del uv.lock,
+# así la versión es la misma en cada máquina y en el CI. Por eso hay que
+# commitear desde `nix develop` (o con direnv).
+
+# Skills de terceros (versión fijada en skills-lock.json) y el diseño
+# exportado: no se editan a mano.
+exclude: ^(\.agents/|design/)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # En Markdown, dos espacios al final son un salto de línea.
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        entry: uv run --project backend ruff check --fix --force-exclude
+        language: system
+        files: ^backend/
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format (backend)
+        entry: uv run --project backend ruff format --force-exclude
+        language: system
+        files: ^backend/
+        types_or: [python, pyi]
+
+      - id: mypy
+        name: mypy --strict (backend/app)
+        # mypy necesita ver el paquete entero, no solo los archivos del commit.
+        entry: bash -c 'cd backend && uv run mypy --strict app'
+        language: system
+        files: ^backend/app/
+        types_or: [python, pyi]
+        pass_filenames: false
+
+      - id: gitleaks
+        name: gitleaks (secretos en lo que va al commit)
+        entry: gitleaks git --pre-commit --staged --redact --no-banner --verbose
+        language: system
+        pass_filenames: false
+
+      - id: nixfmt
+        name: nixfmt
+        entry: nixfmt
+        language: system
+        files: \.nix$
+
+      - id: sops-cifrado
+        name: secrets/ cifrado con sops
+        entry: scripts/verificar-sops.sh
+        language: script
+        files: ^secrets/
+
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: terraform fmt -check -diff
+        language: system
+        files: ^infra/.*\.(tf|tfvars)$

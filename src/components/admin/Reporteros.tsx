@@ -158,4 +158,3 @@ export function Reporteros({ onVencida }: { onVencida: () => void }) {
     </div>
   );
 }
-
