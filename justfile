@@ -30,6 +30,10 @@ db-stop:
 migrate: db
     sops exec-env {{ dev_secrets }} 'cd backend && uv run alembic upgrade head'
 
+# Create a user with the admin role in the local database (asks for the password)
+create-admin email name: migrate
+    ADMIN_EMAIL={{ quote(email) }} ADMIN_NAME={{ quote(name) }} sops exec-env {{ dev_secrets }} 'cd backend && uv run python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "$ADMIN_NAME"'
+
 # Run the backend tests; extra arguments go to pytest
 test *args:
     cd backend && uv run pytest {{ args }}
