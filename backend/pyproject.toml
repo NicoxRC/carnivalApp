@@ -1,7 +1,7 @@
 [project]
 name = "sigue-el-desfile-backend"
 version = "0.1.0"
-description = "API de Sigue el Desfile (FastAPI + PostgreSQL)"
+description = "Sigue el Desfile API (FastAPI + PostgreSQL)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.1",
@@ -26,7 +26,7 @@ dev = [
     "ruff>=0.17.5",
 ]
 
-# Es una aplicación, no una librería: se corre, no se instala.
+# It is an application, not a library: it is run, not installed.
 [tool.uv]
 package = false
 
@@ -43,12 +43,12 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-# E/F: errores básicos · I: orden de imports · UP: sintaxis moderna
-# B: bugs comunes · FAST: reglas propias de FastAPI
+# E/F: basic errors · I: import order · UP: modern syntax
+# B: common bugs · FAST: FastAPI's own rules
 select = ["E", "F", "I", "UP", "B", "FAST"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-# Sin el plugin, mypy no sabe que los campos de Settings salen del entorno.
+# Without the plugin, mypy does not know Settings fields come from the environment.
 plugins = ["pydantic.mypy"]

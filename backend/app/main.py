@@ -6,31 +6,31 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import get_engine
-from app.errores import registrar_errores
-from app.rutas import salud
+from app.errors import register_error_handlers
+from app.routers import health
 
-config = get_settings()
+settings = get_settings()
 
 
 @asynccontextmanager
-async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
-    # Al apagar: devuelve las conexiones del pool a Postgres.
+    # On shutdown: hand the pool's connections back to Postgres.
     await get_engine().dispose()
 
 
-app = FastAPI(title="Sigue el Desfile", lifespan=ciclo_de_vida)
+app = FastAPI(title="Sigue el Desfile", lifespan=lifespan)
 
-# La web vive en otro dominio: el navegador solo la deja llamar a la API si
-# su origen está en la lista. Sin credenciales porque la sesión va en
-# `Authorization: Bearer`, no en cookies.
+# The web app lives on another domain: the browser only lets it call the API
+# if its origin is on the list. No credentials, because the session travels
+# in `Authorization: Bearer`, not in cookies.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.cors_origenes,
+    allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-registrar_errores(app)
+register_error_handlers(app)
 
-app.include_router(salud.router)
+app.include_router(health.router)

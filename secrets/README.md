@@ -9,7 +9,7 @@ valores no. Por eso estos archivos sí se suben al repo.
 | `dev.enc.yaml` | Desarrollo en local |
 | `prod.enc.yaml` | Producción (Railway) |
 
-Nada entra a esta carpeta en texto plano: el hook `sops-cifrado` de pre-commit rechaza el
+Nada entra a esta carpeta en texto plano: el hook `sops-encrypted` de pre-commit rechaza el
 commit de cualquier archivo que no esté cifrado (menos este README).
 
 ## Cómo funciona
@@ -27,7 +27,7 @@ Todos los comandos se corren desde la raíz del repo, dentro del entorno de Nix
 
 ```bash
 # Arrancar el backend con los secretos de desarrollo
-scripts/db-local.sh        # Postgres local; `scripts/db-local.sh parar` lo apaga
+scripts/local-db.sh        # Postgres local; `scripts/local-db.sh stop` lo apaga
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'
 
@@ -50,14 +50,14 @@ Los nombres van en mayúsculas, tal como los lee la app.
 | Variable | Obligatoria | Qué es |
 |---|---|---|
 | `DATABASE_URL` | sí | Conexión a Postgres (`postgresql+asyncpg://usuario:clave@host:5432/base`) |
-| `JWT_SECRETO` | sí | Firma de las sesiones. Mínimo 32 caracteres; uno distinto por entorno |
-| `JWT_HORAS` | no (20) | Cuánto dura una sesión |
-| `CORS_ORIGENES` | no (`http://localhost:3000`) | Orígenes de la web que pueden llamar a la API, separados por comas |
-| `ENTORNO` | no (`dev`) | `dev` o `prod` |
-| `VAPID_PUBLICA`, `VAPID_PRIVADA`, `VAPID_CONTACTO` | no | Avisos push. Sin ellas la función se apaga sola |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_LLAVE`, `S3_SECRETO` | no | Fotos en S3. Sin bucket se guardan en disco |
+| `JWT_SECRET` | sí | Firma de las sesiones. Mínimo 32 caracteres; uno distinto por entorno |
+| `JWT_HOURS` | no (20) | Cuánto dura una sesión |
+| `CORS_ORIGINS` | no (`http://localhost:3000`) | Orígenes de la web que pueden llamar a la API, separados por comas |
+| `ENVIRONMENT` | no (`dev`) | `dev` o `prod` |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT` | no | Avisos push. Sin ellas la función se apaga sola |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | no | Fotos en S3. Sin bucket se guardan en disco |
 
-Para generar un `JWT_SECRETO` nuevo: `openssl rand -hex 32`.
+Para generar un `JWT_SECRET` nuevo: `openssl rand -hex 32`.
 
 ## Tener acceso por primera vez
 

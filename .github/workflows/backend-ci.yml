@@ -1,11 +1,10 @@
 name: Backend
 
-# Los mismos chequeos que pide docs/backend/PLAN.md antes de abrir un PR, con
-# las herramientas del flake: «en mi máquina funciona» y «en el CI funciona»
-# significan lo mismo.
+# The same checks docs/backend/PLAN.md asks for before opening a PR, with the
+# flake's tools: "works on my machine" and "works in CI" mean the same thing.
 #
-# Solo corre cuando el PR toca el backend o su entorno. Cada job es un
-# chequeo con nombre propio; en el PR se ven como «Backend / pytest».
+# Only runs when the PR touches the backend or its environment. Each job is a
+# check with its own name; on the PR they show up as "Backend / pytest".
 on:
   pull_request:
     branches: [trunk]
@@ -19,7 +18,7 @@ on:
 permissions:
   contents: read
 
-# Un push nuevo al mismo PR cancela la corrida anterior.
+# A new push to the same PR cancels the previous run.
 concurrency:
   group: backend-${{ github.ref }}
   cancel-in-progress: true
@@ -34,21 +33,21 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@v15
       - run: nix develop -c pre-commit run --all-files
 
-  # El hook de gitleaks mira lo que está en staging, y en el CI no hay nada:
-  # aquí se revisan los commits que trae el PR.
+  # The gitleaks hook looks at what is staged, and in CI nothing is: here
+  # the commits the PR brings are scanned.
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
-          # Historia completa, para comparar contra la rama base.
+          # Full history, to compare against the base branch.
           fetch-depth: 0
       - uses: DeterminateSystems/nix-installer-action@v23
       - uses: DeterminateSystems/magic-nix-cache-action@v15
       - env:
-          RAMA_BASE: ${{ github.base_ref }}
-        run: nix develop -c gitleaks git --log-opts="origin/$RAMA_BASE..HEAD" --redact --no-banner --verbose
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: nix develop -c gitleaks git --log-opts="origin/$BASE_BRANCH..HEAD" --redact --no-banner --verbose
 
   pytest:
     runs-on: ubuntu-latest

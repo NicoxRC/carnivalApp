@@ -1,12 +1,12 @@
-# Chequeos que corren en cada `git commit` (y en el CI con `--all-files`).
-# Se activan una vez por copia del repo: nix develop -c pre-commit install
+# Checks that run on every `git commit` (and in CI with `--all-files`).
+# Enable them once per clone: nix develop -c pre-commit install
 #
-# Casi todos son hooks locales: usan las herramientas del flake y del uv.lock,
-# así la versión es la misma en cada máquina y en el CI. Por eso hay que
-# commitear desde `nix develop` (o con direnv).
+# Almost all are local hooks: they use the tools from the flake and uv.lock,
+# so the version is the same on every machine and in CI. That is why commits
+# have to be made from `nix develop` (or with direnv).
 
-# Skills de terceros (versión fijada en skills-lock.json) y el diseño
-# exportado: no se editan a mano.
+# Third-party skills (version pinned in skills-lock.json) and the exported
+# design: not edited by hand.
 exclude: ^(\.agents/|design/)
 
 repos:
@@ -14,7 +14,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        # En Markdown, dos espacios al final son un salto de línea.
+        # In Markdown, two trailing spaces are a line break.
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
@@ -38,7 +38,7 @@ repos:
 
       - id: mypy
         name: mypy --strict (backend/app)
-        # mypy necesita ver el paquete entero, no solo los archivos del commit.
+        # mypy needs to see the whole package, not just the files in the commit.
         entry: bash -c 'cd backend && uv run mypy --strict app'
         language: system
         files: ^backend/app/
@@ -46,7 +46,7 @@ repos:
         pass_filenames: false
 
       - id: gitleaks
-        name: gitleaks (secretos en lo que va al commit)
+        name: gitleaks (secrets in what is being committed)
         entry: gitleaks git --pre-commit --staged --redact --no-banner --verbose
         language: system
         pass_filenames: false
@@ -57,9 +57,9 @@ repos:
         language: system
         files: \.nix$
 
-      - id: sops-cifrado
-        name: secrets/ cifrado con sops
-        entry: scripts/verificar-sops.sh
+      - id: sops-encrypted
+        name: secrets/ encrypted with sops
+        entry: scripts/check-sops.sh
         language: script
         files: ^secrets/
         exclude: ^secrets/README\.md$
