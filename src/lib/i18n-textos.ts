@@ -231,4 +231,3 @@ export function traducir(idioma: Idioma, clave: ClaveTexto, vars?: Record<string
 }
 
 export type Traductor = (clave: ClaveTexto, vars?: Record<string, string | number>) => string;
-

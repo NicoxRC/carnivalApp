@@ -148,4 +148,3 @@ function Entrar({ configurado, onEntrar }: { configurado: boolean; onEntrar: () 
     </div>
   );
 }
-
