@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import get_engine
+from app.errores import registrar_errores
 from app.rutas import salud
 
 config = get_settings()
@@ -29,5 +30,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+registrar_errores(app)
 
 app.include_router(salud.router)
