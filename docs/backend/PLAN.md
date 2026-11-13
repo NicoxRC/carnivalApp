@@ -288,7 +288,9 @@ La IP sale de la cabecera que pone Railway (`X-Real-IP` / último salto de
 ### 1.9 Secretos
 
 - `sops` + `age`. Archivos `secrets/dev.enc.yaml` y `secrets/prod.enc.yaml`.
-- Antes de que exista sops (B44), en local se usa `backend/.env` (en `.gitignore`).
+- No hay `backend/.env`: la configuración sale solo de variables de entorno, y en local
+  las pone `sops exec-env`. Por eso B44 se adelanta y va justo después de B06; mientras
+  tanto se exportan a mano.
 - En Terraform: provider `carlpett/sops` lee `prod.enc.yaml` y lo vuelca como variables
   del servicio en Railway.
 - En GitHub Actions solo existen `SOPS_AGE_KEY` y `RAILWAY_TOKEN`.
@@ -429,8 +431,8 @@ Cada issue trae: **Para entender** (punto de partida de la explicación del paso
   mínimo 32 caracteres), `JWT_HORAS` (20), `CORS_ORIGENES` (`http://localhost:3000`),
   `ENTORNO` (`dev` | `prod`). Opcionales para más adelante: `VAPID_PUBLICA`,
   `VAPID_PRIVADA`, `VAPID_CONTACTO`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_LLAVE`,
-  `S3_SECRETO`. Lee `backend/.env` si existe. `get_settings()` con `lru_cache` como
-  dependencia. CORS montado en `main.py`. `backend/.env.example` con los nombres.
+  `S3_SECRETO`. Solo lee variables de entorno, sin archivo `.env` (ver §1.9).
+  `get_settings()` con `lru_cache` como dependencia. CORS montado en `main.py`.
 - **Tests:** `test_config_ok`, `test_config_falla` (sin `DATABASE_URL` → `ValidationError`).
 - **Fuera de alcance:** sops (B44).
 

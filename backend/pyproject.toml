@@ -50,3 +50,5 @@ select = ["E", "F", "I", "UP", "B", "FAST"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# Sin el plugin, mypy no sabe que los campos de Settings salen del entorno.
+plugins = ["pydantic.mypy"]
