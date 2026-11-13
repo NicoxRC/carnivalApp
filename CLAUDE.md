@@ -47,7 +47,7 @@ Backend (cuando exista, ver `docs/backend/PLAN.md`):
 nix develop                                          # entorno con python, uv, postgres, sops, terraform
 nix develop -c pre-commit run --all-files            # chequeos
 nix develop -c bash -c "cd backend && uv run pytest" # tests
-cd backend && uv run fastapi dev                     # http://localhost:8000/docs
+sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'  # http://localhost:8000/docs
 ```
 
 ## Skills
