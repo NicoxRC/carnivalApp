@@ -62,6 +62,7 @@ repos:
         entry: scripts/verificar-sops.sh
         language: script
         files: ^secrets/
+        exclude: ^secrets/README\.md$
 
       - id: terraform-fmt
         name: terraform fmt

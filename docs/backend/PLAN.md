@@ -1102,12 +1102,12 @@ Cada issue trae: **Para entender** (punto de partida de la explicación del paso
 El camino principal es lineal a propósito, para revisar y entender un paso a la vez:
 
 ```
-Fase 0-1  B01 → B02 → B03 → B04 → B05 → B06 → B07 → B08
+Fase 0-1  B01 → B02 → B03 → B04 → B05 → B06 → B44 → B07 → B08
 Fase 2    B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16 → B17
 Fase 3    B18 → B19 → B20 → B21 → B22 → B23
 Fase 4    B24 → B25 → B26 → B27 → B28 → B29 → B30 → B31 → B32 → B33 → B34
 Fase 5    B35 → B36 → B37 → B38 → B39 → B40 → B41 → B42 → B43
-Fase 6    B44 → B45 → B46 → B47 → B48 → B49 → B50
+Fase 6    B45 → B46 → B47 → B48 → B49 → B50
 Fase 7    B51 → B52 → B53 → B54
 ```
 
