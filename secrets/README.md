@@ -27,6 +27,8 @@ Todos los comandos se corren desde la raíz del repo, dentro del entorno de Nix
 
 ```bash
 # Arrancar el backend con los secretos de desarrollo
+scripts/db-local.sh        # Postgres local; `scripts/db-local.sh parar` lo apaga
+sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'
 
 # Editar: abre el archivo descifrado en $EDITOR y lo vuelve a cifrar al guardar
