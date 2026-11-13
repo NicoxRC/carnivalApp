@@ -5,20 +5,20 @@ from app.config import Settings
 
 
 def test_config_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:c@localhost:5432/desfile")
-    monkeypatch.setenv("JWT_SECRETO", "x" * 32)
-    monkeypatch.setenv("CORS_ORIGENES", "https://a.co, https://b.co")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/parade")
+    monkeypatch.setenv("JWT_SECRET", "x" * 32)
+    monkeypatch.setenv("CORS_ORIGINS", "https://a.co, https://b.co")
 
-    config = Settings()
+    settings = Settings()
 
-    assert config.database_url == "postgresql+asyncpg://u:c@localhost:5432/desfile"
-    assert config.jwt_secreto.get_secret_value() == "x" * 32
-    assert config.jwt_horas == 20
-    assert config.cors_origenes == ["https://a.co", "https://b.co"]
-    assert config.entorno == "dev"
+    assert settings.database_url == "postgresql+asyncpg://u:p@localhost:5432/parade"
+    assert settings.jwt_secret.get_secret_value() == "x" * 32
+    assert settings.jwt_hours == 20
+    assert settings.cors_origins == ["https://a.co", "https://b.co"]
+    assert settings.environment == "dev"
 
 
-def test_config_falla(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL")
 
     with pytest.raises(ValidationError) as error:

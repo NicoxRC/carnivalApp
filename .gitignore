@@ -16,7 +16,7 @@ next-env.d.ts
 # Se copia desde node_modules en cada dev/build (scripts/copiar-worker-mapa.mjs)
 public/mapa/maplibre-worker.mjs
 
-# direnv (entorno de Nix)
+# direnv (Nix environment)
 .direnv/
 
 # Backend (Python)
@@ -26,5 +26,5 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Postgres de desarrollo (scripts/db-local.sh)
+# Development Postgres (scripts/local-db.sh)
 backend/.pgdata/

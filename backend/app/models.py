@@ -1,11 +1,11 @@
-"""Tablas de la base (SQLAlchemy). Todas heredan de `Base`."""
+"""Database tables (SQLAlchemy). All of them inherit from `Base`."""
 
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
-# Nombres fijos para índices y restricciones. Sin esto Postgres los nombra a
-# su manera y una migración posterior no sabe cómo referirse a ellos.
-CONVENCION_DE_NOMBRES = {
+# Fixed names for indexes and constraints. Without this Postgres names them
+# its own way and a later migration has no way to refer to them.
+NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
@@ -15,4 +15,4 @@ CONVENCION_DE_NOMBRES = {
 
 
 class Base(DeclarativeBase):
-    metadata = MetaData(naming_convention=CONVENCION_DE_NOMBRES)
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)

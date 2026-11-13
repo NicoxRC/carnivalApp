@@ -1,8 +1,8 @@
-"""Le dice a Alembic cómo conectarse y qué tablas existen.
+"""Tells Alembic how to connect and which tables exist.
 
-La URL sale de DATABASE_URL (la misma configuración que la app) y las tablas
-de `Base.metadata`: con eso `alembic revision --autogenerate` compara los
-modelos contra la base y escribe la migración.
+The URL comes from DATABASE_URL (the same settings the app uses) and the
+tables from `Base.metadata`: with those, `alembic revision --autogenerate`
+compares the models against the database and writes the migration.
 """
 
 import asyncio
@@ -14,7 +14,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
-from app.modelos import Base
+from app.models import Base
 
 config = context.config
 
@@ -24,8 +24,8 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def correr_sin_conexion() -> None:
-    """Modo offline (`--sql`): escribe el SQL en vez de ejecutarlo."""
+def run_offline() -> None:
+    """Offline mode (`--sql`): writes the SQL instead of running it."""
     context.configure(
         url=get_settings().database_url,
         target_metadata=target_metadata,
@@ -37,24 +37,24 @@ def correr_sin_conexion() -> None:
         context.run_migrations()
 
 
-def aplicar(conexion: Connection) -> None:
-    context.configure(connection=conexion, target_metadata=target_metadata)
+def apply(connection: Connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def correr_con_conexion() -> None:
-    # Sin pool: es un comando que abre una conexión, migra y termina.
+async def run_online() -> None:
+    # No pool: this is a command that opens one connection, migrates and exits.
     engine = create_async_engine(get_settings().database_url, poolclass=pool.NullPool)
 
-    async with engine.connect() as conexion:
-        await conexion.run_sync(aplicar)
+    async with engine.connect() as connection:
+        await connection.run_sync(apply)
 
     await engine.dispose()
 
 
 if context.is_offline_mode():
-    correr_sin_conexion()
+    run_offline()
 else:
-    asyncio.run(correr_con_conexion())
+    asyncio.run(run_online())

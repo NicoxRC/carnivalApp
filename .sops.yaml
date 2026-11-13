@@ -1,7 +1,7 @@
-# Con qué llave se cifra cada archivo de secrets/. Ver secrets/README.md.
+# Which key encrypts each file in secrets/. See secrets/README.md.
 #
-# Las llaves de aquí son públicas (age1…): solo sirven para cifrar. La privada
-# de cada quien vive en ~/.config/sops/age/keys.txt y nunca entra al repo.
+# The keys here are public (age1…): they can only encrypt. Each person's
+# private key lives in ~/.config/sops/age/keys.txt and never enters the repo.
 creation_rules:
   - path_regex: ^secrets/dev\.enc\.yaml$
     age: age1hypnc854yxq3mc2cadwlyt6pye9mg2m7dlu36szjyq0l3ua5v5hsgs055c

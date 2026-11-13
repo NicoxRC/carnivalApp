@@ -1,5 +1,5 @@
 {
-  description = "Sigue el Desfile: entorno de desarrollo del backend, la infraestructura y el CI";
+  description = "Sigue el Desfile: development environment for the backend, the infrastructure and CI";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -19,8 +19,8 @@
           f (
             import nixpkgs {
               inherit system;
-              # Terraform tiene licencia BSL (no libre). Se habilita solo ese
-              # paquete, no todo lo no libre.
+              # Terraform is under the BSL licence (not free). Only that
+              # package is allowed, not everything unfree.
               config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "terraform" ];
             }
           )
@@ -35,31 +35,31 @@
             uv
             postgresql_16
 
-            # Secretos
+            # Secrets
             sops
             age
 
-            # Chequeos
+            # Checks
             pre-commit
             gitleaks
             nixfmt-rfc-style
 
-            # Infraestructura
+            # Infrastructure
             terraform
             tflint
 
-            # Web (scripts que exportan datos al backend)
+            # Web (scripts that export data to the backend)
             nodejs_22
           ];
 
           env = {
-            # uv usa el Python del flake en vez de descargar uno propio.
+            # uv uses the flake's Python instead of downloading its own.
             UV_PYTHON_DOWNLOADS = "never";
             UV_PYTHON = "${pkgs.python312}/bin/python";
           }
-          # Los paquetes precompilados de PyPI (greenlet, numpy, shapely…)
-          # esperan libstdc++ y zlib del sistema, y el Python de Nix no las
-          # busca ahí. En macOS no hace falta.
+          # Prebuilt PyPI packages (greenlet, numpy, shapely…) expect the
+          # system's libstdc++ and zlib, and Nix's Python does not look for
+          # them there. Not needed on macOS.
           // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
               pkgs.stdenv.cc.cc.lib
