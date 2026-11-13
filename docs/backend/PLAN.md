@@ -1,1123 +1,1163 @@
-# Plan del backend
+# Backend plan
 
-Plan para reemplazar el backend embebido en `src/app/api/` (y los adaptadores `local` y
-`supabase` de `src/lib/datos/`) por un servicio propio. Está escrito para que un agente lo
-ejecute **issue por issue**, explicando cada paso antes de hacerlo y sin tomar decisiones de
-arquitectura por su cuenta.
+Plan to replace the backend embedded in `src/app/api/` (and the `local` and `supabase`
+adapters in `src/lib/datos/`) with a service of its own. It is written so an agent can
+execute it **issue by issue**, explaining each step before doing it and without making
+architecture decisions on its own.
 
-Stack decidido: **FastAPI + PostgreSQL**, entorno con **Nix**, dependencias con **uv**,
-secretos con **sops + age**, **pre-commit**, **tests unitarios con pytest**, **CI/CD en
-GitHub Actions** y despliegue con **Terraform sobre Railway** (primera iteración).
+Decided stack: **FastAPI + PostgreSQL**, environment with **Nix**, dependencies with **uv**,
+secrets with **sops + age**, **pre-commit**, **unit tests with pytest**, **CI/CD on GitHub
+Actions** and deployment with **Terraform on Railway** (first iteration).
 
-Orden: base mínima → **usuarios y roles** → senda y desfiles → el desfile en vivo →
-contenido y comunidad (avisos, eventos, comercios, fotos, push) → secretos y despliegue →
-conectar la web. **Todo lo que hoy hace `src/app/api/` existe en el backend antes de
-desplegar.**
+Order: minimal base → **users and roles** → course and parades → the live parade → content
+and community (announcements, events, businesses, photos, push) → deployment → connecting
+the web. **Everything `src/app/api/` does today exists in the backend before deploying.**
 
 ---
 
-## 0. Cómo trabajar este plan (léelo entero si eres un agente)
+## 0. How to work this plan (read it all if you are an agent)
 
-### Paso 1 de cada issue: explicar y esperar el OK
+### Language
 
-El mantenedor está aprendiendo varias de estas herramientas. **Antes de crear la rama o
-tocar un archivo**, escribe en el chat:
+- **English:** code, comments, tests, tables and columns, environment variables, HTTP
+  routes, JSON keys, enum-like values (roles, permissions, posts, states), docs, commits,
+  PRs and issues.
+- **Spanish:** only human-readable text inside values, such as the message in
+  `{"error": "No existe."}`, and the conversation with the maintainer: step 1 of each issue
+  is explained in Spanish.
+- The web app (`src/`) is still written in Spanish. Domain terms are translated with
+  `docs/backend/GLOSSARY.md`; if an issue introduces a new term or value set, it adds it to
+  the glossary in the same PR.
 
-1. **Qué vas a hacer**, en dos o tres frases y sin jerga.
-2. **Cómo funciona**: cada herramienta o concepto nuevo de este issue explicado como a
-   alguien que programa pero no lo ha usado (qué es, para qué sirve aquí, qué pasaría si
-   no estuviera). Cada issue trae **Para entender** como punto de partida; amplíalo con lo
-   que vayas a escribir de verdad.
-3. **Qué archivos vas a crear o cambiar**, uno por línea con una frase de para qué.
-4. **Qué decisiones tomas** que el plan no fija, si hay alguna.
-5. **Cómo se prueba**: qué comando correr y qué se debería ver.
+### Step 1 of every issue: explain and wait for the OK
 
-Después **detente y espera** a que el mantenedor responda que siga. Si pregunta algo,
-respóndelo antes de empezar. No encadenes dos issues sin una nueva confirmación.
+The maintainer is learning several of these tools. **Before creating the branch or touching
+a file**, write in the chat, in Spanish:
 
-### Pasos siguientes
+1. **What you are going to do**, in two or three sentences and without jargon.
+2. **How it works**: each new tool or concept of this issue explained as to someone who
+   programs but has not used it (what it is, what it is for here, what would happen without
+   it). Every issue brings **To understand** as a starting point; expand it with what you
+   are actually going to write.
+3. **Which files you will create or change**, one per line with a sentence on what for.
+4. **Which decisions you are making** that the plan does not fix, if any.
+5. **How it is tested**: which command to run and what should be seen.
 
-2. Crea la rama, haz el cambio, corre los chequeos (abajo).
-3. Un solo commit y abre el PR. En la descripción del PR incluye **«Cómo funciona»** con la
-   explicación del paso 1 ya ajustada a lo que quedó, y `Closes #<issue>`.
-4. **Detente.** El merge lo hace el mantenedor (ver `docs/CONTRIBUTING.md`).
+Then **stop and wait** for the maintainer to say go on. If they ask something, answer it
+before starting. Do not chain two issues without a new confirmation.
 
-### Reglas
+### Next steps
 
-- Cada sección de §2 es **un issue de GitHub**; el encabezado trae su número real
-  (`#13 · B11`). `B##` es el orden de ejecución; `#NN` es el issue.
-- **Un issue = una rama = un PR = un commit.** Si no cabe en un commit razonable, el issue
-  está mal partido: avisa, no lo agrandes.
-- Respeta `Depende de`: no empieces un issue cuyas dependencias no estén en `trunk`.
-- Haz solo lo que dice `Qué`. `Fuera de alcance` no se toca aunque parezca fácil.
-- Si un issue dice **«Requiere al mantenedor»**, haz la parte de código y deja los pasos
-  manuales escritos en el PR. Nunca inventes credenciales ni llaves.
-- **Al portar algo de `src/`, el código TypeScript es la especificación.** Lee la ruta y
-  los módulos que usa antes de escribir; si el plan y el código no coinciden en un detalle
-  de comportamiento (un límite, un mensaje, un código HTTP), gana el código y lo dices en
-  el PR. Las únicas diferencias deliberadas son las de §1.
+2. Create the branch, make the change, run the checks (below).
+3. A single commit, and open the PR. In the PR description include **"How it works"** with
+   the explanation from step 1 adjusted to what was built, and `Closes #<issue>`.
+4. **Stop.** The maintainer merges (see `docs/CONTRIBUTING.md`).
 
-### Rama
+### Rules
 
-```
-<tipo>/<numero-issue>-<descripcion-corta>
-```
+- Each section of §2 is **a GitHub issue**; the heading carries its real number
+  (`#13 · B11`). `B##` is the execution order; `#NN` is the issue.
+- **One issue = one branch = one PR = one commit.** If it does not fit in a reasonable
+  commit, the issue is badly split: say so, do not make it bigger.
+- Respect `Depends on`: do not start an issue whose dependencies are not on `trunk`.
+- Do only what `What` says. `Out of scope` is not touched even if it looks easy.
+- If an issue says **"Needs the maintainer"**, do the code part and leave the manual steps
+  written in the PR. Never make up credentials or keys.
+- **When porting something from `src/`, the TypeScript code is the specification for
+  behaviour.** Read the route and the modules it uses before writing; if the plan and the
+  code disagree on a behaviour detail (a limit, a status code), the code wins and you say so
+  in the PR. Names are the exception: routes, JSON keys and values are English here (§1.2).
+  The other deliberate differences are those of §1.
+- **An agent never decrypts or displays secrets.** No `sops -d`, no `sops exec-env` by
+  hand, no `just secrets`, no reading the age key. `just dev` and `just migrate` are the
+  allowed way to run with the development secrets.
 
-`feature/16-login-jwt`, `chore/4-flake-nix`, `docs/3-plan-backend`.
-
-### Commit (y título del PR, que es el mismo)
-
-```
-<tipo>(<alcance>): #<issue> <titulo>
-
-- <por qué se hace / qué decisión se tomó>
-- <otro bullet si hace falta>
-```
-
-- Tipos: los de `docs/CONTRIBUTING.md` (`feat`, `fix`, `chore`, `docs`, `test`, `refactor`).
-- Alcances nuevos: `back` (todo `backend/`, Nix, pre-commit, sops), `infra` (Terraform en
-  `infra/`) y `ci` (GitHub Actions, ya existía). Lo que toca la web usa sus alcances de
-  siempre (`datos`, `ui`, `simulacion`…).
-- **Mínimo un bullet** explicando el porqué. El qué ya está en el diff.
-- Sin marcas de IA (ni `Co-Authored-By`, ni «Generated with…»).
-
-Ejemplo:
+### Branch
 
 ```
-feat(back): #16 agrega el login con correo y contraseña
+<type>/<issue-number>-<short-description>
+```
 
-- Devuelve un JWT de 20 h: un reportero no puede volver a loguearse a mitad
-  del desfile con la mano ocupada.
-- Correo inexistente y contraseña mala responden igual (401) para no revelar
-  qué correos están registrados.
+`feature/16-login-jwt`, `chore/4-flake-nix`, `docs/3-backend-plan`.
+
+### Commit (and PR title, which is the same)
+
+```
+<type>(<scope>): #<issue> <title>
+
+- <why it is done / which decision was made>
+- <another bullet if needed>
+```
+
+- Types: those of `docs/CONTRIBUTING.md` (`feat`, `fix`, `chore`, `docs`, `test`, `refactor`).
+- Scopes: `back` (all of `backend/`, Nix, pre-commit, sops), `infra` (Terraform in
+  `infra/`) and `ci` (GitHub Actions). Whatever touches the web uses its usual scopes
+  (`datos`, `ui`, `simulacion`…).
+- **At least one bullet** explaining the why. The what is already in the diff.
+- No AI marks (no `Co-Authored-By`, no "Generated with…").
+
+Example:
+
+```
+feat(back): #16 add login with email and password
+
+- Returns a 20 h JWT: a reporter cannot log in again halfway through the
+  parade with their hands full.
+- Unknown email and wrong password answer the same (401) so as not to
+  reveal which emails are registered.
 ```
 
 ### Skills
 
-Antes de escribir código del backend lee completa la skill `fastapi`
-(`.agents/skills/fastapi/`). Donde choque con este plan, gana este plan (ver §1.11).
+Before writing backend code read the `fastapi` skill in full
+(`.agents/skills/fastapi/`). Where it clashes with this plan, this plan wins (see §1.11).
 
-### Antes de abrir el PR
+### Before opening the PR
 
 ```bash
-nix develop -c pre-commit run --all-files
-nix develop -c bash -c "cd backend && uv run pytest"
+just check      # every pre-commit hook on the whole repo
+just test       # pytest
+just db-test    # only if the issue adds or changes a migration
 ```
 
-Los dos tienen que pasar. Desde B05 el CI corre lo mismo. Si el issue toca la web, además
-`npm run typecheck` y `npm test`.
+All have to pass. CI runs the first two on every backend PR. If the issue touches the web,
+also `npm run typecheck` and `npm test`.
 
-### Regla de tests
+Outside the Nix environment, prefix them with `nix develop -c`.
 
-Tests **unitarios** con pytest. Sin base de datos real, sin red.
+### Test rule
 
-- Por cada función pública o endpoint que el issue agregue, como mínimo:
-  - `test_<cosa>_ok`: el caso bueno.
-  - `test_<cosa>_falla`: el caso malo (entrada inválida, recurso inexistente, sin permiso…).
-- **Un tercer test solo si el issue lo pide** en `Tests`, y es siempre un caso muy
-  específico (una regla de negocio, una frontera). No se agregan tests «por si acaso».
-- Los endpoints se prueban con `TestClient` de FastAPI y los repositorios reemplazados por
-  los falsos en memoria (`app.dependency_overrides`). Nunca contra Postgres, S3 ni un
-  servicio de push real.
-- Nombres de tests y de código en español, como el resto del proyecto.
+**Unit** tests with pytest. No real database, no network.
+
+- For every public function or endpoint the issue adds, at least:
+  - `test_<thing>_ok`: the good case.
+  - `test_<thing>_fails`: the bad case (invalid input, missing resource, no permission…).
+- **A third test only if the issue asks for it** in `Tests`, and it is always a very
+  specific case (a business rule, a boundary). No tests are added "just in case".
+- Endpoints are tested with FastAPI's `TestClient` and repositories replaced by the
+  in-memory fakes (`app.dependency_overrides`). Never against Postgres, S3 or a real push
+  service.
+- Migrations are not unit-tested: they are checked with `just db-test`, which runs them
+  against a throwaway Postgres in Docker.
 
 ---
 
-## 1. Decisiones de arquitectura (ya tomadas)
+## 1. Architecture decisions (already made)
 
-Si algo no te convence, ábrelo como discusión en el PR. No lo cambies en silencio.
+If something does not convince you, open it as a discussion in the PR. Do not change it
+silently.
 
 ### 1.1 Monorepo
 
 ```
-flake.nix                  entorno de desarrollo (raíz: lo usan back, infra y CI)
+flake.nix                  development environment (root: used by back, infra and CI)
+justfile                   project commands (`just dev`, `just test`…)
+docker-compose.yml         throwaway Postgres for `just db-test`
 .pre-commit-config.yaml
 .sops.yaml
-secrets/                   *.enc.yaml cifrados con sops (nunca texto plano)
+secrets/                   *.enc.yaml encrypted with sops (never plain text)
 backend/
   pyproject.toml  uv.lock  alembic.ini  Dockerfile
   app/
-    main.py                crea la app, monta routers, CORS, errores
+    main.py                creates the app, mounts routers, CORS, errors
     config.py              pydantic-settings
-    db.py                  engine y sesión async
-    errores.py             formato de error uniforme
-    seguridad.py           contraseñas, JWT, dependencias de usuario y permiso
-    permisos.py            roles, permisos y la tabla que los une
-    frenos.py              límites por IP / dispositivo (en memoria)
-    tiempo_real.py         LISTEN/NOTIFY → SSE
-    almacenamiento.py      fotos: disco local o S3
-    push.py                envío de avisos web push
-    modelos.py             tablas (SQLAlchemy)
-    dominio/               lógica pura, sin I/O
-    esquemas/              modelos Pydantic del contrato HTTP
-    repositorios/          protocolo + Postgres + falso en memoria, uno por recurso
-    rutas/                 un archivo por recurso
-    cli.py                 comandos de administración (crear admin, sembrar)
-  migraciones/             Alembic
-  seed/                    senda.json, datos de ejemplo y fixtures exportados desde la web
+    db.py                  async engine and session
+    errors.py              uniform error format
+    security.py            passwords, JWT, user and permission dependencies
+    permissions.py         roles, permissions and the table that joins them
+    rate_limits.py         limits per IP / device (in memory)
+    realtime.py            LISTEN/NOTIFY → SSE
+    storage.py             photos: local disk or S3
+    push.py                sending web push notifications
+    models.py              tables (SQLAlchemy)
+    domain/                pure logic, no I/O
+    schemas/               Pydantic models of the HTTP contract
+    repositories/          protocol + Postgres + in-memory fake, one per resource
+    routers/               one file per resource
+    cli.py                 admin commands (create admin, seed)
+  migrations/              Alembic
+  seed/                    course.json, sample data and fixtures exported from the web
   tests/
 infra/                     Terraform (Railway)
 ```
 
-### 1.2 El contrato HTTP
+### 1.2 The HTTP contract
 
-La web consume `src/app/api/`. El backend expone **las mismas rutas con el mismo JSON**
-(camelCase, mismos nombres que `src/lib/tipos.ts` y `src/lib/densidad.ts`), salvo la
-autenticación (§1.3). Así conectar la web es cambiar la URL base y el login, no reescribir
-pantallas.
+The web consumes `src/app/api/` today, with routes and JSON in Spanish. The backend exposes
+**the same resources with the same behaviour, named in English**: routes, JSON keys
+(camelCase) and enum-like values. Connecting the web (phase 7) therefore means changing the
+base URL, the login **and mapping names** in the web's `api` adapter; screens do not change.
 
-| Ruta | Acceso | Issue |
+| Route | Access | Issue |
 |---|---|---|
-| `GET /api/salud` | público | B03, B07 |
-| `POST /api/auth/login`, `GET /api/auth/yo` | público / sesión | B14 |
-| `GET/POST/PATCH/DELETE /api/admin/usuarios` | `usuarios:gestionar` | B17 |
-| `GET /api/senda` | público | B21 |
-| `GET /api/programacion` | público | B22, B36 |
-| `GET/PUT/PATCH/DELETE /api/admin/desfiles` | `desfiles:*` | B23 |
-| `POST /api/posiciones` | `posiciones:*` | B28 |
-| `GET /api/estado` | público | B29 |
-| `GET /api/estado/stream` | público | B30 |
-| `GET /api/desfiles/{id}/recorrido` | público | B31 |
-| `POST /api/dispositivo` | público, con freno por IP | B33 |
-| `GET/POST /api/densidad` | público / dispositivo | B34 |
-| `GET/POST/DELETE /api/admin/avisos` | `avisos:gestionar` | B35 |
-| `GET/PUT/DELETE /api/admin/eventos` | `programacion:editar` | B36 |
-| `GET /api/comercios`, `GET/PUT/DELETE /api/admin/comercios` | público / `comercios:editar` | B37 |
-| `POST /api/comercios/evento`, métricas en admin | público / `metricas:ver` | B38 |
-| `GET/POST /api/fotos`, `GET /api/fotos/{id}` | público / dispositivo | B40 |
-| `GET/PATCH/DELETE /api/admin/fotos` | `fotos:moderar` | B41 |
-| `GET/POST/DELETE /api/avisos-push` | público | B42 |
-| ~~`/api/admin/sesion`, `/api/reportero/sesion`~~ | — | reemplazadas por `/api/auth` |
-| ~~`/api/admin/reporteros`~~ | — | reemplazada por `/api/admin/usuarios` |
-| ~~`POST /api/simulacion`~~ | — | **no se porta**: el simulador es `npm run simular` con un usuario `ingesta` |
+| `GET /api/health` | public | B03, B07 |
+| `POST /api/auth/login`, `GET /api/auth/me` | public / session | B14 |
+| `GET/POST/PATCH/DELETE /api/admin/users` | `users:manage` | B17 |
+| `GET /api/course` | public | B21 |
+| `GET /api/schedule` | public | B22, B36 |
+| `GET/PUT/PATCH/DELETE /api/admin/parades` | `parades:*` | B23 |
+| `POST /api/positions` | `positions:*` | B28 |
+| `GET /api/state` | public | B29 |
+| `GET /api/state/stream` | public | B30 |
+| `GET /api/parades/{id}/progress` | public | B31 |
+| `POST /api/device` | public, rate-limited by IP | B33 |
+| `GET/POST /api/density` | public / device | B34 |
+| `GET/POST/DELETE /api/admin/announcements` | `announcements:manage` | B35 |
+| `GET/PUT/DELETE /api/admin/events` | `schedule:edit` | B36 |
+| `GET /api/businesses`, `GET/PUT/DELETE /api/admin/businesses` | public / `businesses:edit` | B37 |
+| `POST /api/businesses/event`, metrics in admin | public / `metrics:view` | B38 |
+| `GET/POST /api/photos`, `GET /api/photos/{id}` | public / device | B40 |
+| `GET/PATCH/DELETE /api/admin/photos` | `photos:moderate` | B41 |
+| `GET/POST/DELETE /api/push-subscriptions` | public | B42 |
+| ~~web's `/api/admin/sesion`, `/api/reportero/sesion`~~ | — | replaced by `/api/auth` |
+| ~~web's `/api/admin/reporteros`~~ | — | replaced by `/api/admin/users` |
+| ~~web's `POST /api/simulacion`~~ | — | **not ported**: the simulator is `npm run simular` with an `ingest` user |
 
-- Errores: siempre `{"error": "<mensaje en español>"}` con el código HTTP correcto.
+- Errors: always `{"error": "<message in Spanish>"}` with the right HTTP status. Validation
+  errors answer **400**, as the web does today, not FastAPI's 422.
 - Pydantic: `model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)`;
-  las respuestas salen `by_alias=True`.
-- **No existe «el» desfile: existe el desfile ACTUAL** (`src/lib/desfiles.ts`). El servidor
-  lo resuelve; el cliente público no manda id. Un id que no existe da 404; jamás se crea un
-  desfile por pedirlo.
-- **«Hoy» y «ahora» son hora de Pasto** (`America/Bogota`), como en `src/lib/fecha.ts`.
+  responses go out `by_alias=True`. Python attributes are snake_case, JSON keys camelCase.
+- **There is no "the" parade: there is the CURRENT parade** (`src/lib/desfiles.ts`). The
+  server resolves it; the public client does not send an id. An id that does not exist
+  gives 404; a parade is never created because someone asked for it.
+- **"Today" and "now" are Pasto time** (`America/Bogota`), as in `src/lib/fecha.ts`.
 
-### 1.3 Usuarios, roles y permisos
+### 1.3 Users, roles and permissions
 
-- **El público no tiene cuenta.** Ver el desfile, aportar al gentío, subir fotos y pedir
-  avisos sigue siendo anónimo (con el id de dispositivo firmado donde hoy se usa).
-- **El equipo sí:** login con **correo y contraseña**. Reemplaza la contraseña única de
-  admin (`ADMIN_CLAVE`), los códigos de reportero y el `INGESTA_TOKEN`.
-- **Roles → permisos.** Un usuario tiene uno o varios roles (tabla `usuario_roles`). Los
-  endpoints nunca preguntan por un rol: preguntan por un **permiso**. La tabla que une
-  roles y permisos vive en código (`app/permisos.py`), versionada y con tests.
+- **The public has no account.** Watching the parade, contributing to the crowd map,
+  uploading photos and asking for notifications stay anonymous (with the signed device id
+  where it is used today).
+- **The team does:** login with **email and password**. It replaces the single admin
+  password (`ADMIN_CLAVE`), the reporter codes and the `INGESTA_TOKEN`.
+- **Roles → permissions.** A user has one or several roles (table `user_roles`). Endpoints
+  never ask for a role: they ask for a **permission**. The table that joins roles and
+  permissions lives in code (`app/permissions.py`), versioned and tested.
 
-| Rol | Para quién | Permisos |
+| Role | For whom | Permissions |
 |---|---|---|
-| `admin` | dueños del sistema | todos |
-| `coordinador` | quien dirige el día del desfile | `desfiles:estado`, `avisos:gestionar`, `usuarios:ver`, `posiciones:cualquiera` |
-| `editor` | quien carga contenido | `desfiles:editar`, `programacion:editar`, `comercios:editar`, `metricas:ver` |
-| `moderador` | quien revisa fotos | `fotos:moderar` |
-| `reportero` | quien camina con el desfile | `posiciones:propias` |
-| `ingesta` | cuentas de servicio (simulador, herramientas) | `posiciones:cualquiera` |
+| `admin` | owners of the system | all |
+| `coordinator` | whoever runs parade day | `parades:state`, `announcements:manage`, `users:view`, `positions:any` |
+| `editor` | whoever loads content | `parades:edit`, `schedule:edit`, `businesses:edit`, `metrics:view` |
+| `moderator` | whoever reviews photos | `photos:moderate` |
+| `reporter` | whoever walks with the parade | `positions:own` |
+| `ingest` | service accounts (simulator, tools) | `positions:any` |
 
-- **Puesto del reportero.** Lo que en el código se llama `Rol` (`cabeza` | `mitad` |
-  `cola`) en el backend es el **`puesto`** del usuario, para no chocar con los roles de
-  acceso. En el JSON de posiciones y estado se sigue llamando `rol` (contrato de §1.2).
-  Con `posiciones:propias` el servidor pone el puesto y el desfile actual; el cuerpo no
-  puede elegirlos.
-- **Contraseñas** con hash **Argon2** (`pwdlib`). Mínimo 10 caracteres. Nunca en claro.
-- **Sesión con JWT** (`pyjwt`, HS256) firmado con `JWT_SECRETO`, en
-  `Authorization: Bearer <token>`. Dura 20 h (un día de desfile entero, como hoy la cookie
-  del reportero). Sin refresh tokens. El token lleva solo el id del usuario: roles y
-  `activo` se leen de la base en cada petición, así desactivar a alguien corta su sesión
-  al instante.
-- **Bearer y no cookies:** la app móvil no maneja cookies bien y el backend vive en otro
-  dominio que la web. El precio: la web guarda el token en el navegador; se mitiga con la
-  CSP que ya tiene la web y la duración corta.
-- **Freno a fuerza bruta** en el login: espera creciente por IP (hasta 5 s), sin bloquear,
-  como `frenar()` de `src/lib/sesion.ts`.
-- El primer admin se crea por consola (`python -m app.cli crear-admin`).
+- **The reporter's post.** What the web code calls `Rol` (`cabeza` | `mitad` | `cola`) is
+  the user's **`post`** in the backend (`head` | `middle` | `tail`), so it does not clash
+  with access roles. In the JSON of positions and state the key is `post`. With
+  `positions:own` the server sets the post and the current parade; the body cannot choose
+  them.
+- **Passwords** hashed with **Argon2** (`pwdlib`). Minimum 10 characters. Never in clear.
+- **Session with JWT** (`pyjwt`, HS256) signed with `JWT_SECRET`, in
+  `Authorization: Bearer <token>`. It lasts 20 h (a whole parade day, like the reporter's
+  cookie today). No refresh tokens. The token carries only the user id: roles and `active`
+  are read from the database on every request, so deactivating someone cuts their session
+  instantly.
+- **Bearer and not cookies:** the mobile app does not handle cookies well and the backend
+  lives on a different domain than the web. The price: the web keeps the token in the
+  browser; it is mitigated with the CSP the web already has and the short duration.
+- **Brute-force brake** on login: growing wait per IP (up to 5 s), without blocking, like
+  `frenar()` in `src/lib/sesion.ts`.
+- The first admin is created from the console (`python -m app.cli create-admin`).
 
-### 1.4 La senda sigue siendo 1D
+### 1.4 The course is still 1D
 
-- La proyección de lat/lng a «metros desde el inicio» se hace **en Python** con `shapely`
-  sobre la senda reproyectada a UTM 18N (EPSG:32618) con `pyproj`. Sin PostGIS.
-- Se calcula **una vez al insertar** y se guarda en `posiciones.metros_en_senda`.
-- La senda se guarda en la tabla `sendas` (GeoJSON) y se carga en memoria al arrancar.
-- Paridad con la web: un fixture exportado con turf (`backend/seed/proyecciones.json`)
-  garantiza que Python y TypeScript dan el mismo número (±2 m).
-- **El ETA que ve el usuario se sigue calculando en el cliente** (`src/lib/eta.ts`). El
-  backend solo porta `estimarVelocidad` porque la necesita para los avisos push (B43).
+- Projecting lat/lng to "metres from the start" is done **in Python** with `shapely` on the
+  course reprojected to UTM 18N (EPSG:32618) with `pyproj`. No PostGIS.
+- It is computed **once on insert** and stored in `positions.course_m`.
+- The course is stored in the `courses` table (GeoJSON) and loaded in memory at startup.
+- Parity with the web: a fixture exported with turf (`backend/seed/projections.json`)
+  guarantees Python and TypeScript give the same number (±2 m).
+- **The ETA the user sees is still computed on the client** (`src/lib/eta.ts`). The backend
+  only ports `estimarVelocidad` because it needs it for push notifications (B43).
 
-### 1.5 Base de datos
+### 1.5 Database
 
-- PostgreSQL 16. SQLAlchemy 2 async + asyncpg. Migraciones con Alembic.
-- El esquema parte de `supabase/schema.sql`, **sin** lo que es de Supabase (`auth.users`,
-  RLS, `supabase_realtime`, `storage.buckets`). `reporteros` se reemplaza por `usuarios`.
-  Las tablas `anunciantes` y `promociones` **no** se portan (no las usa nada).
-- Posiciones: se guarda `ts` (hora del dispositivo) y `recibido_en` (reloj del servidor).
-  La «última posición» de cada rol es la de **mayor `ts`**.
-- **Reiniciar un desfile no borra filas** (diferencia deliberada con `trunk`, que las
-  borra): se guarda `desfiles.corrida_desde` y las lecturas ignoran lo anterior. Un
-  reinicio por error el 31 de diciembre no puede destruir datos.
+- PostgreSQL 16. SQLAlchemy 2 async + asyncpg. Migrations with Alembic, named with a short
+  sequential number: `0001_users.py`, `0002_…`.
+- The schema starts from `supabase/schema.sql`, **without** what belongs to Supabase
+  (`auth.users`, RLS, `supabase_realtime`, `storage.buckets`) and with tables and columns in
+  English. `reporteros` is replaced by `users`. The tables `anunciantes` and `promociones`
+  are **not** ported (nothing uses them).
+- Enum-like columns are `text` with a `check` constraint, not Postgres `ENUM` types.
+- Positions: `ts` (device time) and `received_at` (server clock) are stored. The "latest
+  position" of each post is the one with the **highest `ts`**.
+- **Restarting a parade does not delete rows** (deliberate difference with `trunk`, which
+  deletes them): `parades.run_started_at` is stored and reads ignore whatever is older. A
+  restart by mistake on December 31 cannot destroy data.
 
-### 1.6 Tiempo real
+### 1.6 Real time
 
-- SSE nativo de FastAPI: `response_class=EventSourceResponse` (`fastapi.sse`) y `yield`.
-  Latido cada 20 s.
-- Cada inserción en `posiciones`, cambio de estado o aviso nuevo hace
-  `NOTIFY desfile_<id>`. El stream escucha con una conexión asyncpg dedicada (`LISTEN`) y
-  reenvía el snapshot. Funciona igual con una réplica o con varias.
+- FastAPI's native SSE: `response_class=EventSourceResponse` (`fastapi.sse`) and `yield`.
+  Heartbeat every 20 s.
+- Every insert into `positions`, state change or new announcement does
+  `NOTIFY parade_<id>`. The stream listens with a dedicated asyncpg connection (`LISTEN`)
+  and forwards the snapshot. It works the same with one replica or several.
 
-### 1.7 Frenos (rate limiting)
+### 1.7 Rate limits
 
-Los límites de hoy (emisión de dispositivos por IP, fotos por dispositivo, login) viven en
-memoria del proceso, como en `trunk`. Vale porque en esta iteración Railway corre **una
-sola réplica**. Si se escala a varias, hay que moverlos a Postgres (fuera de este plan).
-La IP sale de la cabecera que pone Railway (`X-Real-IP` / último salto de
-`X-Forwarded-For`), nunca del primer salto.
+Today's limits (device issuing per IP, photos per device, login) live in process memory, as
+on `trunk`. That is fine because in this iteration Railway runs **a single replica**. If it
+scales to several, they have to move to Postgres (outside this plan). The IP comes from the
+header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from the first hop.
 
-### 1.8 Fotos y push
+### 1.8 Photos and push
 
-- **Fotos:** interfaz `Almacenamiento` con dos implementaciones: disco
-  (`backend/.fotos/`, desarrollo) y S3 compatible (`boto3`; un bucket de Railway o
-  Cloudflare R2 en producción). Las imágenes se sirven a través de la API
-  (`GET /api/fotos/{id}`), no con URL pública del bucket: así una foto pendiente nunca es
-  accesible.
-- **Push:** `pywebpush` con llaves VAPID (las mismas que genera `npm run push:llaves`). Sin
-  llaves, la función se apaga sola, como hoy.
+- **Photos:** a `Storage` interface with two implementations: disk (`backend/.photos/`,
+  development) and S3-compatible (`boto3`; a Railway bucket or Cloudflare R2 in production).
+  Images are served through the API (`GET /api/photos/{id}`), not with a public bucket URL:
+  that way a pending photo is never reachable.
+- **Push:** `pywebpush` with VAPID keys (the same ones `npm run push:llaves` generates).
+  Without keys, the feature turns itself off, as today.
 
-### 1.9 Secretos
+### 1.9 Secrets
 
-- `sops` + `age`. Archivos `secrets/dev.enc.yaml` y `secrets/prod.enc.yaml`.
-- No hay `backend/.env`: la configuración sale solo de variables de entorno, y en local
-  las pone `sops exec-env`. Por eso B44 se adelanta y va justo después de B06; mientras
-  tanto se exportan a mano.
-- En Terraform: provider `carlpett/sops` lee `prod.enc.yaml` y lo vuelca como variables
-  del servicio en Railway.
-- En GitHub Actions solo existen `SOPS_AGE_KEY` y `RAILWAY_TOKEN`.
-- Un hook de pre-commit rechaza cualquier archivo en `secrets/` sin cifrar.
+- `sops` + `age`. Files `secrets/dev.enc.yaml` and `secrets/prod.enc.yaml`, one rule per
+  file in `.sops.yaml` so different people can have access to each.
+- There is no `backend/.env`: configuration comes only from environment variables, and
+  locally `sops exec-env` sets them (wrapped by `just dev` and `just migrate`).
+- In Terraform: the `carlpett/sops` provider reads `prod.enc.yaml` and writes it as service
+  variables on Railway. Railway never receives an age key.
+- In GitHub Actions only `SOPS_AGE_KEY` (a key pair of its own for CI) and `RAILWAY_TOKEN`
+  exist.
+- A pre-commit hook rejects any unencrypted file in `secrets/`. A Claude Code hook
+  (`.claude/hooks/protect-secrets.py`) stops agents from decrypting.
 
-### 1.10 Despliegue y dependencias
+### 1.10 Deployment and dependencies
 
-- Railway, provider `terraform-community-providers/railway`, un solo entorno
-  (`production`), una réplica.
-- Imagen construida en CI con el `Dockerfile` de `backend/`, publicada en GHCR con el SHA
-  del commit. Migraciones en el pre-deploy (`alembic upgrade head`).
+- Railway, provider `terraform-community-providers/railway`, a single environment
+  (`production`), one replica.
+- Image built in CI with the `Dockerfile` in `backend/`, published to GHCR with the commit
+  SHA. Migrations in the pre-deploy step (`alembic upgrade head`).
 
-| Uso | Paquetes de Python 3.12 |
+| Use | Python 3.12 packages |
 |---|---|
 | App | `fastapi[standard]`, `pydantic-settings`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`, `pwdlib[argon2]`, `pyjwt`, `shapely`, `pyproj`, `boto3`, `pywebpush` |
 | Dev | `pytest`, `pytest-asyncio`, `httpx`, `ruff`, `mypy` |
 
-No agregues dependencias fuera de esta tabla sin decirlo en el PR.
+Do not add dependencies outside this table without saying so in the PR.
 
-### 1.11 Dónde este plan se aparta de la skill `fastapi`
+### 1.11 Where this plan departs from the `fastapi` skill
 
-- **SQLAlchemy 2 async en vez de SQLModel.** La app es async (SSE, LISTEN/NOTIFY) y el
-  soporte async de SQLModel va un paso atrás. Los esquemas HTTP son modelos Pydantic aparte
-  de las tablas.
-- **mypy en vez de ty.** mypy `--strict` es lo que ya se usa en el equipo.
-- **Railway, no FastAPI Cloud** (decisión de esta iteración).
+- **SQLAlchemy 2 async instead of SQLModel.** The app is async (SSE, LISTEN/NOTIFY) and
+  SQLModel's async support is a step behind. HTTP schemas are Pydantic models separate from
+  the tables.
+- **mypy instead of ty.** mypy `--strict` is what the team already uses.
+- **Railway, not FastAPI Cloud** (decision of this iteration).
 
-Todo lo demás de la skill aplica: `Annotated` con alias de tipo para dependencias, tipos de
-retorno en vez de `response_model` cuando se pueda, prefijo, tags y dependencias en el
-`APIRouter`, una función por operación HTTP, nada de `...` como default ni `RootModel`, y
-`def` en vez de `async def` cuando lo de adentro bloquea (Argon2, shapely, boto3).
+Everything else in the skill applies: `Annotated` with type aliases for dependencies, return
+types instead of `response_model` when possible, prefix, tags and dependencies on the
+`APIRouter`, one function per HTTP operation, no `...` as a default and no `RootModel`, and
+`def` instead of `async def` when what is inside blocks (Argon2, shapely, boto3).
 
 ---
 
 ## 2. Issues
 
-Cada issue trae: **Para entender** (punto de partida de la explicación del paso 1),
-**Depende de**, **Qué**, **Aceptación**, **Tests** y **Fuera de alcance**.
+Each issue brings: **To understand** (starting point for the step 1 explanation),
+**Depends on**, **What**, **Acceptance**, **Tests** and **Out of scope**. Issues marked
+**Done** are kept as a record and describe what was actually built.
 
 ---
 
-### Fase 0 — Reglas del juego
+### Phase 0 — Rules of the game
 
-#### #3 · B01 · `docs(repo)`: agrega el plan del backend y adapta CONTRIBUTING a issues
+#### #3 · B01 · `docs(repo)`: add the backend plan and adapt CONTRIBUTING to issues
 
-- **Para entender:** hasta ahora el repo decía que no se usaban issues. Desde aquí cada
-  cambio nace de un issue, y su número va en la rama y en el commit para poder rastrear por
-  qué existe cada línea.
-- **Depende de:** —
-- **Qué:**
-  - Sube este documento (`docs/backend/PLAN.md`).
-  - `docs/CONTRIBUTING.md`: quita «el proyecto no usa issues», documenta la rama
-    `<tipo>/<issue>-<desc>`, el commit `<tipo>(<alcance>): #<issue> <titulo>` con mínimo un
-    bullet, y agrega los alcances `back` e `infra`.
-  - `CLAUDE.md`: enlaza este plan, agrega los comandos del backend («cuando exista») y la
-    skill `fastapi` a la tabla («Backend (FastAPI)»).
-  - Sube la skill `fastapi` (`.agents/skills/fastapi/`, el enlace en `.claude/skills/` y
-    `skills-lock.json`).
-- **Aceptación:** los tres documentos dicen lo mismo sobre ramas y commits.
-- **Fuera de alcance:** código.
+- **Status:** done.
+- **What:** this document, the issue-based workflow in `docs/CONTRIBUTING.md` (branch
+  `<type>/<issue>-<desc>`, commit `<type>(<scope>): #<issue> <title>` with at least one
+  bullet, scopes `back` and `infra`), the link from `CLAUDE.md` and the `fastapi` skill.
 
 ---
 
-### Fase 1 — Base mínima (que exista un servidor)
+### Phase 1 — Minimal base (a server exists)
 
-#### #4 · B02 · `chore(back)`: agrega el entorno de desarrollo con Nix
+#### #4 · B02 · `chore(back)`: add the development environment with Nix
 
-- **Para entender:** Nix describe en un archivo (`flake.nix`) exactamente qué herramientas
-  y versiones necesita el proyecto. `nix develop` abre una terminal con todas ellas, igual
-  en tu máquina, en la de otro y en el CI, sin instalar nada global. `flake.lock` congela
-  las versiones, como `package-lock.json` en npm.
-- **Depende de:** B01
-- **Qué:** `flake.nix` en la raíz con `devShells.default`: `python312`, `uv`,
-  `postgresql_16`, `sops`, `age`, `pre-commit`, `terraform`, `tflint`, `gitleaks`,
-  `nixfmt-rfc-style`, `nodejs_22`. `flake.lock` commiteado. `.envrc` con `use flake`
-  (opcional, para direnv). `.direnv/` en `.gitignore`.
-- **Aceptación:** `nix develop -c python --version` muestra 3.12; `nix develop -c uv --version`
-  funciona.
-- **Fuera de alcance:** construir la imagen con Nix (va por Dockerfile, B45).
+- **Status:** done.
+- **To understand:** Nix describes in one file (`flake.nix`) exactly which tools and
+  versions the project needs. `nix develop` opens a shell with all of them, the same on
+  your machine, on someone else's and in CI, without installing anything globally.
+  `flake.lock` freezes versions, like `package-lock.json` in npm.
+- **What:** `flake.nix` at the root with `devShells.default`: `python312`, `uv`,
+  `postgresql_16`, `sops`, `age`, `just`, `pre-commit`, `terraform`, `tflint`, `gitleaks`,
+  `nixfmt-rfc-style`, `nodejs_22`. On Linux it exposes `libstdc++` and `zlib`, which
+  prebuilt PyPI packages need. `.envrc` with `use flake` for direnv.
 
-#### #5 · B03 · `chore(back)`: crea el esqueleto de FastAPI con endpoint de salud
+#### #5 · B03 · `chore(back)`: create the FastAPI skeleton with a health endpoint
 
-- **Para entender:** FastAPI es un framework web de Python: defines funciones y las decoras
-  con la ruta. Usa los tipos de Python para validar lo que entra y documentar lo que sale
-  (genera `/docs` solo). `uv` es el gestor de paquetes: `pyproject.toml` lista lo que se
-  necesita y `uv.lock` congela versiones. `/api/salud` es lo que Railway consulta para
-  saber si el servidor está vivo.
-- **Depende de:** B02
-- **Qué:** `backend/` con `pyproject.toml` (dependencias de §1.10, `uv.lock`), `app/main.py`
-  con `GET /api/salud` → `{"ok": true}`, pytest (`asyncio_mode = "auto"`), ruff y mypy en
-  `pyproject.toml`, `[tool.fastapi] entrypoint = "app.main:app"`; se arranca con
-  `uv run fastapi dev`.
-- **Aceptación:** `cd backend && uv run pytest` pasa y `uv run fastapi dev` abre `/docs`.
-- **Tests:** `test_salud_ok`, `test_salud_falla` (POST → 405).
-- **Fuera de alcance:** base de datos, configuración.
+- **Status:** done.
+- **To understand:** FastAPI is a Python web framework: you define functions and decorate
+  them with the route. It uses Python types to validate what comes in and document what
+  goes out (it generates `/docs` on its own). `uv` is the package manager:
+  `pyproject.toml` lists what is needed and `uv.lock` freezes versions. `/api/health` is
+  what Railway queries to know whether the server is alive.
+- **What:** `backend/` with `pyproject.toml` (dependencies of §1.10, `uv.lock`),
+  `app/main.py`, `app/routers/health.py` with `GET /api/health`, pytest, ruff and mypy
+  configured, `[tool.fastapi] entrypoint = "app.main:app"`.
 
-#### #6 · B04 · `chore(back)`: configura pre-commit
+#### #6 · B04 · `chore(back)`: configure pre-commit
 
-- **Para entender:** pre-commit corre revisiones automáticas en cada `git commit`; si una
-  falla, el commit no se hace. Así formato, tipos y secretos filtrados se atajan en tu
-  máquina. `ruff` formatea y detecta errores comunes, `mypy` revisa tipos, `gitleaks`
-  busca llaves pegadas por error.
-- **Depende de:** B03
-- **Qué:** `.pre-commit-config.yaml` en la raíz con hooks locales que usan las herramientas
-  del flake:
-  - `ruff check --fix` y `ruff format` sobre `^backend/`
-  - `mypy --strict` sobre `^backend/app/`
-  - `gitleaks protect --staged`
-  - `nixfmt` sobre `*.nix`
-  - `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-merge-conflict`
-  - `sops-cifrado`: falla si un archivo en `^secrets/` no tiene la clave `sops:`
-    (`scripts/verificar-sops.sh`)
-  - `terraform fmt -check` sobre `^infra/` (listo aunque `infra/` no exista aún)
-- **Aceptación:** `nix develop -c pre-commit run --all-files` pasa en el repo actual.
-- **Fuera de alcance:** lint de la web.
+- **Status:** done.
+- **To understand:** pre-commit runs automatic checks on every `git commit`; if one fails,
+  the commit is not made. That way formatting, types and leaked secrets are caught on your
+  machine. `ruff` formats and detects common errors, `mypy` checks types, `gitleaks` looks
+  for keys pasted by mistake.
+- **What:** `.pre-commit-config.yaml` at the root with local hooks that use the flake's
+  tools: `ruff check --fix` and `ruff format` on `^backend/`, `mypy --strict` on
+  `^backend/app/`, `gitleaks` on what is staged, `nixfmt`, `trailing-whitespace`,
+  `end-of-file-fixer`, `check-yaml`, `check-merge-conflict`, `sops-encrypted`
+  (`scripts/check-sops.sh`: fails if a file in `^secrets/` lacks the `sops` key) and
+  `terraform fmt -check` on `^infra/`. Enable once per clone with `pre-commit install`;
+  commits are then made from inside the Nix environment.
 
-#### #7 · B05 · `chore(ci)`: agrega el CI del backend en GitHub Actions
+#### #7 · B05 · `chore(ci)`: add the backend CI on GitHub Actions
 
-- **Para entender:** el CI es una máquina de GitHub que, en cada PR, corre los mismos
-  chequeos que corres en local. Si algo falla, el PR se ve en rojo. Usa el mismo
-  `flake.nix`, así que «en mi máquina funciona» y «en el CI funciona» significan lo mismo.
-- **Depende de:** B04
-- **Qué:** `.github/workflows/backend-ci.yml`. En `pull_request` hacia `trunk` cuando cambian
-  `backend/**`, `flake.*`, `.pre-commit-config.yaml` o el workflow:
-  `DeterminateSystems/nix-installer-action` + `magic-nix-cache-action`, luego
-  `nix develop -c pre-commit run --all-files` y
-  `nix develop -c bash -c "cd backend && uv sync --frozen && uv run pytest"`.
-- **Aceptación:** el PR de este issue muestra el job en verde.
-- **Fuera de alcance:** build de imagen, despliegue.
+- **Status:** done.
+- **To understand:** CI is a GitHub machine that, on every PR, runs the same checks you run
+  locally. If something fails, the PR shows red. It uses the same `flake.nix`, so "works on
+  my machine" and "works in CI" mean the same.
+- **What:** `.github/workflows/backend-ci.yml`. On `pull_request` to `trunk` when
+  `backend/**`, `flake.*`, `.pre-commit-config.yaml` or the workflow change, three jobs with
+  their own names: `pre-commit`, `gitleaks` (scans the commits of the PR) and `pytest`. The
+  web's old workflow (`ci.yml`) was removed and is to be rebuilt separately, filtered by
+  paths.
 
-#### #8 · B06 · `feat(back)`: carga la configuración desde variables de entorno
+#### #8 · B06 · `feat(back)`: load configuration from environment variables
 
-- **Para entender:** lo que cambia entre tu máquina y producción (URL de la base, secreto
-  del JWT) no va en el código: va en variables de entorno. `pydantic-settings` las lee al
-  arrancar y las valida; si falta una obligatoria, el servidor no arranca y dice cuál.
-- **Depende de:** B03
-- **Qué:** `app/config.py`: `DATABASE_URL` y `JWT_SECRETO` (obligatorias, el secreto con
-  mínimo 32 caracteres), `JWT_HORAS` (20), `CORS_ORIGENES` (`http://localhost:3000`),
-  `ENTORNO` (`dev` | `prod`). Opcionales para más adelante: `VAPID_PUBLICA`,
-  `VAPID_PRIVADA`, `VAPID_CONTACTO`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_LLAVE`,
-  `S3_SECRETO`. Solo lee variables de entorno, sin archivo `.env` (ver §1.9).
-  `get_settings()` con `lru_cache` como dependencia. CORS montado en `main.py`.
-- **Tests:** `test_config_ok`, `test_config_falla` (sin `DATABASE_URL` → `ValidationError`).
-- **Fuera de alcance:** sops (B44).
+- **Status:** done.
+- **To understand:** what changes between your machine and production (database URL, JWT
+  secret) does not go in the code: it goes in environment variables. `pydantic-settings`
+  reads them at startup and validates them; if a required one is missing, the server does
+  not start and says which.
+- **What:** `app/config.py`: `DATABASE_URL` and `JWT_SECRET` (required, the secret with at
+  least 32 characters), `JWT_HOURS` (20), `CORS_ORIGINS` (`http://localhost:3000`,
+  comma-separated), `ENVIRONMENT` (`dev` | `prod`). Optional for later:
+  `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT`, `S3_ENDPOINT`, `S3_BUCKET`,
+  `S3_ACCESS_KEY`, `S3_SECRET_KEY`. It only reads environment variables, with no `.env`
+  file (see §1.9). `get_settings()` with `lru_cache` as a dependency. CORS mounted in
+  `main.py`.
 
-#### #9 · B07 · `feat(back)`: conecta a Postgres con SQLAlchemy async y Alembic
+#### #31 · B44 · `chore(back)`: manage secrets with sops and age
 
-- **Para entender:** SQLAlchemy es la capa que habla con Postgres desde Python; en modo
-  async no bloquea el servidor mientras espera a la base. Alembic versiona el esquema: cada
-  cambio de tablas es un archivo de migración numerado que se aplica (`upgrade`) o se
-  revierte (`downgrade`), como commits pero para la base. `scripts/db-local.sh` levanta un
-  Postgres de desarrollo con el del flake, sin Docker.
-- **Depende de:** B06
-- **Qué:** `app/db.py` (engine async, `get_sesion()` como dependencia con `yield`), Alembic
-  en `backend/migraciones/` en modo async. `scripts/db-local.sh` (`initdb` + `pg_ctl` en
-  `backend/.pgdata/`). `/api/salud` pasa a `{"ok": bool, "db": bool, "hora": epoch_ms}` con
-  `SELECT 1`; sin base responde 503, como hoy.
-- **Aceptación:** `scripts/db-local.sh && uv run alembic upgrade head` funciona en limpio.
-- **Tests:** `test_salud_db_ok`, `test_salud_db_falla` (sesión falsa que lanza error → 503).
-- **Fuera de alcance:** tablas.
+- **Status:** done (moved up from phase 6 so the backend never depended on a plain-text
+  file).
+- **To understand:** `age` generates a key pair. `sops` encrypts a YAML with the public
+  one: variable names stay readable and values are encrypted. That file does go in the
+  repo; only whoever has the private key (the maintainer, CI) can read it.
+- **What:** `.sops.yaml` with one rule per file, `secrets/dev.enc.yaml`,
+  `secrets/prod.enc.yaml` and `secrets/README.md` (daily use, variable list, how to give
+  someone access, what to do if a key is lost or leaked).
 
-#### #10 · B08 · `feat(back)`: responde todos los errores con el mismo formato
+#### #9 · B07 · `feat(back)`: connect to Postgres with async SQLAlchemy and Alembic
 
-- **Para entender:** FastAPI responde los errores de validación con su propia estructura
-  (`{"detail": [...]}`). La web espera `{"error": "..."}`. Un *exception handler*
-  intercepta los errores antes de salir y los reescribe, para que todos los endpoints
-  respondan igual sin repetirlo en cada uno. Los errores inesperados se registran en el log
-  (como `errorInterno` de `src/lib/api/respuestas.ts`).
-- **Depende de:** B03
-- **Qué:** `app/errores.py` con handlers para `HTTPException`, `RequestValidationError` y
-  `Exception` → `{"error": "<mensaje en español>"}`, registrados en `main.py`.
-- **Tests:** `test_error_http_ok` (un 404 sale como `{"error": ...}`),
-  `test_error_validacion_falla` (query inválida → 422 con `error`, sin `detail`).
+- **Status:** done.
+- **To understand:** SQLAlchemy is the layer that talks to Postgres from Python; in async
+  mode it does not block the server while waiting for the database. Alembic versions the
+  schema: each table change is a numbered migration file that is applied (`upgrade`) or
+  reverted (`downgrade`), like commits but for the database.
+- **What:** `app/db.py` (async engine, `get_session()` as a dependency with `yield`),
+  `app/models.py` with `Base`, Alembic in `backend/migrations/` in async mode,
+  `scripts/local-db.sh` (the flake's Postgres in `backend/.pgdata/`, no Docker).
+  `/api/health` answers `{"ok", "db", "time"}` with a `SELECT 1`; without a database it
+  answers 503.
+
+#### #10 · B08 · `feat(back)`: answer every error with the same format
+
+- **Status:** done.
+- **To understand:** FastAPI answers validation errors with its own structure
+  (`{"detail": [...]}`). Clients expect `{"error": "..."}`. An *exception handler*
+  intercepts errors before they leave and rewrites them, so every endpoint answers the same
+  without repeating it in each one.
+- **What:** `app/errors.py` with handlers for `HTTPException`, `RequestValidationError`
+  (answers **400**) and `Exception` (answers a generic message and logs the detail) →
+  `{"error": "<message in Spanish>"}`, registered in `main.py`.
+
+#### #66 · `refactor(back)`: rename the backend code to English
+
+- **Status:** done. Everything written until then moved from Spanish to English, including
+  the HTTP contract. `docs/backend/GLOSSARY.md` records the translation of domain terms.
+
+#### #69 · `chore(back)`: add one-command dev tasks with just
+
+- **Status:** done.
+- **What:** a `justfile` (`just dev`, `just migrate`, `just test`, `just check`,
+  `just db-test`…), `docker-compose.yml` with a throwaway Postgres for checking migrations,
+  and the Claude Code hook that stops agents from decrypting secrets.
+
+#### #67 · `docs(repo)`: translate the docs and contribution rules to English
+
+- **Status:** done with this document. Open issues were rewritten in English from its
+  sections.
 
 ---
 
-### Fase 2 — Usuarios y roles
+### Phase 2 — Users and roles
 
-#### #11 · B09 · `feat(back)`: crea las tablas de usuarios y sus roles
+#### #11 · B09 · `feat(back)`: create the users and roles tables
 
-- **Para entender:** es la primera migración real. `usuarios` guarda quién es cada
-  persona del equipo; `usuario_roles` dice qué roles tiene (puede tener varios: alguien
-  puede ser editor y moderador). La contraseña nunca se guarda, solo su hash.
-- **Depende de:** B07
-- **Qué:** modelos y migración `0001_usuarios`:
-  - `usuarios`: `id uuid`, `email text unique` (en minúsculas), `nombre`, `password_hash`,
-    `puesto` (check `cabeza` | `mitad` | `cola`, nulo), `activo bool default true`,
-    `ultima_senal_en timestamptz null`, `creado_en`.
-  - `usuario_roles`: `usuario_id` (FK, `on delete cascade`), `rol` (check con los seis
-    roles de §1.3), PK compuesta.
-- **Aceptación:** `alembic upgrade head` y `alembic downgrade base` funcionan.
-- **Fuera de alcance:** login.
+- **To understand:** it is the first real migration. `users` stores who each team member
+  is; `user_roles` says which roles they have (there can be several: someone can be editor
+  and moderator). The password is never stored, only its hash.
+- **Depends on:** B07
+- **What:** models and migration `0001_users` (and switch `alembic.ini` to the short
+  sequential naming of §1.5):
+  - `users`: `id uuid`, `email text unique` (lowercase, enforced with a check), `name`,
+    `password_hash`, `post` (check `head` | `middle` | `tail`, nullable),
+    `active bool default true`, `last_signal_at timestamptz null`, `created_at`.
+  - `user_roles`: `user_id` (FK, `on delete cascade`), `role` (check with the six roles of
+    §1.3), composite PK.
+- **Acceptance:** `just db-test` passes: `alembic upgrade head`, `alembic check` and
+  `alembic downgrade base` work.
+- **Out of scope:** login.
 
-#### #12 · B10 · `feat(back)`: hashea y verifica contraseñas con Argon2
+#### #12 · B10 · `feat(back)`: hash and verify passwords with Argon2
 
-- **Para entender:** un hash es una transformación de un solo sentido: de la contraseña sale
-  el hash, pero del hash no se vuelve a la contraseña. Para verificar un login se hashea lo
-  que escribió la persona y se compara. Argon2 es lento a propósito, para que si alguien
-  roba la base no pueda probar millones de contraseñas por segundo.
-- **Depende de:** B03
-- **Qué:** en `app/seguridad.py`, `hashear_password(texto) -> str` y
-  `verificar_password(texto, hash) -> bool` con `pwdlib` (Argon2). `validar_password`
-  exige mínimo 10 caracteres.
-- **Tests:** `test_verificar_password_ok`, `test_verificar_password_falla` y
-  **específico**: `test_mismo_texto_da_hashes_distintos` (la sal aleatoria).
+- **To understand:** a hash is a one-way transformation: the hash comes out of the
+  password, but you cannot go back from the hash to the password. To verify a login, what
+  the person typed is hashed and compared. Argon2 is slow on purpose, so that if someone
+  steals the database they cannot try millions of passwords per second.
+- **Depends on:** B03
+- **What:** in `app/security.py`, `hash_password(text) -> str` and
+  `verify_password(text, hash) -> bool` with `pwdlib` (Argon2). `validate_password`
+  requires at least 10 characters.
+- **Tests:** `test_verify_password_ok`, `test_verify_password_fails` and **specific**:
+  `test_same_text_gives_different_hashes` (the random salt).
 
-#### #13 · B11 · `feat(back)`: define los roles y sus permisos
+#### #13 · B11 · `feat(back)`: define roles and their permissions
 
-- **Para entender:** en vez de que cada endpoint pregunte «¿es admin o coordinador?», cada
-  uno pide un **permiso** («¿puede cambiar el estado del desfile?»). Una sola tabla en
-  código dice qué permisos da cada rol. Agregar un rol o mover un permiso es cambiar esa
-  tabla, no buscar `if` por todo el código.
-- **Depende de:** B03
-- **Qué:** `app/permisos.py` con `Rol` y `Permiso` (`StrEnum`), `PERMISOS_POR_ROL` (la
-  tabla de §1.3) y `permisos_de(roles) -> set[Permiso]`. `admin` tiene todos los permisos
-  por construcción, no por lista.
-- **Tests:** `test_permisos_de_ok` (editor + moderador suman los dos conjuntos),
-  `test_permisos_de_falla` (reportero no tiene `desfiles:estado`) y **específico**:
-  `test_admin_tiene_todos_los_permisos` (recorre `Permiso`: si alguien agrega uno, el admin
-  lo tiene).
+- **To understand:** instead of each endpoint asking "is this an admin or a coordinator?",
+  each one asks for a **permission** ("can they change the parade state?"). A single table
+  in code says which permissions each role gives. Adding a role or moving a permission is
+  changing that table, not hunting for `if`s across the code.
+- **Depends on:** B03
+- **What:** `app/permissions.py` with `Role` and `Permission` (`StrEnum`),
+  `PERMISSIONS_BY_ROLE` (the table of §1.3) and `permissions_for(roles) -> set[Permission]`.
+  `admin` has every permission by construction, not by list.
+- **Tests:** `test_permissions_for_ok` (editor + moderator add up both sets),
+  `test_permissions_for_fails` (reporter does not have `parades:state`) and **specific**:
+  `test_admin_has_every_permission` (walks `Permission`: if someone adds one, admin has
+  it).
 
-#### #14 · B12 · `feat(back)`: agrega el repositorio de usuarios
+#### #14 · B12 · `feat(back)`: add the users repository
 
-- **Para entender:** un repositorio esconde la base de datos detrás de funciones simples
-  (`crear`, `por_email`). Las rutas hablan con el repositorio, no con SQL. Hay dos
-  implementaciones de la misma interfaz: Postgres (la real) y una en memoria que usan los
-  tests, para que sean rápidos y no necesiten base.
-- **Depende de:** B09
-- **Qué:** `app/repositorios/usuarios.py` con un `Protocol` (`crear`, `por_email`,
-  `por_id`, `listar`, `actualizar`, `fijar_roles`, `eliminar`, `marcar_senal`),
-  `UsuariosPostgres` y `UsuariosMemoria`. Alias `RepoUsuariosDep`.
-- **Tests (memoria):** `test_crear_usuario_ok`, `test_crear_usuario_falla` (correo
-  repetido → `UsuarioYaExiste`) y **específico**: `test_email_no_distingue_mayusculas`.
+- **To understand:** a repository hides the database behind simple functions (`create`,
+  `by_email`). Routers talk to the repository, not to SQL. There are two implementations
+  of the same interface: Postgres (the real one) and an in-memory one that tests use, so
+  they are fast and need no database.
+- **Depends on:** B09
+- **What:** `app/repositories/users.py` with a `Protocol` (`create`, `by_email`, `by_id`,
+  `list`, `update`, `set_roles`, `delete`, `mark_signal`), `UsersPostgres` and
+  `UsersMemory`. Alias `UsersRepoDep`.
+- **Tests (memory):** `test_create_user_ok`, `test_create_user_fails` (repeated email →
+  `UserAlreadyExists`) and **specific**: `test_email_is_case_insensitive`.
 
-#### #15 · B13 · `feat(back)`: crea el primer admin desde la consola
+#### #15 · B13 · `feat(back)`: create the first admin from the console
 
-- **Para entender:** para crear usuarios hace falta ser admin, pero al principio no existe
-  ninguno: el huevo y la gallina. Se resuelve con un comando que se corre a mano una sola
-  vez y que pide la contraseña sin mostrarla en pantalla.
-- **Depende de:** B10, B11, B12
-- **Qué:** `python -m app.cli crear-admin --email X --nombre Y` (contraseña con `getpass`,
-  pedida dos veces).
-- **Tests:** `test_crear_admin_ok`, `test_crear_admin_falla` (contraseña corta → sale con
-  error y no crea nada).
+- **To understand:** to create users you need to be an admin, but at the beginning there
+  is none: chicken and egg. It is solved with a command that is run by hand once and asks
+  for the password without showing it on screen.
+- **Depends on:** B10, B11, B12
+- **What:** `python -m app.cli create-admin --email X --name Y` (password with `getpass`,
+  asked twice).
+- **Tests:** `test_create_admin_ok`, `test_create_admin_fails` (short password → exits
+  with an error and creates nothing).
 
-#### #16 · B14 · `feat(back)`: agrega el login con correo y contraseña
+#### #16 · B14 · `feat(back)`: add login with email and password
 
-- **Para entender:** el login verifica la contraseña y devuelve un **JWT**: un texto firmado
-  con `JWT_SECRETO` que dice «soy el usuario X, válido hasta tal hora». El cliente lo manda
-  en cada petición (`Authorization: Bearer ...`) y el servidor revisa la firma. Si alguien
-  lo modifica, la firma deja de cuadrar. Roles y `activo` no van en el token: se leen de la
-  base, así desactivar a alguien lo saca al instante.
-- **Depende de:** B06, B13
-- **Qué:** `POST /api/auth/login` con `{email, password}` → `{token, expiraEn, usuario}`
-  (usuario con `id`, `email`, `nombre`, `roles`, `permisos`, `puesto`). `GET /api/auth/yo`
-  devuelve lo mismo sin token nuevo. `crear_token` / `leer_token` en `app/seguridad.py`.
-  Dependencia `UsuarioActualDep` (token válido, usuario existe y activo). Correo
-  inexistente y contraseña mala responden igual: 401 «Correo o contraseña incorrectos.».
-- **Tests:** `test_login_ok`, `test_login_falla` (contraseña mala → 401) y **específico**:
-  `test_usuario_desactivado_pierde_la_sesion` (token válido, usuario desactivado → 401).
+- **To understand:** login verifies the password and returns a **JWT**: a text signed with
+  `JWT_SECRET` that says "I am user X, valid until such time". The client sends it on every
+  request (`Authorization: Bearer ...`) and the server checks the signature. If someone
+  modifies it, the signature stops matching. Roles and `active` are not in the token: they
+  are read from the database, so deactivating someone takes them out instantly.
+- **Depends on:** B06, B13
+- **What:** `POST /api/auth/login` with `{email, password}` → `{token, expiresAt, user}`
+  (user with `id`, `email`, `name`, `roles`, `permissions`, `post`). `GET /api/auth/me`
+  returns the same without a new token. `create_token` / `read_token` in
+  `app/security.py`. Dependency `CurrentUserDep` (valid token, user exists and is active).
+  Unknown email and wrong password answer the same: 401 «Correo o contraseña incorrectos.».
+- **Tests:** `test_login_ok`, `test_login_fails` (wrong password → 401) and **specific**:
+  `test_deactivated_user_loses_the_session` (valid token, deactivated user → 401).
 
-#### #17 · B15 · `feat(back)`: protege las rutas por permiso
+#### #17 · B15 · `feat(back)`: protect routes by permission
 
-- **Para entender:** en FastAPI la protección se hace con **dependencias**: una función que
-  corre antes del endpoint y corta con 401 (no sé quién eres) o 403 (sé quién eres pero no
-  puedes). Los routers solo declaran el permiso que piden:
-  `APIRouter(dependencies=[requiere(Permiso.FOTOS_MODERAR)])`.
-- **Depende de:** B11, B14
-- **Qué:** `requiere(*permisos)` en `app/seguridad.py` (todos los permisos pedidos son
-  necesarios) y alias `UsuarioConPermiso`. Mensajes como hoy: 401 «Hace falta iniciar
+- **To understand:** in FastAPI protection is done with **dependencies**: a function that
+  runs before the endpoint and cuts with 401 (I do not know who you are) or 403 (I know who
+  you are but you cannot). Routers only declare the permission they ask for:
+  `APIRouter(dependencies=[require(Permission.PHOTOS_MODERATE)])`.
+- **Depends on:** B11, B14
+- **What:** `require(*permissions)` in `app/security.py` (every permission asked for is
+  needed) and alias `UserWithPermission`. Messages as today: 401 «Hace falta iniciar
   sesión.», 403 «No tenés permiso para esto.».
-- **Tests:** `test_requiere_ok`, `test_requiere_falla` (moderador pidiendo
-  `desfiles:estado` → 403) y **específico**: `test_sin_token_es_401_y_no_403`.
+- **Tests:** `test_require_ok`, `test_require_fails` (moderator asking for `parades:state`
+  → 403) and **specific**: `test_no_token_is_401_not_403`.
 
-#### #39 · B16 · `feat(back)`: frena los intentos de login a lo bruto
+#### #39 · B16 · `feat(back)`: slow down brute-force login attempts
 
-- **Para entender:** si alguien prueba contraseñas a lo bruto, cada fallo reciente desde su
-  IP hace que la siguiente respuesta tarde más (hasta 5 s). No bloquea a nadie: bloquear
-  por IP dejaba fuera al admin real cuando muchos comparten la IP de un operador móvil (ver
-  el comentario de `frenar()` en `src/lib/sesion.ts`).
-- **Depende de:** B14
-- **Qué:** `app/frenos.py` con `ip_de(request)` (§1.7) y `FrenoLogin` (`esperar(ip)`,
-  `registrar(ip, ok)`, ventana 10 min, 500 ms por fallo, tope 5 s, poda del mapa). Usado en
-  `/api/auth/login`. El reloj y el `sleep` se inyectan para poder probarlo sin esperar.
-- **Tests:** `test_freno_ok` (sin fallos no espera), `test_freno_falla` (3 fallos → 1,5 s)
-  y **específico**: `test_ip_es_el_ultimo_salto_de_forwarded_for`.
+- **To understand:** if someone tries passwords by brute force, each recent failure from
+  their IP makes the next answer take longer (up to 5 s). It blocks no one: blocking by IP
+  left the real admin out when many people share a mobile carrier's IP (see the comment on
+  `frenar()` in `src/lib/sesion.ts`).
+- **Depends on:** B14
+- **What:** `app/rate_limits.py` with `ip_of(request)` (§1.7) and `LoginRateLimit`
+  (`wait(ip)`, `record(ip, ok)`, 10 min window, 500 ms per failure, 5 s cap, pruning of the
+  map). Used in `/api/auth/login`. The clock and the `sleep` are injected so it can be
+  tested without waiting.
+- **Tests:** `test_login_rate_limit_ok` (no failures, no wait),
+  `test_login_rate_limit_fails` (3 failures → 1.5 s) and **specific**:
+  `test_ip_is_the_last_hop_of_forwarded_for`.
 
-#### #40 · B17 · `feat(back)`: permite gestionar usuarios desde la API
+#### #40 · B17 · `feat(back)`: manage users from the API
 
-- **Para entender:** con login y permisos listos, el equipo se da de alta desde la API en
-  vez de la consola. Desactivar en lugar de borrar conserva el historial de quién reportó
-  qué. Reemplaza `/api/admin/reporteros` y los códigos de acceso.
-- **Depende de:** B15
-- **Qué:** router `/api/admin/usuarios`:
-  - `GET` (`usuarios:ver`): lista con `ultimaSenalEn`, nunca `password_hash`.
-  - `POST` (`usuarios:gestionar`): `{email, nombre, password, roles, puesto}`.
-  - `PATCH /{id}` (`usuarios:gestionar`): `nombre`, `roles`, `puesto`, `activo`, `password`
-    (restablecer).
-  - `DELETE /{id}` (`usuarios:gestionar`): solo si nunca mandó posiciones; si no, 409 y se
-    pide desactivar.
-  - Validación: `reportero` exige `puesto`; nadie se quita a sí mismo el rol `admin`.
-- **Tests:** `test_crear_usuario_ok`, `test_crear_usuario_falla` (editor intenta → 403) y
-  **específico**: `test_reportero_sin_puesto_es_422`.
-- **Fuera de alcance:** recuperar contraseña por correo.
+- **To understand:** with login and permissions ready, the team is registered from the API
+  instead of the console. Deactivating instead of deleting keeps the history of who
+  reported what. It replaces the web's `/api/admin/reporteros` and the access codes.
+- **Depends on:** B15
+- **What:** router `/api/admin/users`:
+  - `GET` (`users:view`): list with `lastSignalAt`, never `password_hash`.
+  - `POST` (`users:manage`): `{email, name, password, roles, post}`.
+  - `PATCH /{id}` (`users:manage`): `name`, `roles`, `post`, `active`, `password` (reset).
+  - `DELETE /{id}` (`users:manage`): only if they never sent positions; otherwise 409 and
+    deactivating is asked for.
+  - Validation: `reporter` requires `post`; nobody removes the `admin` role from
+    themselves.
+- **Tests:** `test_create_user_ok`, `test_create_user_fails` (editor tries → 403) and
+  **specific**: `test_reporter_without_post_is_400`.
+- **Out of scope:** password recovery by email.
 
 ---
 
-### Fase 3 — Senda y desfiles
+### Phase 3 — Course and parades
 
-#### #18 · B18 · `feat(back)`: crea las tablas sendas y desfiles
+#### #18 · B18 · `feat(back)`: create the courses and parades tables
 
-- **Para entender:** la senda es la ruta física (una línea en GeoJSON); un desfile es un
-  día concreto que recorre una senda, con fecha, hora y estado (`programado`, `en_curso`,
-  `finalizado`). `corrida_desde` marca desde cuándo cuentan las posiciones, para reiniciar
-  sin borrar (§1.5).
-- **Depende de:** B09
-- **Qué:** migración `0002`: `sendas` y `desfiles` como en `supabase/schema.sql`, más
-  `desfiles.corrida_desde timestamptz not null default now()`.
-- **Aceptación:** migración ida y vuelta.
+- **To understand:** the course is the physical route (a line in GeoJSON); a parade is a
+  specific day that walks a course, with date, time and state (`scheduled`, `in_progress`,
+  `finished`). `run_started_at` marks since when positions count, to restart without
+  deleting (§1.5).
+- **Depends on:** B09
+- **What:** migration `0002`: `courses` and `parades` as `sendas` and `desfiles` in
+  `supabase/schema.sql`, plus `parades.run_started_at timestamptz not null default now()`.
+- **Acceptance:** `just db-test` passes.
 
-#### #19 · B19 · `feat(back)`: exporta los datos de la web y siembra la base
+#### #19 · B19 · `feat(back)`: export the web's data and seed the database
 
-- **Para entender:** la senda y los datos de ejemplo hoy viven en `src/data/`. Un script los
-  exporta a JSON para que el backend los cargue, y de paso guarda puntos de prueba
-  calculados con turf para comprobar después que Python da los mismos metros. «Sembrar» es
-  cargar los datos iniciales; idempotente significa que correrlo dos veces deja lo mismo.
-- **Depende de:** B18
-- **Qué:**
-  - `scripts/exportar-semilla.ts` (con `tsx`): escribe en `backend/seed/` `senda.json` (con
-    hitos ya proyectados), `desfiles.json`, `eventos.json`, `comercios.json` (desde
-    `src/data/*-ejemplo.json`) y `proyecciones.json` (~10 puntos con `metros` y `desvioM`
-    de turf: uno antes del inicio, uno después del final, uno a 300 m de la senda).
-  - `python -m app.cli sembrar`: inserta senda y desfiles. Eventos y comercios los siembra
-    cada issue que crea su tabla (B36, B37).
-  - `app/repositorios/desfiles.py` (Protocol + Postgres + memoria) con lo que usa la siembra.
-- **Tests:** `test_sembrar_ok`, `test_sembrar_falla` (senda.json sin `geojson` → error
-  claro) y **específico**: `test_sembrar_dos_veces_no_duplica`.
-- **Fuera de alcance:** datos reales (siguen siendo de ejemplo).
+- **To understand:** the course and the sample data live in `src/data/` today. A script
+  exports them to JSON so the backend can load them, and along the way stores test points
+  computed with turf to check later that Python gives the same metres. "Seeding" is loading
+  the initial data; idempotent means running it twice leaves the same result.
+- **Depends on:** B18
+- **What:**
+  - `scripts/export-seed.ts` (with `tsx`): writes to `backend/seed/` `course.json` (with
+    waypoints already projected), `parades.json`, `events.json`, `businesses.json` (from
+    `src/data/*-ejemplo.json`) and `projections.json` (~10 points with `metres` and
+    `offsetM` from turf: one before the start, one after the end, one 300 m off the
+    course). The export translates keys and values with the glossary.
+  - `python -m app.cli seed`: inserts course and parades. Events and businesses are seeded
+    by the issue that creates their table (B36, B37).
+  - `app/repositories/parades.py` (Protocol + Postgres + memory) with what seeding uses.
+- **Tests:** `test_seed_ok`, `test_seed_fails` (course.json without `geojson` → clear
+  error) and **specific**: `test_seeding_twice_does_not_duplicate`.
+- **Out of scope:** real data (it is still sample data).
 
-#### #20 · B20 · `feat(back)`: proyecta puntos sobre la senda en metros
+#### #20 · B20 · `feat(back)`: project points onto the course in metres
 
-- **Para entender:** es la idea central del proyecto (README, «la senda es 1D»): cualquier
-  lat/lng se pega al punto más cercano de la ruta y se reduce a «metros desde el inicio».
-  Los grados no son metros, así que primero la senda se pasa a UTM 18N, un sistema de
-  coordenadas en metros para la zona de Pasto, y ahí `shapely` mide.
-- **Depende de:** B19
-- **Qué:** `app/dominio/senda.py`: `Senda.desde_geojson(...)`, `metros_en_senda(lat, lng)
-  -> Proyeccion(metros, desvio_m, lat, lng)`, `punto_en_metro(metros)`, `longitud_metros`,
-  `hitos` y `hito_por_id`. Constante `DESVIO_MAX_USUARIO_M` igual a la de `src/lib/senda.ts`.
-- **Tests:** `test_metros_en_senda_ok`, `test_metros_en_senda_falla` (lat fuera de rango →
-  `ValueError`) y **específico**: `test_paridad_con_turf` (±2 m sobre
-  `seed/proyecciones.json`).
-- **Fuera de alcance:** frases de referencia («va por Cristo Rey»): las pinta la web.
+- **To understand:** it is the central idea of the project (README, "the course is 1D"):
+  any lat/lng snaps to the nearest point of the route and is reduced to "metres from the
+  start". Degrees are not metres, so first the course is moved to UTM 18N, a coordinate
+  system in metres for the Pasto area, and there `shapely` measures.
+- **Depends on:** B19
+- **What:** `app/domain/course.py`: `Course.from_geojson(...)`, `course_metres(lat, lng)
+  -> Projection(metres, offset_m, lat, lng)`, `point_at_metre(metres)`, `length_metres`,
+  `waypoints` and `waypoint_by_id`. Constant `MAX_USER_OFFSET_M` equal to
+  `DESVIO_MAX_USUARIO_M` in `src/lib/senda.ts`.
+- **Tests:** `test_course_metres_ok`, `test_course_metres_fails` (lat out of range →
+  `ValueError`) and **specific**: `test_parity_with_turf` (±2 m over
+  `seed/projections.json`).
+- **Out of scope:** reference phrases ("va por Cristo Rey"): the web paints them.
 
-#### #21 · B21 · `feat(back)`: expone la senda en GET /api/senda
+#### #21 · B21 · `feat(back)`: expose the course at GET /api/course
 
-- **Para entender:** la senda casi no cambia, así que se responde con `Cache-Control` para
-  que el navegador y el service worker la guarden y no la pidan en cada carga.
-- **Depende de:** B20
-- **Qué:** misma respuesta que `src/app/api/senda/route.ts`, con el mismo `Cache-Control`.
-- **Tests:** `test_senda_ok`, `test_senda_falla` (sin senda cargada → 503 con `error`).
+- **To understand:** the course almost never changes, so it is answered with
+  `Cache-Control` so the browser and the service worker keep it and do not ask for it on
+  every load.
+- **Depends on:** B20
+- **What:** same response as `src/app/api/senda/route.ts`, in English, with the same
+  `Cache-Control`.
+- **Tests:** `test_course_ok`, `test_course_fails` (no course loaded → 503 with `error`).
 
-#### #22 · B22 · `feat(back)`: resuelve el desfile actual y expone la programación
+#### #22 · B22 · `feat(back)`: resolve the current parade and expose the schedule
 
-- **Para entender:** el Carnaval tiene un desfile por día y la app no pregunta cuál ver:
-  muestra el que está pasando, o el de hoy, o el próximo, o el último que hubo (regla de
-  `src/lib/desfiles.ts`). «Hoy» se calcula en hora de Pasto, no con el reloj del servidor
-  (que en Railway está en UTC).
-- **Depende de:** B19
-- **Qué:**
-  - `app/dominio/fecha.py`: `hoy_en_pasto(ts)` y `normalizar_hora` (port de `src/lib/fecha.ts`).
-  - `app/dominio/desfiles.py`: `desfile_actual(desfiles, hoy)`.
-  - `resolver_desfile(id | None)` como dependencia, con caché de 2 s de la lista (como
+- **To understand:** the Carnival has one parade per day and the app does not ask which one
+  to watch: it shows the one happening, or today's, or the next one, or the last one there
+  was (rule in `src/lib/desfiles.ts`). "Today" is computed in Pasto time, not with the
+  server clock (which on Railway is UTC).
+- **Depends on:** B19
+- **What:**
+  - `app/domain/dates.py`: `today_in_pasto(ts)` and `normalize_time` (port of
+    `src/lib/fecha.ts`).
+  - `app/domain/parades.py`: `current_parade(parades, today)`.
+  - `resolve_parade(id | None)` as a dependency, with a 2 s cache of the list (like
     `listarDesfilesCacheado`).
-  - `GET /api/programacion` → `{desfiles, eventos: [], hoy, actualId}` (los eventos llegan
-    en B36).
-- **Tests:** `test_desfile_actual_ok` (hay uno en curso → ese),
-  `test_desfile_actual_falla` (lista vacía → `None`) y **específico**:
-  `test_hoy_en_pasto_a_las_8_pm_sigue_siendo_hoy` (01:00 UTC del día siguiente).
+  - `GET /api/schedule` → `{parades, events: [], today, currentId}` (events arrive in
+    B36).
+- **Tests:** `test_current_parade_ok` (one in progress → that one),
+  `test_current_parade_fails` (empty list → `None`) and **specific**:
+  `test_today_in_pasto_at_8_pm_is_still_today` (01:00 UTC of the next day).
 
-#### #41 · B23 · `feat(back)`: permite administrar los desfiles
+#### #41 · B23 · `feat(back)`: manage parades
 
-- **Para entender:** el estado del desfile lo cambia una persona, no el código. Reiniciar
-  (volver a `programado`) mueve `corrida_desde` a «ahora»: las posiciones viejas quedan
-  guardadas pero no se muestran. Crear o editar nombre, fecha y hora es otro permiso,
-  porque lo hace otra persona (quien carga la programación).
-- **Depende de:** B15, B22
-- **Qué:** port de `src/app/api/admin/desfiles/`: `GET` y `PUT /{id}` (`desfiles:editar`,
-  validación de `validarDesfile` en `src/lib/programacion.ts`), `PATCH /{id}` con
-  `{accion: "iniciar" | "finalizar" | "reiniciar"}` (`desfiles:estado`), `DELETE /{id}`
-  (`desfiles:editar`).
-- **Tests:** `test_accion_desfile_ok`, `test_accion_desfile_falla` (editor intenta iniciar
-  → 403) y **específico**: `test_reiniciar_mueve_corrida_desde`.
-
----
-
-### Fase 4 — El desfile en vivo
-
-#### #23 · B24 · `feat(back)`: crea las tablas posiciones y presencias
-
-- **Para entender:** `posiciones` es el historial de dónde estuvo cada reportero (la tabla
-  que más escribe); `presencias` es una fila por celular del público con el tramo de 100 m
-  donde está, que se sobrescribe y nunca guarda lat/lng (README, «Mapa de gentío»).
-- **Depende de:** B18
-- **Qué:** migración `0003`: `posiciones` como en el schema actual con `usuario_id` (FK a
-  `usuarios`) en vez de `reportero_id`, más `ts timestamptz not null` y
-  `recibido_en timestamptz default now()`, índice `(desfile_id, rol, ts desc)`.
-  `presencias` igual que en el schema actual.
-- **Aceptación:** migración ida y vuelta.
-
-#### #24 · B25 · `feat(back)`: define los esquemas del estado del desfile
-
-- **Para entender:** son las «formas» del JSON que entra y sale, escritas como clases
-  Pydantic. Validan solas (un `rol` raro o una `lat` de 200 se rechazan antes de llegar al
-  código) y salen en camelCase para que la web reciba exactamente lo que espera hoy.
-- **Depende de:** B08
-- **Qué:** `app/esquemas/` con `EntradaPosicion` (con `hitoId` opcional), `Posicion`,
-  `MuestraHistorial`, `EstadoDesfile` (con `fecha`, `horaInicio`, `avisos`), `Aviso`,
-  `Desfile`, `Densidad`, `BinDensidad`, según `src/lib/tipos.ts`.
-- **Tests:** `test_entrada_posicion_ok`, `test_entrada_posicion_falla` (rol `"cola2"`) y
-  **específico**: `test_estado_serializa_en_camelcase`.
-
-#### #25 · B26 · `feat(back)`: agrega el repositorio del estado del desfile
-
-- **Para entender:** es el equivalente en Python de la parte «en vivo» de `AdaptadorDatos`
-  (`src/lib/datos/adaptador.ts`). Aquí viven las reglas de §1.5: la última posición es la
-  de mayor `ts`, se respeta `corrida_desde` y el primer reporte de un desfile programado lo
-  pasa a `en_curso`.
-- **Depende de:** B23, B24, B25
-- **Qué:** `app/repositorios/estado.py` (Protocol + Postgres + memoria):
-  `registrar_posiciones(entradas, usuario_id)`, `leer_estado`, `ultimo_emisor(desfile, rol)`,
-  `leer_recorrido`, `registrar_presencia`, `leer_presencias`. Actualiza
-  `usuarios.ultima_senal_en`.
-- **Tests (memoria):** `test_registrar_posiciones_ok`, `test_registrar_posiciones_falla`
-  (desfile inexistente → `DesfileNoExiste`) y **específico**:
-  `test_paquete_viejo_no_pisa_al_nuevo`.
-- **Fuera de alcance:** NOTIFY (B30).
-
-#### #26 · B27 · `feat(back)`: valida los lotes de posiciones
-
-- **Para entender:** el celular del reportero guarda los envíos que fallan y los manda
-  después en lote. Un punto malo no puede tumbar el lote entero (la cola quedaría atascada
-  reintentando lo mismo): se descarta y se cuenta. Es lógica pura, sin base ni HTTP.
-- **Depende de:** B20, B25
-- **Qué:** `app/dominio/posiciones.py` con `validar_lote(cuerpo, rol_forzado, desfile_id,
-  ahora, senda)` → `(entradas, descartadas)` o error, port exacto de `validar()` en
-  `src/app/api/posiciones/route.ts`: `MAX_LOTE` 200, `hitoId` → punto de la senda,
-  descarta futuro > 2 min, más viejo que 1 h y precisión > `PRECISION_MAX_M`; ordena por `ts`.
-- **Tests:** `test_validar_lote_ok`, `test_validar_lote_falla` (201 puntos → error) y
-  **específico**: `test_punto_con_mala_precision_se_descarta_sin_tumbar_el_lote`.
-
-#### #42 · B28 · `feat(back)`: recibe posiciones en POST /api/posiciones
-
-- **Para entender:** es la única puerta de entrada de posiciones. Un reportero solo puede
-  mandar su puesto y siempre al desfile actual. Si dos reporteros tienen el mismo puesto,
-  el que está mandando es el titular y el otro queda en espera hasta que el titular se
-  calle un minuto (**relevo**): si no, la cabeza saltaría entre dos celulares a cuadras de
-  distancia.
-- **Depende de:** B15, B26, B27
-- **Qué:** port de `src/app/api/posiciones/route.ts`. Con `posiciones:propias` el puesto y
-  el desfile los pone el servidor y aplica el relevo (`RELEVO_MS`); con
-  `posiciones:cualquiera` el cuerpo puede nombrar desfile (que tiene que existir) y rol.
-  Respuesta `{ok, guardadas, descartadas, enEspera, servidorTs}`.
-- **Tests:** `test_posiciones_ok`, `test_posiciones_falla` (sin token → 401) y
-  **específico**: `test_segundo_reportero_del_mismo_puesto_queda_en_espera`.
-- **Fuera de alcance:** avisos push al recibir la cabeza (B43).
-
-#### #27 · B29 · `feat(back)`: expone el snapshot en GET /api/estado
-
-- **Para entender:** el snapshot es la foto completa del desfile ahora: dónde va cada
-  parte, los últimos 16 min de la cabeza (con eso la web calcula el ETA), los avisos y la
-  hora del servidor (para no depender del reloj del celular).
-- **Depende de:** B22, B26
-- **Qué:** `?desfile=` opcional (sin él, el actual), 404 «No hay desfile.», mismo
-  `Cache-Control` que la ruta actual en producción.
-- **Tests:** `test_estado_ok`, `test_estado_falla` (sin desfiles → 404).
-
-#### #28 · B30 · `feat(back)`: transmite el estado en vivo por SSE
-
-- **Para entender:** SSE (Server-Sent Events) es una conexión HTTP que queda abierta y por
-  la que el servidor empuja mensajes cuando hay novedades, en vez de que el celular pregunte
-  cada pocos segundos. Para que funcione con varias instancias, Postgres avisa: al guardar
-  una posición se hace `NOTIFY`, y cada servidor con streams abiertos escucha con `LISTEN`
-  y reenvía.
-- **Depende de:** B29
-- **Qué:** `GET /api/estado/stream` con `EventSourceResponse`. Primer evento inmediato con el
-  snapshot; uno por cada `NOTIFY desfile_<id>`; latido cada 20 s. El repositorio Postgres
-  hace `NOTIFY` al registrar posiciones y al cambiar estado. `app/tiempo_real.py` abstrae
-  el escuchar para poder usar un falso en tests.
-- **Tests:** `test_stream_ok` (primer evento es el snapshot), `test_stream_falla` (sin
-  desfile → 404 antes de abrir el stream).
-- **Fuera de alcance:** WebSockets.
-
-#### #43 · B31 · `feat(back)`: expone el recorrido del desfile por hitos
-
-- **Para entender:** con todo el historial de la cabeza se puede decir a qué hora pasó por
-  cada punto de referencia («pasó por Cristo Rey a las 3:40»). Es lo que muestra la web
-  cuando el desfile ya pasó por donde estás.
-- **Depende de:** B20, B26
-- **Qué:** `app/dominio/recorrido.py` con `pasos_por_hito` (port de `src/lib/recorrido.ts`)
-  y `GET /api/desfiles/{id}/recorrido` → `{desfile, pasos}`, mismo `Cache-Control`.
-- **Tests:** `test_pasos_por_hito_ok`, `test_pasos_por_hito_falla` (recorrido vacío → sin
-  pasos) y **específico**: `test_hito_no_alcanzado_no_aparece`.
-
-#### #29 · B32 · `feat(back)`: porta el cálculo de densidad por tramos
-
-- **Para entender:** la senda se parte en tramos de 100 m y se cuenta cuántos celulares hay
-  en cada uno. Las salvaguardas del README se mantienen: con menos de 50 usuarios no se
-  pinta nada, y un tramo con menos de 3 reportes queda sin dato (no es lo mismo que vacío).
-- **Depende de:** B20
-- **Qué:** `app/dominio/densidad.py` y `app/dominio/constantes.py` con las mismas
-  constantes y reglas que `src/lib/densidad.ts` y `src/lib/tipos.ts`. Cada constante con un
-  comentario apuntando al archivo TS de origen: si cambia uno, cambia el otro.
-- **Tests:** `test_clasificar_ok` (60 usuarios → bins con niveles), `test_clasificar_falla`
-  (40 usuarios → `suficiente=False`) y **específico**:
-  `test_tramo_con_pocas_muestras_no_aparece`.
-
-#### #44 · B33 · `feat(back)`: emite ids de dispositivo firmados
-
-- **Para entender:** el gentío y las fotos cuentan dispositivos. Si el celular inventara su
-  propio id, un script podría mandar mil y pintar un tramo de «lleno». Por eso el id lo
-  emite el servidor, firmado con HMAC, y emitir tiene tope por IP. Es anónimo: no dice nada
-  de la persona.
-- **Depende de:** B16
-- **Qué:** `POST /api/dispositivo` → `{dispositivo}` o 429; `emitir_dispositivo` y
-  `dispositivo_valido` (port de `src/lib/sesion.ts`, firmado con una clave derivada de
-  `JWT_SECRETO`); tope de 300 por IP por hora en `app/frenos.py`.
-- **Tests:** `test_dispositivo_valido_ok`, `test_dispositivo_valido_falla` (firma alterada →
-  `None`) y **específico**: `test_emision_301_desde_la_misma_ip_es_429`.
-
-#### #30 · B34 · `feat(back)`: recibe y agrega el gentío en /api/densidad
-
-- **Para entender:** el `POST` es anónimo (cualquier celular con un id emitido aporta su
-  tramo) y el `GET` devuelve solo el agregado, nunca filas crudas, para que nadie pueda
-  reconstruir por dónde anduvo un dispositivo.
-- **Depende de:** B22, B26, B32, B33
-- **Qué:** port de `src/app/api/densidad/route.ts`, siempre sobre el desfile actual. `POST
-  {dispositivo, bin}`: dispositivo inválido → 401 (el cliente pide uno nuevo); upsert por
-  dispositivo; borra presencias fuera de la ventana en el mismo `POST` (sin cron).
-- **Tests:** `test_densidad_post_ok`, `test_densidad_post_falla` (`bin` fuera de la senda →
-  400) y **específico**: `test_mismo_dispositivo_cuenta_una_vez`.
+- **To understand:** the parade state is changed by a person, not by the code. Restarting
+  (back to `scheduled`) moves `run_started_at` to "now": old positions stay stored but are
+  not shown. Creating or editing name, date and time is another permission, because someone
+  else does it (whoever loads the schedule).
+- **Depends on:** B15, B22
+- **What:** port of `src/app/api/admin/desfiles/`: `GET` and `PUT /{id}` (`parades:edit`,
+  validation of `validarDesfile` in `src/lib/programacion.ts`), `PATCH /{id}` with
+  `{action: "start" | "finish" | "restart"}` (`parades:state`), `DELETE /{id}`
+  (`parades:edit`).
+- **Tests:** `test_parade_action_ok`, `test_parade_action_fails` (editor tries to start →
+  403) and **specific**: `test_restart_moves_run_started_at`.
 
 ---
 
-### Fase 5 — Contenido y comunidad
+### Phase 4 — The live parade
 
-#### #45 · B35 · `feat(back)`: publica avisos del equipo para todos
+#### #23 · B24 · `feat(back)`: create the positions and presences tables
 
-- **Para entender:** un aviso es un mensaje del equipo que sale arriba del mapa («arranca
-  con 40 min de retraso»). Viaja dentro del estado del desfile, así que al publicarlo hay
-  que avisar al stream para que llegue al instante.
-- **Depende de:** B15, B30
-- **Qué:** tabla `avisos` (migración), repositorio, `GET/POST /api/admin/avisos` y
-  `DELETE /api/admin/avisos/{id}` (`avisos:gestionar`, validación de `validarAviso`). Los
-  vigentes se incluyen en `EstadoDesfile.avisos`; publicar o borrar hace `NOTIFY`.
-- **Tests:** `test_publicar_aviso_ok`, `test_publicar_aviso_falla` (texto vacío → 400) y
-  **específico**: `test_aviso_vencido_no_sale_en_el_estado`.
+- **To understand:** `positions` is the history of where each reporter was (the table that
+  writes the most); `presences` is one row per phone of the public with the 100 m stretch
+  where it is, which is overwritten and never stores lat/lng (README, "Crowd map").
+- **Depends on:** B18
+- **What:** migration `0003`: `positions` as `posiciones` in the current schema with
+  `user_id` (FK to `users`) instead of `reportero_id`, `post` instead of `rol`, plus
+  `ts timestamptz not null` and `received_at timestamptz default now()`, index
+  `(parade_id, post, ts desc)`. `presences` same as `presencias` in the current schema.
+- **Acceptance:** `just db-test` passes.
 
-#### #46 · B36 · `feat(back)`: administra los eventos de la programación
+#### #24 · B25 · `feat(back)`: define the parade state schemas
 
-- **Para entender:** además de los desfiles, la programación tiene tarimas, tascas y
-  eventos culturales. Se cargan desde el panel y salen en la pestaña «Hoy» de la web.
-- **Depende de:** B15, B22
-- **Qué:** tabla `eventos` (migración, sin `anunciante_id`), repositorio, siembra desde
-  `seed/eventos.json`, `GET/PUT/DELETE /api/admin/eventos` (`programacion:editar`,
-  validación de `validarEvento`), y `GET /api/programacion` pasa a incluirlos.
-- **Tests:** `test_guardar_evento_ok`, `test_guardar_evento_falla` (categoría inválida →
+- **To understand:** they are the "shapes" of the JSON that goes in and out, written as
+  Pydantic classes. They validate on their own (an odd `post` or a `lat` of 200 are
+  rejected before reaching the code) and go out in camelCase.
+- **Depends on:** B08
+- **What:** `app/schemas/` with `PositionInput` (with optional `waypointId`), `Position`,
+  `HistorySample`, `ParadeState` (with `date`, `startTime`, `announcements`),
+  `Announcement`, `Parade`, `Density`, `DensityBin`, after `src/lib/tipos.ts`. Each schema
+  notes the web type it mirrors, so the web's `api` adapter (B51) can map them.
+- **Tests:** `test_position_input_ok`, `test_position_input_fails` (post `"tail2"`) and
+  **specific**: `test_state_serializes_in_camelcase`.
+
+#### #25 · B26 · `feat(back)`: add the parade state repository
+
+- **To understand:** it is the Python equivalent of the "live" part of `AdaptadorDatos`
+  (`src/lib/datos/adaptador.ts`). The rules of §1.5 live here: the latest position is the
+  one with the highest `ts`, `run_started_at` is respected and the first report of a
+  scheduled parade moves it to `in_progress`.
+- **Depends on:** B23, B24, B25
+- **What:** `app/repositories/state.py` (Protocol + Postgres + memory):
+  `record_positions(entries, user_id)`, `read_state`, `last_sender(parade, post)`,
+  `read_progress`, `record_presence`, `read_presences`. It updates
+  `users.last_signal_at`.
+- **Tests (memory):** `test_record_positions_ok`, `test_record_positions_fails` (missing
+  parade → `ParadeNotFound`) and **specific**: `test_old_packet_does_not_overwrite_new`.
+- **Out of scope:** NOTIFY (B30).
+
+#### #26 · B27 · `feat(back)`: validate position batches
+
+- **To understand:** the reporter's phone keeps the sends that fail and sends them later
+  as a batch. One bad point cannot bring down the whole batch (the queue would get stuck
+  retrying the same thing): it is discarded and counted. It is pure logic, no database or
+  HTTP.
+- **Depends on:** B20, B25
+- **What:** `app/domain/positions.py` with `validate_batch(body, forced_post, parade_id,
+  now, course)` → `(entries, discarded)` or an error, exact port of `validar()` in
+  `src/app/api/posiciones/route.ts`: `MAX_BATCH` 200, `waypointId` → point on the course,
+  discards future > 2 min, older than 1 h and accuracy > `MAX_ACCURACY_M`; sorts by `ts`.
+- **Tests:** `test_validate_batch_ok`, `test_validate_batch_fails` (201 points → error)
+  and **specific**: `test_point_with_bad_accuracy_is_discarded_without_failing_the_batch`.
+
+#### #42 · B28 · `feat(back)`: receive positions at POST /api/positions
+
+- **To understand:** it is the only way in for positions. A reporter can only send their
+  own post and always to the current parade. If two reporters have the same post, the one
+  sending is the holder and the other waits until the holder goes silent for a minute
+  (**handover**): otherwise the head would jump between two phones blocks apart.
+- **Depends on:** B15, B26, B27
+- **What:** port of `src/app/api/posiciones/route.ts`. With `positions:own` the server
+  sets the post and the parade and applies the handover (`HANDOVER_MS`, `RELEVO_MS` in the
+  web); with `positions:any` the body can name the parade (which has to exist) and the
+  post. Response `{ok, saved, discarded, waiting, serverTs}`.
+- **Tests:** `test_positions_ok`, `test_positions_fails` (no token → 401) and
+  **specific**: `test_second_reporter_on_the_same_post_waits`.
+- **Out of scope:** push notifications when the head arrives (B43).
+
+#### #27 · B29 · `feat(back)`: expose the snapshot at GET /api/state
+
+- **To understand:** the snapshot is the full picture of the parade now: where each part
+  is, the last 16 min of the head (with that the web computes the ETA), the announcements
+  and the server time (so as not to depend on the phone's clock).
+- **Depends on:** B22, B26
+- **What:** optional `?parade=` (without it, the current one), 404 «No hay desfile.», same
+  `Cache-Control` as the current route in production.
+- **Tests:** `test_state_ok`, `test_state_fails` (no parades → 404).
+
+#### #28 · B30 · `feat(back)`: stream the live state over SSE
+
+- **To understand:** SSE (Server-Sent Events) is an HTTP connection that stays open and
+  through which the server pushes messages when there is news, instead of the phone asking
+  every few seconds. For it to work with several instances, Postgres does the notifying: on
+  saving a position a `NOTIFY` is issued, and each server with open streams listens with
+  `LISTEN` and forwards.
+- **Depends on:** B29
+- **What:** `GET /api/state/stream` with `EventSourceResponse`. First event immediately
+  with the snapshot; one for each `NOTIFY parade_<id>`; heartbeat every 20 s. The Postgres
+  repository issues `NOTIFY` when recording positions and when changing state.
+  `app/realtime.py` abstracts the listening so a fake can be used in tests.
+- **Tests:** `test_stream_ok` (first event is the snapshot), `test_stream_fails` (no
+  parade → 404 before opening the stream).
+- **Out of scope:** WebSockets.
+
+#### #43 · B31 · `feat(back)`: expose the parade's progress by waypoints
+
+- **To understand:** with the whole history of the head you can tell at what time it went
+  past each reference point ("pasó por Cristo Rey a las 3:40"). It is what the web shows
+  when the parade has already passed where you are.
+- **Depends on:** B20, B26
+- **What:** `app/domain/progress.py` with `waypoint_passes` (port of `pasosPorHito` in
+  `src/lib/recorrido.ts`) and `GET /api/parades/{id}/progress` → `{parade, passes}`, same
+  `Cache-Control`.
+- **Tests:** `test_waypoint_passes_ok`, `test_waypoint_passes_fails` (empty history → no
+  passes) and **specific**: `test_waypoint_not_reached_does_not_appear`.
+
+#### #29 · B32 · `feat(back)`: port the density calculation by stretches
+
+- **To understand:** the course is split into 100 m stretches and the phones in each one
+  are counted. The README's safeguards stay: with fewer than 50 users nothing is painted,
+  and a stretch with fewer than 3 reports is left without data (which is not the same as
+  empty).
+- **Depends on:** B20
+- **What:** `app/domain/density.py` and `app/domain/constants.py` with the same constants
+  and rules as `src/lib/densidad.ts` and `src/lib/tipos.ts`. Each constant with a comment
+  pointing to the TS file it comes from: if one changes, the other changes.
+- **Tests:** `test_classify_ok` (60 users → bins with levels), `test_classify_fails` (40
+  users → `enough=False`) and **specific**: `test_stretch_with_few_samples_does_not_appear`.
+
+#### #44 · B33 · `feat(back)`: issue signed device ids
+
+- **To understand:** the crowd map and photos count devices. If the phone made up its own
+  id, a script could send a thousand and paint a stretch "full". That is why the server
+  issues the id, signed with HMAC, and issuing has a cap per IP. It is anonymous: it says
+  nothing about the person.
+- **Depends on:** B16
+- **What:** `POST /api/device` → `{device}` or 429; `issue_device` and `valid_device`
+  (port of `src/lib/sesion.ts`, signed with a key derived from `JWT_SECRET`); cap of 300
+  per IP per hour in `app/rate_limits.py`.
+- **Tests:** `test_valid_device_ok`, `test_valid_device_fails` (tampered signature →
+  `None`) and **specific**: `test_issuing_301_from_the_same_ip_is_429`.
+
+#### #30 · B34 · `feat(back)`: receive and aggregate the crowd at /api/density
+
+- **To understand:** the `POST` is anonymous (any phone with an issued id contributes its
+  stretch) and the `GET` returns only the aggregate, never raw rows, so nobody can
+  reconstruct where a device went.
+- **Depends on:** B22, B26, B32, B33
+- **What:** port of `src/app/api/densidad/route.ts`, always on the current parade. `POST
+  {device, bin}`: invalid device → 401 (the client asks for a new one); upsert by device;
+  deletes presences outside the window in the same `POST` (no cron).
+- **Tests:** `test_density_post_ok`, `test_density_post_fails` (`bin` off the course →
+  400) and **specific**: `test_same_device_counts_once`.
+
+---
+
+### Phase 5 — Content and community
+
+#### #45 · B35 · `feat(back)`: publish team announcements for everyone
+
+- **To understand:** an announcement is a message from the team that shows above the map
+  ("arranca con 40 min de retraso"). It travels inside the parade state, so on publishing
+  it the stream has to be notified for it to arrive instantly.
+- **Depends on:** B15, B30
+- **What:** table `announcements` (migration), repository, `GET/POST
+  /api/admin/announcements` and `DELETE /api/admin/announcements/{id}`
+  (`announcements:manage`, validation of `validarAviso`). The current ones are included in
+  `ParadeState.announcements`; publishing or deleting issues `NOTIFY`.
+- **Tests:** `test_publish_announcement_ok`, `test_publish_announcement_fails` (empty text
+  → 400) and **specific**: `test_expired_announcement_is_not_in_the_state`.
+
+#### #46 · B36 · `feat(back)`: manage the schedule's events
+
+- **To understand:** besides the parades, the schedule has stages, *tascas* and cultural
+  events. They are loaded from the panel and show in the web's "Hoy" tab.
+- **Depends on:** B15, B22
+- **What:** table `events` (migration, without `anunciante_id`), repository, seeding from
+  `seed/events.json`, `GET/PUT/DELETE /api/admin/events` (`schedule:edit`, validation of
+  `validarEvento`), and `GET /api/schedule` starts including them.
+- **Tests:** `test_save_event_ok`, `test_save_event_fails` (invalid category → 400).
+
+#### #47 · B37 · `feat(back)`: manage the map's businesses and services
+
+- **To understand:** the businesses layer brings together shops and services (toilets,
+  water). Appearing on the map never depends on paying; the plan only gives the offer, the
+  menu and the links (see README, "Businesses on the map"). The public only sees the
+  visible ones.
+- **Depends on:** B15, B19
+- **What:** table `businesses` (migration), repository, seeding from
+  `seed/businesses.json`, `GET /api/businesses` (only visible ones, same `Cache-Control`)
+  and `GET/PUT/DELETE /api/admin/businesses` (`businesses:edit`), port of
+  `validarComercio` (`src/lib/comercios.ts`).
+- **Tests:** `test_save_business_ok`, `test_save_business_fails` (lat out of range → 400)
+  and **specific**: `test_service_never_has_plan_or_offer`.
+
+#### #48 · B38 · `feat(back)`: count interactions with businesses
+
+- **To understand:** the advertiser is shown how many times their card was opened or their
+  WhatsApp tapped. Only a counter is incremented: who it was or from where is not stored.
+  The counter failing cannot break the map for anyone.
+- **Depends on:** B37
+- **What:** table `business_metrics` (migration), `POST /api/businesses/event` (always
+  `{ok: true}`, even if it fails inside) and the metrics in `GET /api/admin/businesses`
+  (`metrics:view`), as today.
+- **Tests:** `test_add_metric_ok`, `test_add_metric_fails` (invalid type → 400).
+
+#### #49 · B39 · `feat(back)`: store photos on disk or on S3
+
+- **To understand:** photos do not go in the database: they go in file storage. In
+  development, a folder; in production, an S3 bucket (the standard Railway, Cloudflare R2
+  and AWS use). A common interface lets you swap one for the other with an environment
+  variable.
+- **Depends on:** B06
+- **What:** `app/storage.py` with a `Protocol` (`save`, `read`, `delete`), `DiskStorage`
+  and `S3Storage` (`boto3`), chosen by whether `S3_BUCKET` exists.
+- **Tests (with disk in `tmp_path`):** `test_save_and_read_ok`, `test_read_fails` (missing
+  id → `None`).
+- **Out of scope:** creating the bucket (B48).
+
+#### #50 · B40 · `feat(back)`: receive and show the public's photos
+
+- **To understand:** anyone can upload a photo, but it stays **pending**: nothing is
+  published without moderation. A device id is required, it is limited to 8 per hour, and
+  the file is checked to really be a JPEG (its first three bytes), without trusting what
+  the browser says.
+- **Depends on:** B22, B33, B39
+- **What:** table `photos` (migration, `storage_path`), repository, port of
+  `src/app/api/fotos/route.ts` and `fotos/[id]/route.ts`: multipart `POST` (device, maximum
+  size 1.5 MB, JPEG, optional `metres`), `GET` approved ones, `GET /{id}` serves the image
+  (pending or rejected → 404 unless with `photos:moderate`). States: `pending`,
+  `approved`, `rejected`.
+- **Tests:** `test_upload_photo_ok`, `test_upload_photo_fails` (PNG → 415) and
+  **specific**: `test_pending_photo_is_not_public`.
+
+#### #51 · B41 · `feat(back)`: moderate photos
+
+- **To understand:** inappropriate content under the Carnival's name is a reputational
+  problem, not a detail. Whoever has the `moderator` role approves, rejects or deletes.
+- **Depends on:** B15, B40
+- **What:** `GET /api/admin/photos` (pending first), `PATCH /{id}` with `{state}` and
+  `DELETE /{id}` (also deletes the file), with `photos:moderate`.
+- **Tests:** `test_moderate_photo_ok`, `test_moderate_photo_fails` (reporter → 403).
+
+#### #52 · B42 · `feat(back)`: store push notification subscriptions
+
+- **To understand:** "avisame cuando el desfile esté cerca". The browser hands over a
+  *subscription* (where to send the notification and with which keys) and the person says
+  at which metre of the course they are waiting. Nothing else: no name, no account.
+- **Depends on:** B22, B20
+- **What:** table `push_subscriptions` (migration), repository, port of
+  `src/app/api/avisos-push/route.ts` at `/api/push-subscriptions`: `GET` (configured, and
+  the public key), `POST` (validations and `thresholdMin` bounded to 5–60), `DELETE`.
+- **Tests:** `test_subscribe_ok`, `test_subscribe_fails` (endpoint without `https://` →
   400).
 
-#### #47 · B37 · `feat(back)`: administra los comercios y servicios del mapa
+#### #53 · B43 · `feat(back)`: notify whoever is waiting when the parade gets close
 
-- **Para entender:** la capa de comercios reúne negocios y servicios (baños, agua). Aparecer
-  en el mapa nunca depende de pagar; el plan solo da la oferta, el menú y los enlaces (ver
-  README, «Comercios en el mapa»). El público solo ve los visibles.
-- **Depende de:** B15, B19
-- **Qué:** tabla `comercios` (migración), repositorio, siembra desde `seed/comercios.json`,
-  `GET /api/comercios` (solo visibles, mismo `Cache-Control`) y
-  `GET/PUT/DELETE /api/admin/comercios` (`comercios:editar`), port de `validarComercio`
-  (`src/lib/comercios.ts`).
-- **Tests:** `test_guardar_comercio_ok`, `test_guardar_comercio_falla` (lat fuera de rango
-  → 400) y **específico**: `test_servicio_nunca_lleva_plan_ni_oferta`.
-
-#### #48 · B38 · `feat(back)`: cuenta las interacciones con los comercios
-
-- **Para entender:** al anunciante se le muestra cuántas veces abrieron su ficha o tocaron
-  su WhatsApp. Solo se suma un contador: no se guarda quién fue ni desde dónde. Que el
-  contador falle no puede romperle el mapa a nadie.
-- **Depende de:** B37
-- **Qué:** tabla `comercio_metricas` (migración), `POST /api/comercios/evento` (siempre
-  `{ok: true}`, aunque falle por dentro) y las métricas en `GET /api/admin/comercios`
-  (`metricas:ver`), como hoy.
-- **Tests:** `test_sumar_metrica_ok`, `test_sumar_metrica_falla` (tipo inválido → 400).
-
-#### #49 · B39 · `feat(back)`: guarda las fotos en disco o en S3
-
-- **Para entender:** las fotos no van en la base: van en un almacenamiento de archivos. En
-  desarrollo, una carpeta; en producción, un bucket S3 (el estándar que usan Railway,
-  Cloudflare R2 y AWS). Una interfaz común deja cambiar uno por otro con una variable de
-  entorno.
-- **Depende de:** B06
-- **Qué:** `app/almacenamiento.py` con `Protocol` (`guardar`, `leer`, `borrar`),
-  `AlmacenamientoDisco` y `AlmacenamientoS3` (`boto3`), elegido por si existe `S3_BUCKET`.
-- **Tests (con disco en `tmp_path`):** `test_guardar_y_leer_ok`, `test_leer_falla`
-  (id inexistente → `None`).
-- **Fuera de alcance:** crear el bucket (B48).
-
-#### #50 · B40 · `feat(back)`: recibe y muestra las fotos del público
-
-- **Para entender:** cualquiera puede subir una foto, pero queda **pendiente**: nada se
-  publica sin moderación. Se exige un id de dispositivo, se limita a 8 por hora, y se mira
-  que el archivo sea de verdad un JPEG (sus tres primeros bytes), sin confiar en lo que
-  diga el navegador.
-- **Depende de:** B22, B33, B39
-- **Qué:** tabla `fotos` (migración, `storage_path`), repositorio, port de
-  `src/app/api/fotos/route.ts` y `fotos/[id]/route.ts`: `POST` multipart (dispositivo, peso
-  máximo 1,5 MB, JPEG, `metros` opcional), `GET` aprobadas, `GET /{id}` sirve la imagen
-  (pendiente o rechazada → 404 salvo con `fotos:moderar`).
-- **Tests:** `test_subir_foto_ok`, `test_subir_foto_falla` (PNG → 415) y **específico**:
-  `test_foto_pendiente_no_es_publica`.
-
-#### #51 · B41 · `feat(back)`: permite moderar las fotos
-
-- **Para entender:** el contenido inapropiado bajo el nombre del Carnaval es un problema
-  reputacional, no un detalle. Quien tiene el rol `moderador` aprueba, rechaza o borra.
-- **Depende de:** B15, B40
-- **Qué:** `GET /api/admin/fotos` (pendientes primero), `PATCH /{id}` con `{estado}` y
-  `DELETE /{id}` (borra también el archivo), con `fotos:moderar`.
-- **Tests:** `test_moderar_foto_ok`, `test_moderar_foto_falla` (reportero → 403).
-
-#### #52 · B42 · `feat(back)`: guarda las suscripciones a avisos push
-
-- **Para entender:** «avisame cuando el desfile esté cerca». El navegador entrega una
-  *suscripción* (a dónde mandar la notificación y con qué llaves) y la persona dice en qué
-  metro de la senda espera. Nada más: ni nombre ni cuenta.
-- **Depende de:** B22, B20
-- **Qué:** tabla `suscripciones_aviso` (migración), repositorio, port de
-  `src/app/api/avisos-push/route.ts`: `GET` (configurado y llave pública), `POST`
-  (validaciones y `umbralMin` acotado a 5–60), `DELETE`.
-- **Tests:** `test_suscribir_ok`, `test_suscribir_falla` (endpoint sin `https://` → 400).
-
-#### #53 · B43 · `feat(back)`: avisa a quien espera cuando el desfile se acerca
-
-- **Para entender:** cada vez que llega una posición de la cabeza se revisa a quién le
-  falta poco, se le manda la notificación con web push y su suscripción se borra (un aviso
-  por pedido). Para saber cuánto falta hace falta la velocidad del desfile, así que se
-  porta `estimarVelocidad` de `src/lib/eta.ts`. Un fallo mandando avisos no puede tumbar la
-  ingesta.
-- **Depende de:** B42, B28
-- **Qué:** `app/dominio/eta.py` con `estimar_velocidad` (port exacto, mismas constantes),
-  `app/push.py` con `avisar_cercanos(estado)` (como mucho una revisión cada 15 s por
-  desfile, `pywebpush`, en segundo plano con `BackgroundTasks`), llamado desde
-  `POST /api/posiciones` cuando entra la cabeza.
-- **Tests:** `test_estimar_velocidad_ok`, `test_estimar_velocidad_falla` (menos de 90 s de
-  historial → velocidad nominal) y **específico**: `test_desfile_detenido_no_avisa`.
+- **To understand:** every time a position of the head arrives, it is checked who has
+  little time left, they are sent the notification with web push and their subscription is
+  deleted (one notification per request). To know how long is left the parade's speed is
+  needed, so `estimarVelocidad` from `src/lib/eta.ts` is ported. A failure sending
+  notifications cannot bring down ingestion.
+- **Depends on:** B42, B28
+- **What:** `app/domain/eta.py` with `estimate_speed` (exact port, same constants),
+  `app/push.py` with `notify_nearby(state)` (at most one check every 15 s per parade,
+  `pywebpush`, in the background with `BackgroundTasks`), called from
+  `POST /api/positions` when the head comes in.
+- **Tests:** `test_estimate_speed_ok`, `test_estimate_speed_fails` (less than 90 s of
+  history → nominal speed) and **specific**: `test_stopped_parade_does_not_notify`.
 
 ---
 
-### Fase 6 — Secretos y despliegue
+### Phase 6 — Deployment
 
-#### #31 · B44 · `chore(back)`: maneja los secretos con sops y age
+#### #32 · B45 · `chore(back)`: package the backend in a Dockerfile
 
-- **Para entender:** `age` genera un par de llaves (pública y privada). `sops` cifra un YAML
-  con la pública: los nombres de las variables quedan legibles y los valores cifrados. Ese
-  archivo sí se sube al repo; solo quien tiene la llave privada (tú, el CI) puede leerlo.
-- **Depende de:** B04, B06
-- **Requiere al mantenedor:** generar la llave (`age-keygen`), ponerla en `.sops.yaml` y
-  cifrar. El agente deja `age1REEMPLAZAR` y los pasos exactos en el PR.
-- **Qué:** `.sops.yaml` con reglas para `secrets/dev.enc.yaml` y `secrets/prod.enc.yaml`;
-  `secrets/README.md` (editar con `sops secrets/dev.enc.yaml`, correr con
-  `sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'`), con la lista de
-  variables de B06.
-- **Aceptación:** con la llave del mantenedor `sops -d` funciona y el hook de B04 rechaza un
-  archivo sin cifrar.
-
-#### #32 · B45 · `chore(back)`: empaqueta el backend en un Dockerfile
-
-- **Para entender:** una imagen Docker es el backend con todo lo que necesita para correr,
-  empaquetado. Railway descarga esa imagen y la ejecuta. «Multi-stage» significa que se
-  instala todo en una etapa y a la imagen final solo pasa lo necesario, así pesa menos.
-- **Depende de:** B43
-- **Qué:** `backend/Dockerfile` multi-stage con la imagen oficial de uv (`uv sync --frozen
-  --no-dev`), copia `app/`, `migraciones/`, `seed/`, `alembic.ini`; usuario no root;
+- **To understand:** a Docker image is the backend with everything it needs to run,
+  packaged. Railway downloads that image and runs it. "Multi-stage" means everything is
+  installed in one stage and only what is needed goes to the final image, so it weighs
+  less.
+- **Depends on:** B43
+- **What:** multi-stage `backend/Dockerfile` with uv's official image (`uv sync --frozen
+  --no-dev`), copies `app/`, `migrations/`, `seed/`, `alembic.ini`; non-root user;
   `CMD fastapi run --host 0.0.0.0 --port ${PORT}`. `.dockerignore`.
-- **Aceptación:** `docker build backend/` funciona y el contenedor responde `/api/salud`.
+- **Acceptance:** `docker build backend/` works and the container answers `/api/health`.
 
-#### #33 · B46 · `chore(infra)`: inicia Terraform con el provider de Railway
+#### #33 · B46 · `chore(infra)`: start Terraform with the Railway provider
 
-- **Para entender:** Terraform describe la infraestructura en archivos (`.tf`): «quiero un
-  proyecto en Railway con este servicio y estas variables». `terraform plan` muestra qué
-  cambiaría y `apply` lo hace. El **estado** es un archivo donde Terraform recuerda qué
-  creó; tiene que vivir en un lugar compartido para que tu máquina y el CI vean lo mismo.
-- **Depende de:** B45
-- **Requiere al mantenedor:** **decidir dónde vive el estado** (recomendado: HCP Terraform,
-  plan gratis; alternativa: bucket S3/R2). El agente deja la opción recomendada marcada.
-- **Qué:** `infra/` con `versions.tf` (`terraform-community-providers/railway`,
-  `carlpett/sops`, versiones fijadas), `providers.tf`, `main.tf` con `railway_project` y el
-  entorno `production`, `.terraform.lock.hcl`. `tflint` en pre-commit.
-- **Aceptación:** `terraform init && terraform validate` pasan.
+- **To understand:** Terraform describes infrastructure in files (`.tf`): "I want a
+  project on Railway with this service and these variables". `terraform plan` shows what
+  would change and `apply` does it. The **state** is a file where Terraform remembers what
+  it created; it has to live somewhere shared so your machine and CI see the same.
+- **Depends on:** B45
+- **Needs the maintainer:** **decide where the state lives** (recommended: HCP Terraform,
+  free plan; alternative: S3/R2 bucket). The agent leaves the recommended option marked.
+- **What:** `infra/` with `versions.tf` (`terraform-community-providers/railway`,
+  `carlpett/sops`, pinned versions), `providers.tf`, `main.tf` with `railway_project` and
+  the `production` environment, `.terraform.lock.hcl`. `tflint` in pre-commit.
+- **Acceptance:** `terraform init && terraform validate` pass.
 
-#### #34 · B47 · `chore(infra)`: crea Postgres en Railway
+#### #34 · B47 · `chore(infra)`: create Postgres on Railway
 
-- **Para entender:** la base de producción también es un servicio en Railway, con un
-  volumen (disco) para que los datos sobrevivan a reinicios.
-- **Depende de:** B46
-- **Qué:** **primero investiga** si el provider permite crear Postgres con volumen
-  persistente (servicio con imagen `ghcr.io/railwayapp-templates/postgres-ssl` + volumen).
-  - Si se puede: en Terraform, con `DATABASE_URL` como output sensible.
-  - Si no: documenta en `infra/README.md` cómo crearlo desde el panel y toma su
-    `DATABASE_URL` como variable de entrada. No inventes recursos que el provider no tenga.
-- **Aceptación:** `terraform plan` sin errores; la decisión queda escrita en el PR.
+- **To understand:** the production database is also a service on Railway, with a volume
+  (disk) so data survives restarts.
+- **Depends on:** B46
+- **What:** **first investigate** whether the provider allows creating Postgres with a
+  persistent volume (service with image `ghcr.io/railwayapp-templates/postgres-ssl` +
+  volume).
+  - If it does: in Terraform, with `DATABASE_URL` as a sensitive output.
+  - If it does not: document in `infra/README.md` how to create it from the panel and take
+    its `DATABASE_URL` as an input variable. Do not invent resources the provider does not
+    have.
+- **Acceptance:** `terraform plan` without errors; the decision is written in the PR.
 
-#### #54 · B48 · `chore(infra)`: crea el bucket de fotos
+#### #54 · B48 · `chore(infra)`: create the photos bucket
 
-- **Para entender:** el almacenamiento S3 de B39 necesita un bucket real en producción, con
-  su URL y sus llaves de acceso, que llegan al backend como variables.
-- **Depende de:** B47
-- **Requiere al mantenedor:** si no se puede en Railway, crear el bucket en Cloudflare R2 y
-  guardar las llaves en `secrets/prod.enc.yaml`.
-- **Qué:** **primero investiga** si Railway ofrece buckets S3 y si el provider los soporta.
-  Si sí, en Terraform con sus credenciales como outputs sensibles; si no, documenta R2 en
-  `infra/README.md` y toma las cuatro variables `S3_*` de sops. El bucket es **privado**.
-- **Aceptación:** `terraform plan` sin errores; la decisión queda escrita en el PR.
+- **To understand:** B39's S3 storage needs a real bucket in production, with its URL and
+  its access keys, which reach the backend as variables.
+- **Depends on:** B47
+- **Needs the maintainer:** if it cannot be done on Railway, create the bucket on
+  Cloudflare R2 and store the keys in `secrets/prod.enc.yaml`.
+- **What:** **first investigate** whether Railway offers S3 buckets and whether the
+  provider supports them. If so, in Terraform with its credentials as sensitive outputs;
+  if not, document R2 in `infra/README.md` and take the four `S3_*` variables from sops.
+  The bucket is **private**.
+- **Acceptance:** `terraform plan` without errors; the decision is written in the PR.
 
-#### #35 · B49 · `chore(infra)`: despliega el servicio de la API con secretos de sops
+#### #35 · B49 · `chore(infra)`: deploy the API service with secrets from sops
 
-- **Para entender:** aquí se juntan las piezas: Terraform le dice a Railway qué imagen
-  correr, lee los secretos de `prod.enc.yaml` con sops y se los pasa al servicio como
-  variables de entorno, las mismas que lee `config.py`.
-- **Depende de:** B44, B48
-- **Qué:** `railway_service` con `source_image = "ghcr.io/<org>/sigue-el-desfile-backend:${var.imagen_tag}"`,
-  una réplica, pre-deploy `alembic upgrade head`, healthcheck en `/api/salud`, dominio de
-  Railway. Variables de B06 desde `data "sops_file"` y las de Postgres y el bucket.
-- **Aceptación:** `terraform plan -var imagen_tag=<sha>` muestra el servicio con variables
-  sensibles.
+- **To understand:** here the pieces come together: Terraform tells Railway which image to
+  run, reads the secrets from `prod.enc.yaml` with sops and passes them to the service as
+  environment variables, the same ones `config.py` reads.
+- **Depends on:** B44, B48
+- **What:** `railway_service` with `source_image =
+  "ghcr.io/<org>/sigue-el-desfile-backend:${var.image_tag}"`, one replica, pre-deploy
+  `alembic upgrade head`, healthcheck on `/api/health`, Railway domain. Variables of B06
+  from `data "sops_file"` and those of Postgres and the bucket.
+- **Acceptance:** `terraform plan -var image_tag=<sha>` shows the service with sensitive
+  variables.
 
-#### #36 · B50 · `chore(ci)`: publica la imagen y aplica Terraform al mergear
+#### #36 · B50 · `chore(ci)`: publish the image and apply Terraform on merge
 
-- **Para entender:** es el CD (despliegue continuo): al mergear a `trunk`, GitHub construye
-  la imagen, la sube a GHCR (el registro de imágenes de GitHub) y corre `terraform apply`
-  para que Railway use la nueva. El environment `production` con aprobación manual hace
-  que nada salga sin que lo autorices.
-- **Depende de:** B05, B49
-- **Requiere al mantenedor:** crear los secretos `SOPS_AGE_KEY` y `RAILWAY_TOKEN` y el
-  environment `production` con aprobación manual.
-- **Qué:** `.github/workflows/backend-cd.yml`:
-  - PR que toca `infra/**`: `terraform fmt -check`, `validate` y `plan` comentado en el PR.
-  - Push a `trunk` que toca `backend/**` o `infra/**`: build y push a GHCR (tag = SHA) y
-    `terraform apply -var imagen_tag=$SHA` en `production`.
-- **Aceptación:** un merge despliega y `/api/salud` responde en el dominio de Railway.
-
----
-
-### Fase 7 — Conectar la web y documentar
-
-#### #37 · B51 · `feat(datos)`: lleva las lecturas públicas de la web al backend
-
-- **Para entender:** la web ya sabe hablar con dos fuentes de datos (`local` y `supabase`).
-  Se agrega `api`: las pantallas públicas piden todo a `NEXT_PUBLIC_API_URL` en vez de a
-  `/api` del propio Next. Como el contrato es el mismo, cambia la URL, no las pantallas.
-- **Depende de:** B50
-- **Qué:** `NEXT_PUBLIC_DATOS=api` + `NEXT_PUBLIC_API_URL`. Los hooks y pantallas públicas
-  (estado y stream, densidad, dispositivo, programación, comercios y su evento, fotos,
-  recorrido, avisos push) usan una función `urlApi(ruta)` que respeta el modo. El service
-  worker cachea también las respuestas del backend. `local` y `supabase` no se tocan.
-- **Aceptación:** con el backend local, `npm run dev` en modo `api` muestra el desfile, la
-  programación y los comercios del backend.
-- **Tests:** `npm run typecheck` y `npm test` pasan; una prueba de `urlApi` (ok y sin
-  `NEXT_PUBLIC_API_URL`).
-
-#### #55 · B52 · `feat(ui)`: inicia sesión con correo y contraseña en los paneles
-
-- **Para entender:** los paneles de admin y de reportero hoy entran con una contraseña única
-  y con un código. En modo `api` pasan a un solo login con correo y contraseña; el token se
-  guarda en el navegador y se manda como `Bearer`. Cada panel muestra solo lo que los
-  permisos del usuario dejan hacer.
-- **Depende de:** B51
-- **Qué:** pantalla de login común, cliente de API con el token, paneles que leen
-  `permisos` de `/api/auth/yo`; la gestión de reporteros pasa a gestión de usuarios con
-  roles y puesto. La cola de envíos del reportero (`useReporte`) manda el token.
-- **Aceptación:** un admin crea un reportero desde el panel, el reportero entra y sus
-  posiciones mueven el desfile.
-- **Tests:** `npm run typecheck` y `npm test` pasan.
-- **Fuera de alcance:** quitar los modos `local` y `supabase`.
-
-#### #56 · B53 · `feat(simulacion)`: hace que el simulador entre con un usuario de ingesta
-
-- **Para entender:** el simulador manda posiciones de los tres puestos, así que entra con
-  una cuenta de servicio con el rol `ingesta` en vez de con `INGESTA_TOKEN`.
-- **Depende de:** B51
-- **Qué:** `scripts/simular-desfile.ts` acepta `--email` y `--password` (o variables de
-  entorno), hace login y manda `Authorization: Bearer`. `python -m app.cli sembrar --dev`
-  crea un usuario `simulador@local` con rol `ingesta` (solo con `ENTORNO=dev`).
-- **Aceptación:** `npm run simular -- --url=http://localhost:8000 --email=... --password=...`
-  mueve el desfile.
-
-#### #38 · B54 · `docs(back)`: documenta cómo correr, probar y desplegar el backend
-
-- **Para entender:** cierra el ciclo: que alguien nuevo pueda levantar todo leyendo un solo
-  archivo.
-- **Depende de:** B52, B53
-- **Qué:** `backend/README.md` (Nix, base local, sops, tests, crear admin, sembrar,
-  desplegar). En el `README.md` raíz, actualizar «Los dos adaptadores de datos» y «Subirlo
-  a producción». En `CLAUDE.md`, pasar los comandos del backend de «cuando exista» a reales.
+- **To understand:** it is CD (continuous deployment): on merging to `trunk`, GitHub
+  builds the image, pushes it to GHCR (GitHub's image registry) and runs `terraform apply`
+  so Railway uses the new one. The `production` environment with manual approval means
+  nothing goes out without you authorising it.
+- **Depends on:** B05, B49
+- **Needs the maintainer:** create a key pair for CI, add its public key to `.sops.yaml`
+  and run `sops updatekeys`; create the secrets `SOPS_AGE_KEY` and `RAILWAY_TOKEN` and the
+  `production` environment with manual approval.
+- **What:** `.github/workflows/backend-cd.yml`:
+  - PR that touches `infra/**`: `terraform fmt -check`, `validate` and `plan` commented on
+    the PR.
+  - Push to `trunk` that touches `backend/**` or `infra/**`: build and push to GHCR (tag =
+    SHA) and `terraform apply -var image_tag=$SHA` in `production`.
+- **Acceptance:** a merge deploys and `/api/health` answers on the Railway domain.
 
 ---
 
-## 3. Orden y dependencias
+### Phase 7 — Connect the web and document
 
-El camino principal es lineal a propósito, para revisar y entender un paso a la vez:
+The web is written in Spanish and the backend's contract is English. These issues map
+between the two in the web's `api` adapter; renaming the web itself is a separate, later
+effort.
+
+#### #37 · B51 · `feat(datos)`: move the web's public reads to the backend
+
+- **To understand:** the web already knows how to talk to two data sources (`local` and
+  `supabase`). `api` is added: the public screens ask `NEXT_PUBLIC_API_URL` for everything
+  instead of Next's own `/api`. The adapter translates the backend's English routes, keys
+  and values to the web's existing types (`src/lib/tipos.ts`), so screens do not change.
+- **Depends on:** B50
+- **What:** `NEXT_PUBLIC_DATOS=api` + `NEXT_PUBLIC_API_URL`. The public hooks and screens
+  (state and stream, density, device, schedule, businesses and their event, photos,
+  progress, push subscriptions) use a function `urlApi(route)` that respects the mode, and
+  a mapping layer between the English contract and the web's types. The service worker
+  also caches the backend's responses. `local` and `supabase` are not touched.
+- **Acceptance:** with the local backend, `npm run dev` in `api` mode shows the backend's
+  parade, schedule and businesses.
+- **Tests:** `npm run typecheck` and `npm test` pass; a test of `urlApi` (ok and without
+  `NEXT_PUBLIC_API_URL`) and one of the mapping of a parade state.
+
+#### #55 · B52 · `feat(ui)`: log in with email and password in the panels
+
+- **To understand:** the admin and reporter panels log in today with a single password and
+  with a code. In `api` mode they move to a single login with email and password; the
+  token is kept in the browser and sent as `Bearer`. Each panel shows only what the user's
+  permissions allow.
+- **Depends on:** B51
+- **What:** common login screen, API client with the token, panels that read `permissions`
+  from `/api/auth/me`; managing reporters becomes managing users with roles and post. The
+  reporter's send queue (`useReporte`) sends the token.
+- **Acceptance:** an admin creates a reporter from the panel, the reporter logs in and
+  their positions move the parade.
+- **Tests:** `npm run typecheck` and `npm test` pass.
+- **Out of scope:** removing the `local` and `supabase` modes.
+
+#### #56 · B53 · `feat(simulacion)`: make the simulator log in with an ingest user
+
+- **To understand:** the simulator sends positions of the three posts, so it logs in with
+  a service account with the `ingest` role instead of with `INGESTA_TOKEN`.
+- **Depends on:** B51
+- **What:** `scripts/simular-desfile.ts` accepts `--email` and `--password` (or
+  environment variables), logs in and sends `Authorization: Bearer`, using the backend's
+  English routes and keys. `python -m app.cli seed --dev` creates a user `simulator@local`
+  with the `ingest` role (only with `ENVIRONMENT=dev`).
+- **Acceptance:** `npm run simular -- --url=http://localhost:8000 --email=... --password=...`
+  moves the parade.
+
+#### #38 · B54 · `docs(back)`: document how to run, test and deploy the backend
+
+- **To understand:** it closes the loop: someone new can bring everything up by reading a
+  single file.
+- **Depends on:** B52, B53
+- **What:** `backend/README.md` (Nix, `just`, local database, sops, tests, creating an
+  admin, seeding, deploying). In the root `README.md`, update the sections on the data
+  adapters and on going to production. In `CLAUDE.md`, move the backend commands from
+  "when it exists" to real.
+
+---
+
+## 3. Order and dependencies
+
+The main path is linear on purpose, to review and understand one step at a time:
 
 ```
-Fase 0-1  B01 → B02 → B03 → B04 → B05 → B06 → B44 → B07 → B08
-Fase 2    B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16 → B17
-Fase 3    B18 → B19 → B20 → B21 → B22 → B23
-Fase 4    B24 → B25 → B26 → B27 → B28 → B29 → B30 → B31 → B32 → B33 → B34
-Fase 5    B35 → B36 → B37 → B38 → B39 → B40 → B41 → B42 → B43
-Fase 6    B45 → B46 → B47 → B48 → B49 → B50
-Fase 7    B51 → B52 → B53 → B54
+Phase 0-1  B01 → B02 → B03 → B04 → B05 → B06 → B44 → B07 → B08 → #66 → #69 → #67
+Phase 2    B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16 → B17
+Phase 3    B18 → B19 → B20 → B21 → B22 → B23
+Phase 4    B24 → B25 → B26 → B27 → B28 → B29 → B30 → B31 → B32 → B33 → B34
+Phase 5    B35 → B36 → B37 → B38 → B39 → B40 → B41 → B42 → B43
+Phase 6    B45 → B46 → B47 → B48 → B49 → B50
+Phase 7    B51 → B52 → B53 → B54
 ```
 
-Las dependencias reales (`Depende de`) son más laxas: si hace falta ir en paralelo, B04/B05
-pueden ir junto a B06–B08, la fase 3 junto a la de usuarios a partir de B09, y B36–B38 o
-B39–B41 son independientes entre sí.
+The real dependencies (`Depends on`) are looser: if work has to go in parallel, phase 3 can
+go alongside the users phase from B09 on, and B36–B38 or B39–B41 are independent of each
+other.
 
-## 4. Fuera de este plan
+## 4. Outside this plan
 
-Para no perderlos, pero **no** se hacen ahora: recuperar contraseña por correo, refresh
-tokens, frenos compartidos entre réplicas, staging, observabilidad, tests de integración
-contra Postgres, anunciantes y promociones, quitar los adaptadores `local` y `supabase`, la
-app móvil.
+So they are not lost, but they are **not** done now: password recovery by email, refresh
+tokens, rate limits shared between replicas, staging, observability, integration tests
+against Postgres in CI, advertisers and promotions, removing the `local` and `supabase`
+adapters, renaming the web app (`src/`) to English, rebuilding the web's CI workflow, the
+mobile app.

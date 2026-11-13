@@ -1,97 +1,110 @@
-# Secretos
+# Secrets
 
-Los secretos del backend viven aquí, **cifrados** con [sops](https://github.com/getsops/sops)
-y [age](https://github.com/FiloSottile/age). Los nombres de las variables se leen; los
-valores no. Por eso estos archivos sí se suben al repo.
+The backend's secrets live here, **encrypted** with [sops](https://github.com/getsops/sops)
+and [age](https://github.com/FiloSottile/age). Variable names are readable; values are
+not. That is why these files do go in the repo.
 
-| Archivo | Para qué |
+| File | What for |
 |---|---|
-| `dev.enc.yaml` | Desarrollo en local |
-| `prod.enc.yaml` | Producción (Railway) |
+| `dev.enc.yaml` | Local development |
+| `prod.enc.yaml` | Production (Railway) |
 
-Nada entra a esta carpeta en texto plano: el hook `sops-encrypted` de pre-commit rechaza el
-commit de cualquier archivo que no esté cifrado (menos este README).
+Nothing enters this folder in plain text: the `sops-encrypted` pre-commit hook rejects the
+commit of any file that is not encrypted (except this README).
 
-## Cómo funciona
+## How it works
 
-- **age** usa un par de llaves. La **pública** (`age1…`) solo cifra y está escrita en
-  `.sops.yaml`. La **privada** (`AGE-SECRET-KEY-…`) es la única que descifra: vive en
-  `~/.config/sops/age/keys.txt` de quien tenga acceso y nunca entra al repo.
-- **sops** cifra cada valor del YAML para las llaves públicas de `.sops.yaml` y lo descifra
-  con la privada que encuentre en tu máquina.
+- **age** uses a key pair. The **public** one (`age1…`) only encrypts and is written in
+  `.sops.yaml`. The **private** one (`AGE-SECRET-KEY-…`) is the only one that decrypts: it
+  lives in `~/.config/sops/age/keys.txt` of whoever has access and never enters the repo.
+- **sops** encrypts each value of the YAML for the public keys in `.sops.yaml` and
+  decrypts it with the private one it finds on your machine.
+- **Railway never receives a key.** In production Terraform decrypts `prod.enc.yaml` from
+  GitHub Actions, with a key pair of its own for CI (`SOPS_AGE_KEY`), and writes the values
+  as variables of the service.
 
-Todos los comandos se corren desde la raíz del repo, dentro del entorno de Nix
-(`nix develop` o direnv).
+All commands are run from the repo root, inside the Nix environment (`nix develop` or
+direnv).
 
-## Día a día
+## Day to day
 
 ```bash
-# Arrancar el backend con los secretos de desarrollo: enciende Postgres,
-# aplica las migraciones y levanta el servidor (ver el justfile)
+# Start the backend with the development secrets: starts Postgres, applies
+# migrations and runs the server (see the justfile)
 just dev
 
-# Lo mismo, a mano
-scripts/local-db.sh        # Postgres local; `scripts/local-db.sh stop` lo apaga
+# The same, by hand
+scripts/local-db.sh        # local Postgres; `scripts/local-db.sh stop` stops it
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'
 sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'
 
-# Editar: abre el archivo descifrado en $EDITOR y lo vuelve a cifrar al guardar
-just secrets               # o: sops secrets/dev.enc.yaml
+# Edit: opens the decrypted file in $EDITOR and encrypts it again on save
+just secrets               # or: sops secrets/dev.enc.yaml
 
-# Ver los valores en la terminal
+# See the values in the terminal
 sops -d secrets/dev.enc.yaml
 ```
 
-`sops exec-env` descifra en memoria, pasa cada valor como variable de entorno al comando y
-no deja nada en disco. La app las lee en `backend/app/config.py`.
+`sops exec-env` decrypts in memory, passes each value as an environment variable to the
+command and leaves nothing on disk. The app reads them in `backend/app/config.py`.
 
-Los tests no usan estos archivos: tienen valores fijos en `backend/tests/conftest.py`.
+Tests do not use these files: they have fixed values in `backend/tests/conftest.py`.
+
+**Agents never decrypt.** Only `just dev` and `just migrate` are allowed to them, because
+they print nothing; a Claude Code hook (`.claude/hooks/protect-secrets.py`) blocks the
+rest. Editing and viewing secrets is for people with a key.
 
 ## Variables
 
-Los nombres van en mayúsculas, tal como los lee la app.
+Names are uppercase, exactly as the app reads them.
 
-| Variable | Obligatoria | Qué es |
+| Variable | Required | What it is |
 |---|---|---|
-| `DATABASE_URL` | sí | Conexión a Postgres (`postgresql+asyncpg://usuario:clave@host:5432/base`) |
-| `JWT_SECRET` | sí | Firma de las sesiones. Mínimo 32 caracteres; uno distinto por entorno |
-| `JWT_HOURS` | no (20) | Cuánto dura una sesión |
-| `CORS_ORIGINS` | no (`http://localhost:3000`) | Orígenes de la web que pueden llamar a la API, separados por comas |
-| `ENVIRONMENT` | no (`dev`) | `dev` o `prod` |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT` | no | Avisos push. Sin ellas la función se apaga sola |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | no | Fotos en S3. Sin bucket se guardan en disco |
+| `DATABASE_URL` | yes | Postgres connection (`postgresql+asyncpg://user:password@host:5432/database`) |
+| `JWT_SECRET` | yes | Signs sessions. At least 32 characters; a different one per environment |
+| `JWT_HOURS` | no (20) | How long a session lasts |
+| `CORS_ORIGINS` | no (`http://localhost:3000`) | Origins of the web that may call the API, comma-separated |
+| `ENVIRONMENT` | no (`dev`) | `dev` or `prod` |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT` | no | Push notifications. Without them the feature turns itself off |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | no | Photos on S3. Without a bucket they are stored on disk |
 
-Para generar un `JWT_SECRET` nuevo: `openssl rand -hex 32`.
+To generate a new `JWT_SECRET`: `openssl rand -hex 32`.
 
-## Tener acceso por primera vez
+## Getting access for the first time
 
-1. Genera tu llave (una vez por persona):
+Nobody shares a private key. Each person generates their own, registers its public half
+with a PR, and the maintainer decides by merging it.
+
+1. Generate your key (once per person):
 
    ```bash
    mkdir -p ~/.config/sops/age
    age-keygen -o ~/.config/sops/age/keys.txt
    ```
 
-   Imprime `Public key: age1…`. Guarda una copia de `keys.txt` en tu gestor de
-   contraseñas.
-2. Pásale la **pública** a alguien que ya tenga acceso. Esa persona la agrega a
-   `.sops.yaml` (varias llaves van separadas por comas en `age:`) y vuelve a cifrar:
+   It prints `Public key: age1…`. Keep a copy of `keys.txt` in your password manager.
+2. Open a PR adding your **public** key to `.sops.yaml` (several keys are comma-separated
+   in `age:`). Add it only to the files you need: development and production have separate
+   rules.
+3. Someone who already has access re-encrypts and pushes to the same PR:
 
    ```bash
    sops updatekeys secrets/dev.enc.yaml
    sops updatekeys secrets/prod.enc.yaml
    ```
 
-3. Con ese cambio en `trunk`, `sops -d secrets/dev.enc.yaml` ya te funciona.
+   Without this step your key is on the list but cannot open anything.
+4. With that change on `trunk`, `just dev` works for you.
 
-## Si algo sale mal
+## If something goes wrong
 
-- **`no identity matched any of the recipients`**: tu llave privada no es una de las que
-  cifraron el archivo. Revisa que `~/.config/sops/age/keys.txt` exista y que tu pública
-  esté en `.sops.yaml`.
-- **Se perdió la única llave privada**: los archivos no se pueden recuperar. Hay que
-  generar una llave nueva, crear los archivos otra vez y **cambiar todos los secretos**
-  (en producción, también en los servicios que los usan).
-- **Se filtró una llave privada, o alguien deja el equipo**: quita su pública de
-  `.sops.yaml`, corre `sops updatekeys` en cada archivo y **cambia los secretos**: quien
-  tuvo la llave pudo haberlos leído, y el historial de git conserva las versiones viejas.
+- **`no identity matched any of the recipients`**: your private key is not one of those
+  that encrypted the file. Check that `~/.config/sops/age/keys.txt` exists and that your
+  public key is in `.sops.yaml`.
+- **The only private key was lost**: the files cannot be recovered. A new key has to be
+  generated, the files created again and **every secret changed** (in production, also in
+  the services that use them). Once CI has its own key the files are encrypted for both,
+  and either one can re-encrypt for a new key.
+- **A private key leaked, or someone leaves the team**: remove their public key from
+  `.sops.yaml`, run `sops updatekeys` on each file and **change the secrets**: whoever had
+  the key may have read them, and git history keeps the old versions.

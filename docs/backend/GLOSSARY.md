@@ -39,6 +39,8 @@ code, tables, routes and JSON.
 | permiso | permission | |
 | puesto | post | Where a reporter walks: head, middle or tail |
 | freno | rate limit | |
+| relevo | handover | When a second reporter takes over a post |
+| tramo | stretch | A 100 m piece of the course (`bin` in the density JSON) |
 | ingesta | ingest | Service accounts that send positions |
 
 ## Values
@@ -48,8 +50,13 @@ code, tables, routes and JSON.
 | Reporter post | `cabeza`, `mitad`, `cola` | `head`, `middle`, `tail` |
 | Roles | `admin`, `coordinador`, `editor`, `moderador`, `reportero`, `ingesta` | `admin`, `coordinator`, `editor`, `moderator`, `reporter`, `ingest` |
 
-Other value sets (parade states, permissions, photo states) are translated in the issue
-that introduces them and added here in the same PR.
+| Parade state | `programado`, `en_curso`, `finalizado` | `scheduled`, `in_progress`, `finished` |
+| Parade action | `iniciar`, `finalizar`, `reiniciar` | `start`, `finish`, `restart` |
+| Photo state | `pendiente`, `aprobada`, `rechazada` | `pending`, `approved`, `rejected` |
+
+Permissions are new to the backend and are listed in `docs/backend/PLAN.md` §1.3. Other
+value sets (event and business categories, plans) are translated in the issue that
+introduces them and added here in the same PR.
 
 ## Code names already in place
 

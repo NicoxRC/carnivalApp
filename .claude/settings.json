@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/proteger-trunk.py\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-trunk.py\""
           },
           {
             "type": "command",
