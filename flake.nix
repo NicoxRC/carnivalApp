@@ -56,6 +56,15 @@
             # uv usa el Python del flake en vez de descargar uno propio.
             UV_PYTHON_DOWNLOADS = "never";
             UV_PYTHON = "${pkgs.python312}/bin/python";
+          }
+          # Los paquetes precompilados de PyPI (greenlet, numpy, shapely…)
+          # esperan libstdc++ y zlib del sistema, y el Python de Nix no las
+          # busca ahí. En macOS no hace falta.
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.stdenv.cc.cc.lib
+              pkgs.zlib
+            ];
           };
         };
       });
