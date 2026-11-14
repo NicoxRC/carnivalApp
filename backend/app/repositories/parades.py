@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Annotated, Protocol, cast
 
 from fastapi import Depends
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.db import SessionDep
 from app.domain.dates import today_in_pasto
 from app.domain.parades import Parade, ParadeState, current_parade
 from app.models import Parade as ParadeRow
+from app.realtime import CHANNEL
 
 
 class ParadeNotFound(Exception):
@@ -63,6 +64,13 @@ class ParadesPostgres:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def _notify(self, parade_id: str) -> None:
+        # In the same transaction as the change: the open streams send a new
+        # snapshot (see app/realtime.py).
+        await self._session.execute(
+            text("select pg_notify(:channel, :parade)"), {"channel": CHANNEL, "parade": parade_id}
+        )
+
     async def list(self) -> Sequence[Parade]:
         rows = await self._session.scalars(
             select(ParadeRow).order_by(ParadeRow.date, ParadeRow.start_time, ParadeRow.id)
@@ -90,6 +98,7 @@ class ParadesPostgres:
             execution_options={"populate_existing": True},
         )
         assert row is not None
+        await self._notify(id)
         await self._session.commit()
         return _parade(row)
 
@@ -104,6 +113,7 @@ class ParadesPostgres:
             .returning(ParadeRow),
             execution_options={"populate_existing": True},
         )
+        await self._notify(parade_id)
         await self._session.commit()
         if row is None:
             raise ParadeNotFound(parade_id)
