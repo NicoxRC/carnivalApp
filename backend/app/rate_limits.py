@@ -11,6 +11,8 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from app.domain.constants import DEVICES_PER_IP_PER_HOUR
+
 
 def ip_of(request: Request) -> str:
     """The caller's IP, for the limits.
@@ -81,3 +83,40 @@ def get_login_rate_limit() -> LoginRateLimit:
 
 
 LoginRateLimitDep = Annotated[LoginRateLimit, Depends(get_login_rate_limit)]
+
+
+class DeviceIssueLimit:
+    """Cap on how many device ids one IP may be issued per hour."""
+
+    WINDOW_S = 60 * 60
+    PRUNE_ABOVE = 5000
+
+    def __init__(
+        self, limit: int = DEVICES_PER_IP_PER_HOUR, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._limit = limit
+        self._clock = clock
+        # ip -> (issued, moment the count expires)
+        self._issued: dict[str, tuple[int, float]] = {}
+
+    def allow(self, ip: str) -> bool:
+        """Counts one more for that IP. False: it is over the cap."""
+        now = self._clock()
+        issued, until = self._issued.get(ip, (0, 0.0))
+        if until > now:
+            if issued >= self._limit:
+                return False
+            self._issued[ip] = (issued + 1, until)
+        else:
+            self._issued[ip] = (1, now + self.WINDOW_S)
+        if len(self._issued) > self.PRUNE_ABOVE:
+            self._issued = {k: v for k, v in self._issued.items() if v[1] >= now}
+        return True
+
+
+@lru_cache
+def get_device_issue_limit() -> DeviceIssueLimit:
+    return DeviceIssueLimit()
+
+
+DeviceIssueLimitDep = Annotated[DeviceIssueLimit, Depends(get_device_issue_limit)]
