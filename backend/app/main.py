@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import get_engine
 from app.errors import register_error_handlers
-from app.routers import admin_users, auth, health
+from app.routers import admin_parades, admin_users, auth, course, health, schedule
 
 settings = get_settings()
 
@@ -36,3 +36,6 @@ register_error_handlers(app)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(admin_users.router)
+app.include_router(course.router)
+app.include_router(schedule.router)
+app.include_router(admin_parades.router)

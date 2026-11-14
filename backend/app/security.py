@@ -131,3 +131,14 @@ def require(*permissions: Permission) -> Any:
         return user
 
     return Depends(user_with_permission)
+
+
+def require_any(*permissions: Permission) -> Any:
+    """Like `require`, but one of the permissions named is enough."""
+
+    async def user_with_any_permission(user: CurrentUserDep) -> User:
+        if not set(permissions) & permissions_for(user.roles):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+        return user
+
+    return Depends(user_with_any_permission)
