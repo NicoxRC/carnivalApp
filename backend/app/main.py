@@ -13,6 +13,7 @@ from app.routers import (
     admin_users,
     auth,
     course,
+    density,
     health,
     positions,
     schedule,
@@ -56,3 +57,4 @@ app.include_router(schedule.router)
 app.include_router(admin_parades.router)
 app.include_router(positions.router)
 app.include_router(state.router)
+app.include_router(density.router)
