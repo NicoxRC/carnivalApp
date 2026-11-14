@@ -7,14 +7,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import get_engine
 from app.errors import register_error_handlers
-from app.routers import admin_parades, admin_users, auth, course, health, schedule
+from app.realtime import PostgresListener, get_broadcaster
+from app.routers import (
+    admin_parades,
+    admin_users,
+    auth,
+    course,
+    health,
+    positions,
+    schedule,
+    state,
+)
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # One connection that listens to what other processes write, so the open
+    # streams hear it. It retries on its own: the server starts without it.
+    listener = PostgresListener(settings.database_url, get_broadcaster())
+    listener.start()
     yield
+    await listener.stop()
     # On shutdown: hand the pool's connections back to Postgres.
     await get_engine().dispose()
 
@@ -39,3 +54,5 @@ app.include_router(admin_users.router)
 app.include_router(course.router)
 app.include_router(schedule.router)
 app.include_router(admin_parades.router)
+app.include_router(positions.router)
+app.include_router(state.router)

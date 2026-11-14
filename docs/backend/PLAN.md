@@ -298,8 +298,10 @@ base URL, the login **and mapping names** in the web's `api` adapter; screens do
 - FastAPI's native SSE: `response_class=EventSourceResponse` (`fastapi.sse`) and `yield`.
   Heartbeat every 20 s.
 - Every insert into `positions`, state change or new announcement does
-  `NOTIFY parade_<id>`. The stream listens with a dedicated asyncpg connection (`LISTEN`)
-  and forwards the snapshot. It works the same with one replica or several.
+  `NOTIFY parade_changes, '<parade id>'`. Each server keeps one dedicated asyncpg
+  connection in `LISTEN` and wakes up its open streams of that parade, which send the
+  snapshot. One channel with the id as payload, not one channel per parade: a single
+  `LISTEN` per process. It works the same with one replica or several.
 
 ### 1.7 Rate limits
 
