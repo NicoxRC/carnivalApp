@@ -3,8 +3,8 @@
     python -m app.cli create-admin --email ana@example.com --name "Ana"
     python -m app.cli seed
 
-`seed` loads the course, the parades and the events from `backend/seed/`; it can be run
-again at any time.
+`seed` loads the sample data of `backend/seed/` (course, parades, events and
+businesses); it can be run again at any time.
 
 To create users you need to be an admin, and at the beginning there is none:
 this command creates the first one. The password is asked for without showing
@@ -19,6 +19,7 @@ from getpass import getpass
 
 from app.db import get_engine, get_session_factory
 from app.permissions import Role
+from app.repositories.businesses import BusinessesPostgres
 from app.repositories.courses import CoursesPostgres
 from app.repositories.events import EventsPostgres
 from app.repositories.parades import ParadesPostgres
@@ -82,7 +83,10 @@ async def _seed_postgres() -> int:
     try:
         async with get_session_factory()() as session:
             seeded = await seed(
-                CoursesPostgres(session), ParadesPostgres(session), EventsPostgres(session)
+                CoursesPostgres(session),
+                ParadesPostgres(session),
+                EventsPostgres(session),
+                BusinessesPostgres(session),
             )
     except SeedError as error:
         return _fail(str(error))
@@ -90,7 +94,8 @@ async def _seed_postgres() -> int:
         await get_engine().dispose()
     print(
         f"Senda cargada: {seeded.course.name} ({seeded.course.id}). "
-        f"Desfiles: {seeded.parades}. Eventos: {seeded.events}."
+        f"Desfiles: {seeded.parades}. Eventos: {seeded.events}. "
+        f"Comercios: {seeded.businesses}."
     )
     return 0
 
@@ -101,9 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     admin = commands.add_parser("create-admin", help="create a user with the admin role")
     admin.add_argument("--email", required=True)
     admin.add_argument("--name", required=True)
-    commands.add_parser(
-        "seed", help="load the course, the parades and the events from backend/seed/"
-    )
+    commands.add_parser("seed", help="load the sample data of backend/seed/")
     args = parser.parse_args(argv)
 
     if args.command == "seed":
