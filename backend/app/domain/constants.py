@@ -33,3 +33,33 @@ FULL_FROM = 0.66
 # Generous on purpose: mobile carriers put thousands of phones behind the
 # same IP, and a low cap would leave real people out.
 DEVICES_PER_IP_PER_HOUR = 300
+
+# src/lib/eta.ts · VELOCIDAD_MINIMA_MS
+# Parades stop a lot. Without this floor the ETA shoots off to infinity.
+MIN_SPEED_MS = 0.3 / 3.6
+
+# src/lib/eta.ts · VELOCIDAD_NOMINAL_MS
+# What is assumed until there is enough history to measure: 1.2 km/h. An
+# honest constant is better than a measured number that measures nothing.
+NOMINAL_SPEED_MS = 1.2 / 3.6
+
+# src/lib/eta.ts · VENTANA_MINIMA_CONFIABLE_S
+# Below this window the measured speed is not trusted.
+MIN_RELIABLE_WINDOW_S = 90
+
+# src/lib/eta.ts · VELOCIDAD_MAXIMA_MS
+# Above 6 km/h it is a GPS jump or a reporter who reappeared somewhere else,
+# not a fast parade: the measurement is thrown away.
+MAX_SPEED_MS = 6 / 3.6
+
+# src/lib/tipos.ts · MS_VENTANA_VELOCIDAD
+# The window averaged to estimate the speed of the head.
+SPEED_WINDOW = timedelta(minutes=10)
+
+# src/lib/tipos.ts · AVANCE_MINIMO_M
+# Without advancing more than this during `STOPPED_AFTER`, it is stopped.
+MIN_PROGRESS_M = 25
+
+# src/lib/tipos.ts · DETENIDO_MS
+# The hard threshold: only here is "the parade is stopped" said.
+STOPPED_AFTER = timedelta(minutes=10)

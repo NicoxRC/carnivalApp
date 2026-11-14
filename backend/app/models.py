@@ -301,3 +301,27 @@ class Photo(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+
+
+class PushSubscription(Base):
+    """ "Tell me when the parade is close": where to send it and where they wait.
+
+    One row per device, deleted once the notification goes out. It does not
+    store who it is.
+    """
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (Index("ix_push_subscriptions_parade_id", "parade_id"),)
+
+    # The address the browser's push service gave: it identifies the device.
+    endpoint: Mapped[str] = mapped_column(Text, primary_key=True)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(Text)
+    parade_id: Mapped[str] = mapped_column(ForeignKey("parades.id", ondelete="CASCADE"))
+    # Where the person waits, in metres along the course.
+    course_m: Mapped[float] = mapped_column(Float)
+    # With how many minutes to go they want to be told.
+    threshold_min: Mapped[int] = mapped_column(Integer, server_default=text("10"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )

@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
 from typing import Annotated, cast
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.domain.positions import HANDOVER, BatchError, validate_batch
 from app.permissions import Permission, permissions_for
+from app.push import NotifyNearbyDep
 from app.repositories.courses import CourseDep
 from app.repositories.parades import (
     ParadeListDep,
@@ -33,6 +34,8 @@ async def receive_positions(
     parade_list: ParadeListDep,
     state: StateRepoDep,
     course: CourseDep,
+    notify_nearby: NotifyNearbyDep,
+    background: BackgroundTasks,
 ) -> PositionsResult:
     """The only way in for positions: one, or a batch of those that were queued.
 
@@ -92,6 +95,11 @@ async def receive_positions(
     if entries and parade.state == "scheduled":
         # The first report started it: the schedule has to show it at once.
         parade_list.forget()
+
+    if any(entry.post == "head" for entry in entries):
+        # After answering: whoever is waiting near the head is told it is
+        # getting close. A failure there cannot bring ingestion down.
+        background.add_task(notify_nearby, parade.id)
 
     return PositionsResult(
         saved=len(entries), discarded=discarded, waiting=False, server_ts=to_ms(now)
