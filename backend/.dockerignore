@@ -1,0 +1,9 @@
+# Everything out, and only what the image needs back in.
+*
+!pyproject.toml
+!uv.lock
+!alembic.ini
+!app/
+!migrations/
+!seed/
+**/__pycache__/
