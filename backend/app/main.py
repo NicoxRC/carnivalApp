@@ -18,6 +18,7 @@ from app.routers import (
     course,
     density,
     health,
+    photos,
     positions,
     schedule,
     state,
@@ -64,3 +65,5 @@ app.include_router(density.router)
 app.include_router(admin_announcements.router)
 app.include_router(admin_events.router)
 app.include_router(businesses.router)
+app.include_router(photos.router)
+app.include_router(photos.moderation)

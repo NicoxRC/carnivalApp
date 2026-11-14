@@ -120,3 +120,39 @@ def get_device_issue_limit() -> DeviceIssueLimit:
 
 
 DeviceIssueLimitDep = Annotated[DeviceIssueLimit, Depends(get_device_issue_limit)]
+
+
+class PhotoUploadLimit:
+    """Cap on how many photos one device may upload per hour."""
+
+    WINDOW_S = 60 * 60
+    PRUNE_ABOVE = 5000
+
+    # src/app/api/fotos/route.ts · FOTOS_POR_HORA
+    def __init__(self, limit: int = 8, clock: Callable[[], float] = time.monotonic) -> None:
+        self._limit = limit
+        self._clock = clock
+        # device -> (uploaded, moment the count expires)
+        self._uploaded: dict[str, tuple[int, float]] = {}
+
+    def allowed(self, device_id: str) -> bool:
+        uploaded, until = self._uploaded.get(device_id, (0, 0.0))
+        return until <= self._clock() or uploaded < self._limit
+
+    def record(self, device_id: str) -> None:
+        """Counts an upload that went through: a rejected file does not use one up."""
+        now = self._clock()
+        uploaded, until = self._uploaded.get(device_id, (0, 0.0))
+        self._uploaded[device_id] = (
+            (uploaded + 1, until) if until > now else (1, now + self.WINDOW_S)
+        )
+        if len(self._uploaded) > self.PRUNE_ABOVE:
+            self._uploaded = {k: v for k, v in self._uploaded.items() if v[1] >= now}
+
+
+@lru_cache
+def get_photo_upload_limit() -> PhotoUploadLimit:
+    return PhotoUploadLimit()
+
+
+PhotoUploadLimitDep = Annotated[PhotoUploadLimit, Depends(get_photo_upload_limit)]
