@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import datosComercios from "../src/data/comercios-ejemplo.json" with { type: "json" };
 import datosDesfiles from "../src/data/desfiles-ejemplo.json" with { type: "json" };
 import datosEventos from "../src/data/eventos-ejemplo.json" with { type: "json" };
 import { SENDA_DEFINICION } from "../src/data/senda-carnaval";
@@ -37,6 +38,42 @@ const EVENT_CATEGORIES: Record<string, string> = {
   tasca: "tasca",
   cultural: "cultural",
   infantil: "kids",
+};
+
+const BUSINESS_CATEGORIES: Record<string, string> = {
+  restaurante: "restaurant",
+  tasca: "tasca",
+  cafe: "cafe",
+  heladeria: "ice_cream",
+  panaderia: "bakery",
+  tienda: "shop",
+  bar: "bar",
+  farmacia: "pharmacy",
+  bano: "toilet",
+  hidratacion: "water",
+  salud: "first_aid",
+  policia: "police",
+  cierre: "road_closure",
+};
+const PLANS: Record<string, string> = { basico: "basic", destacado: "featured" };
+const OFFER_TIMINGS: Record<string, string> = { siempre: "always", antes: "before", despues: "after" };
+
+type ComercioEjemplo = {
+  id: string;
+  nombre: string;
+  categoria: string;
+  descripcion?: string;
+  direccion?: string;
+  horario?: string;
+  lat: number;
+  lng: number;
+  plan?: string | null;
+  promo?: string | null;
+  promoMomento?: string;
+  menu?: { nombre: string; precio: string }[];
+  whatsapp?: string | null;
+  enlace?: string | null;
+  visible?: boolean;
 };
 
 function write(name: string, data: unknown) {
@@ -118,6 +155,27 @@ const events = {
   ],
 };
 
+const businesses = {
+  _note: NOTE,
+  businesses: (datosComercios.comercios as ComercioEjemplo[]).map((c) => ({
+    id: c.id,
+    name: c.nombre,
+    category: BUSINESS_CATEGORIES[c.categoria],
+    description: c.descripcion ?? "",
+    address: c.direccion ?? "",
+    hours: c.horario ?? "",
+    lat: c.lat,
+    lng: c.lng,
+    plan: c.plan ? PLANS[c.plan] : null,
+    offer: c.promo ?? null,
+    offerTiming: OFFER_TIMINGS[c.promoMomento ?? "siempre"],
+    menu: (c.menu ?? []).map((m) => ({ name: m.nombre, price: m.precio })),
+    whatsapp: c.whatsapp ?? null,
+    link: c.enlace ?? null,
+    visible: c.visible ?? true,
+  })),
+};
+
 /** Points to compare against: on the course, off it and beyond both ends. */
 function projections() {
   const coords = SENDA_DEFINICION.geojson.geometry.coordinates;
@@ -161,4 +219,5 @@ mkdirSync(OUT, { recursive: true });
 write("course.json", course);
 write("parades.json", parades);
 write("events.json", events);
+write("businesses.json", businesses);
 write("projections.json", projections());

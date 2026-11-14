@@ -217,3 +217,61 @@ class Event(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+
+
+class Business(Base):
+    """A business or a service on the map. The panel manages them."""
+
+    __tablename__ = "businesses"
+    __table_args__ = (
+        CheckConstraint(
+            "category in ('restaurant', 'tasca', 'cafe', 'ice_cream', 'bakery', 'shop', 'bar', "
+            "'pharmacy', 'toilet', 'water', 'first_aid', 'police', 'road_closure')",
+            name="category_valid",
+        ),
+        CheckConstraint("plan in ('basic', 'featured')", name="plan_valid"),
+        CheckConstraint("offer_timing in ('always', 'before', 'after')", name="offer_timing_valid"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    address: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    hours: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    lat: Mapped[float] = mapped_column(Float)
+    lng: Mapped[float] = mapped_column(Float)
+    # Empty: on the map without having paid. Being there never depends on it.
+    plan: Mapped[str | None] = mapped_column(Text)
+    offer: Mapped[str | None] = mapped_column(Text)
+    offer_timing: Mapped[str] = mapped_column(Text, server_default=text("'always'"))
+    # A list of {name, price}.
+    menu: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
+    whatsapp: Mapped[str | None] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(Text)
+    visible: Mapped[bool] = mapped_column(server_default=text("true"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
+class BusinessMetric(Base):
+    """What the advertiser is told: a counter per business, day and type.
+
+    Never who tapped, nor from where.
+    """
+
+    __tablename__ = "business_metrics"
+    __table_args__ = (
+        CheckConstraint(
+            "type in ('card', 'map', 'menu', 'whatsapp', 'link', 'offer')", name="type_valid"
+        ),
+    )
+
+    business_id: Mapped[str] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    # In Pasto time.
+    day: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    type: Mapped[str] = mapped_column(Text, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
