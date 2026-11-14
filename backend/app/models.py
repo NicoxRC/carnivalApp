@@ -6,11 +6,15 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Identity,
+    Index,
+    Integer,
     MetaData,
     Text,
     Time,
@@ -120,3 +124,49 @@ class Parade(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+
+
+class Position(Base):
+    """Where each reporter was: the history, and the table that writes the most."""
+
+    __tablename__ = "positions"
+    __table_args__ = (
+        CheckConstraint("post in ('head', 'middle', 'tail')", name="post_valid"),
+        # The read that runs every few seconds: the latest of each post.
+        Index("ix_positions_parade_id_post_ts", "parade_id", "post", text("ts DESC")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    parade_id: Mapped[str] = mapped_column(ForeignKey("parades.id", ondelete="CASCADE"))
+    # Empty for positions that did not come from a person (or whose user is gone).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Copied here on purpose: the read cannot afford a join.
+    post: Mapped[str] = mapped_column(Text)
+    lat: Mapped[float] = mapped_column(Float)
+    lng: Mapped[float] = mapped_column(Float)
+    # Metres from the start of the course, computed once on insert.
+    course_m: Mapped[float] = mapped_column(Float)
+    accuracy_m: Mapped[float | None] = mapped_column(Float)
+    # The phone's clock: the latest position is the one with the highest `ts`.
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # The server's clock.
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
+class Presence(Base):
+    """One row per phone of the public: the 100 m stretch it is in.
+
+    It is overwritten on every report and never stores lat/lng.
+    """
+
+    __tablename__ = "presences"
+    __table_args__ = (Index("ix_presences_parade_id_seen_at", "parade_id", text("seen_at DESC")),)
+
+    parade_id: Mapped[str] = mapped_column(
+        ForeignKey("parades.id", ondelete="CASCADE"), primary_key=True
+    )
+    device_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    bin: Mapped[int] = mapped_column(Integer)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

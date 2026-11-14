@@ -67,6 +67,11 @@ def _validation_message(errors: Sequence[Any]) -> str:
     if first.get("type") == "json_invalid":
         return "JSON inválido."
 
+    # Raised by our own validators, already written for the person.
+    own = first.get("ctx", {}).get("error")
+    if first.get("type") == "value_error" and isinstance(own, ValueError):
+        return str(own)
+
     template = VALIDATION_MESSAGES.get(first.get("type", ""), GENERIC_VALIDATION_MESSAGE)
     try:
         reason = template.format(**first.get("ctx", {}))
