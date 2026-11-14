@@ -13,6 +13,13 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.live import RepoStateReader, get_state_reader  # noqa: E402
 from app.main import app  # noqa: E402
+from app.push import (  # noqa: E402
+    NearbyNotifier,
+    Notification,
+    PushConfig,
+    get_notify_nearby,
+    get_push_config,
+)
 from app.rate_limits import (  # noqa: E402
     DeviceIssueLimit,
     LoginRateLimit,
@@ -41,6 +48,11 @@ from app.repositories.parades import (  # noqa: E402
 )
 from app.repositories.photos import PhotosMemory, get_photos_repo  # noqa: E402
 from app.repositories.presences import PresencesMemory, get_presences_repo  # noqa: E402
+from app.repositories.push_subscriptions import (  # noqa: E402
+    PushSubscription,
+    PushSubscriptionsMemory,
+    get_push_subscriptions_repo,
+)
 from app.repositories.state import StateMemory, get_state_repo  # noqa: E402
 from app.repositories.users import User, UsersMemory, get_users_repo  # noqa: E402
 from app.security import create_token, hash_password  # noqa: E402
@@ -101,6 +113,36 @@ def businesses() -> BusinessesMemory:
 
 
 @pytest.fixture
+def subscriptions() -> PushSubscriptionsMemory:
+    return PushSubscriptionsMemory()
+
+
+class FakeSender:
+    """Stands in for the push service: keeps what would have been sent."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[PushSubscription, Notification]] = []
+
+    async def send(self, subscription: PushSubscription, notification: Notification) -> None:
+        self.sent.append((subscription, notification))
+
+
+@pytest.fixture
+def sender() -> FakeSender:
+    return FakeSender()
+
+
+@pytest.fixture
+def notifier(sender: FakeSender) -> NearbyNotifier:
+    return NearbyNotifier(sender)
+
+
+PUSH_CONFIG = PushConfig(
+    public_key="a-public-key", private_key="unused", contact="mailto:x@example.com"
+)
+
+
+@pytest.fixture
 def photos() -> PhotosMemory:
     return PhotosMemory()
 
@@ -146,12 +188,20 @@ def client(
     businesses: BusinessesMemory,
     photos: PhotosMemory,
     storage: DiskStorage,
+    subscriptions: PushSubscriptionsMemory,
+    notifier: NearbyNotifier,
     sleeps: list[float],
 ) -> Iterator[TestClient]:
     """The app with the repositories in memory and a brake that does not wait."""
 
     async def no_sleep(seconds: float) -> None:
         sleeps.append(seconds)
+
+    async def notify_nearby(parade_id: str) -> None:
+        # What `app.push.notify_nearby` does, on the in-memory repositories.
+        parade = await parades.by_id(parade_id)
+        if parade is not None and notifier.due(parade_id):
+            await notifier.notify(parade, await state.read_state(parade), subscriptions)
 
     rate_limit = LoginRateLimit(sleep=no_sleep)
     device_limit = DeviceIssueLimit()
@@ -171,6 +221,9 @@ def client(
     app.dependency_overrides[get_photos_repo] = lambda: photos
     app.dependency_overrides[get_storage] = lambda: storage
     app.dependency_overrides[get_photo_upload_limit] = lambda: photo_limit
+    app.dependency_overrides[get_push_subscriptions_repo] = lambda: subscriptions
+    app.dependency_overrides[get_push_config] = lambda: PUSH_CONFIG
+    app.dependency_overrides[get_notify_nearby] = lambda: notify_nearby
     app.dependency_overrides[get_device_issue_limit] = lambda: device_limit
     app.dependency_overrides[get_login_rate_limit] = lambda: rate_limit
     yield TestClient(app)
