@@ -28,3 +28,6 @@ __pycache__/
 
 # Development Postgres (scripts/local-db.sh)
 backend/.pgdata/
+
+# Photos uploaded in development (backend/app/storage.py)
+backend/.photos/

@@ -98,14 +98,27 @@ NOT_LOGGED_IN = "Hace falta iniciar sesión."
 FORBIDDEN = "No tenés permiso para esto."
 
 
-async def current_user(
+async def optional_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     users: UsersRepoDep,
-) -> User:
-    """The user of the request: valid token, the user exists and is active."""
+) -> User | None:
+    """The user of the request, or `None` for an anonymous one.
+
+    For the few routes the public and the team share (a photo that only a
+    moderator may see until it is approved). A token that is not valid is the
+    same as no token.
+    """
     user_id = read_token(credentials.credentials) if credentials else None
     user = await users.by_id(user_id) if user_id else None
-    if user is None or not user.active:
+    return user if user is not None and user.active else None
+
+
+OptionalUserDep = Annotated[User | None, Depends(optional_user)]
+
+
+async def current_user(user: OptionalUserDep) -> User:
+    """The user of the request: valid token, the user exists and is active."""
+    if user is None:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             NOT_LOGGED_IN,

@@ -275,3 +275,29 @@ class BusinessMetric(Base):
     day: Mapped[dt.date] = mapped_column(Date, primary_key=True)
     type: Mapped[str] = mapped_column(Text, primary_key=True)
     count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+
+class Photo(Base):
+    """A photo the public uploaded. Nothing is published without moderation."""
+
+    __tablename__ = "photos"
+    __table_args__ = (
+        CheckConstraint("state in ('pending', 'approved', 'rejected')", name="state_valid"),
+        # The two reads: the approved ones for everyone, the queue for moderators.
+        Index("ix_photos_state_created_at", "state", text("created_at DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    # The parade that was current when it was uploaded, if there was one.
+    parade_id: Mapped[str | None] = mapped_column(ForeignKey("parades.id", ondelete="SET NULL"))
+    # Where the file is in the storage (app/storage.py).
+    storage_path: Mapped[str] = mapped_column(Text)
+    # The stretch of the course it was taken on, if whoever uploaded it shared
+    # their location. Never lat/lng, and never who.
+    course_m: Mapped[float | None] = mapped_column(Float)
+    state: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
