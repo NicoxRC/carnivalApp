@@ -5,6 +5,7 @@ connection, and a stream stays open for hours. `StateReader` opens a short
 session for each read instead.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Protocol
 
@@ -13,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session_factory
 from app.domain.parades import Parade
+from app.domain.schedule import Announcement as AnnouncementValue
+from app.repositories.announcements import AnnouncementsPostgres, AnnouncementsRepo
 from app.repositories.parades import (
     ParadeList,
     ParadesPostgres,
@@ -22,10 +25,25 @@ from app.repositories.parades import (
 )
 from app.repositories.state import LiveState, StatePostgres, StateRepo
 from app.schemas import to_ms
-from app.schemas.state import HistorySample, ParadeStateOut, Position
+from app.schemas.state import Announcement, HistorySample, ParadeStateOut, Position
 
 
-def state_out(parade: Parade, live: LiveState, now: datetime | None = None) -> ParadeStateOut:
+def announcement_out(announcement: AnnouncementValue) -> Announcement:
+    return Announcement(
+        id=announcement.id,
+        text=announcement.text,
+        level=announcement.level,
+        created_at=to_ms(announcement.created_at),
+        expires_at=to_ms(announcement.expires_at) if announcement.expires_at else None,
+    )
+
+
+def state_out(
+    parade: Parade,
+    live: LiveState,
+    announcements: Sequence[AnnouncementValue] = (),
+    now: datetime | None = None,
+) -> ParadeStateOut:
     return ParadeStateOut(
         parade_id=parade.id,
         name=parade.name,
@@ -47,8 +65,7 @@ def state_out(parade: Parade, live: LiveState, now: datetime | None = None) -> P
         head_history=[
             HistorySample(metres=sample.metres, ts=to_ms(sample.ts)) for sample in live.head_history
         ],
-        # They arrive with the announcements module.
-        announcements=[],
+        announcements=[announcement_out(announcement) for announcement in announcements],
         server_ts=to_ms(now or datetime.now(UTC)),
     )
 
@@ -66,10 +83,17 @@ class StateReader(Protocol):
 class RepoStateReader:
     """Reads through repositories it is given. Tests use it with the in-memory ones."""
 
-    def __init__(self, parades: ParadesRepo, state: StateRepo, parade_list: ParadeList) -> None:
+    def __init__(
+        self,
+        parades: ParadesRepo,
+        state: StateRepo,
+        parade_list: ParadeList,
+        announcements: AnnouncementsRepo,
+    ) -> None:
         self._parades = parades
         self._state = state
         self._parade_list = parade_list
+        self._announcements = announcements
 
     async def resolve(self, parade_id: str | None) -> str | None:
         parade = await resolve_parade(self._parades, self._parade_list, parade_id)
@@ -80,7 +104,9 @@ class RepoStateReader:
         parade = await self._parades.by_id(parade_id)
         if parade is None:
             return None
-        return state_out(parade, await self._state.read_state(parade))
+        return state_out(
+            parade, await self._state.read_state(parade), await self._announcements.current()
+        )
 
 
 class PostgresStateReader:
@@ -96,7 +122,12 @@ class PostgresStateReader:
 
     @staticmethod
     def _reader(session: AsyncSession) -> RepoStateReader:
-        return RepoStateReader(ParadesPostgres(session), StatePostgres(session), get_parade_list())
+        return RepoStateReader(
+            ParadesPostgres(session),
+            StatePostgres(session),
+            get_parade_list(),
+            AnnouncementsPostgres(session),
+        )
 
 
 def get_state_reader() -> StateReader:

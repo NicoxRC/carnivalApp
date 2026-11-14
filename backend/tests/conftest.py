@@ -19,11 +19,16 @@ from app.rate_limits import (  # noqa: E402
     get_login_rate_limit,
 )
 from app.realtime import Broadcaster, get_broadcaster  # noqa: E402
+from app.repositories.announcements import (  # noqa: E402
+    AnnouncementsMemory,
+    get_announcements_repo,
+)
 from app.repositories.courses import (  # noqa: E402
     CoursesMemory,
     forget_course,
     get_courses_repo,
 )
+from app.repositories.events import EventsMemory, get_events_repo  # noqa: E402
 from app.repositories.parades import (  # noqa: E402
     ParadeList,
     ParadesMemory,
@@ -75,8 +80,23 @@ def state(parades: ParadesMemory, users: UsersMemory, broadcaster: Broadcaster) 
 
 
 @pytest.fixture
-def reader(parades: ParadesMemory, state: StateMemory, parade_list: ParadeList) -> RepoStateReader:
-    return RepoStateReader(parades, state, parade_list)
+def announcements(broadcaster: Broadcaster) -> AnnouncementsMemory:
+    return AnnouncementsMemory(broadcaster)
+
+
+@pytest.fixture
+def events() -> EventsMemory:
+    return EventsMemory()
+
+
+@pytest.fixture
+def reader(
+    parades: ParadesMemory,
+    state: StateMemory,
+    parade_list: ParadeList,
+    announcements: AnnouncementsMemory,
+) -> RepoStateReader:
+    return RepoStateReader(parades, state, parade_list, announcements)
 
 
 @pytest.fixture
@@ -100,6 +120,8 @@ def client(
     reader: RepoStateReader,
     broadcaster: Broadcaster,
     presences: PresencesMemory,
+    announcements: AnnouncementsMemory,
+    events: EventsMemory,
     sleeps: list[float],
 ) -> Iterator[TestClient]:
     """The app with the repositories in memory and a brake that does not wait."""
@@ -118,6 +140,8 @@ def client(
     app.dependency_overrides[get_state_reader] = lambda: reader
     app.dependency_overrides[get_broadcaster] = lambda: broadcaster
     app.dependency_overrides[get_presences_repo] = lambda: presences
+    app.dependency_overrides[get_announcements_repo] = lambda: announcements
+    app.dependency_overrides[get_events_repo] = lambda: events
     app.dependency_overrides[get_device_issue_limit] = lambda: device_limit
     app.dependency_overrides[get_login_rate_limit] = lambda: rate_limit
     yield TestClient(app)

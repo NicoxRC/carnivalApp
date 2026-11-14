@@ -9,6 +9,8 @@ from app.db import get_engine
 from app.errors import register_error_handlers
 from app.realtime import PostgresListener, get_broadcaster
 from app.routers import (
+    admin_announcements,
+    admin_events,
     admin_parades,
     admin_users,
     auth,
@@ -58,3 +60,5 @@ app.include_router(admin_parades.router)
 app.include_router(positions.router)
 app.include_router(state.router)
 app.include_router(density.router)
+app.include_router(admin_announcements.router)
+app.include_router(admin_events.router)

@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import datosDesfiles from "../src/data/desfiles-ejemplo.json" with { type: "json" };
+import datosEventos from "../src/data/eventos-ejemplo.json" with { type: "json" };
 import { SENDA_DEFINICION } from "../src/data/senda-carnaval";
 import { normalizarHora } from "../src/lib/fecha";
 import { metrosEnSenda, puntoEnMetro, SENDA } from "../src/lib/senda";
@@ -29,6 +30,13 @@ const WAYPOINT_KINDS: Record<string, string> = {
   parque: "park",
   estadio: "stadium",
   hospital: "hospital",
+};
+
+const EVENT_CATEGORIES: Record<string, string> = {
+  presentacion: "stage",
+  tasca: "tasca",
+  cultural: "cultural",
+  infantil: "kids",
 };
 
 function write(name: string, data: unknown) {
@@ -70,6 +78,44 @@ const parades = {
       .filter((e) => e.esDesfile)
       .map((e) => ({ id: e.id, name: e.titulo, date: dia.fecha, startTime: normalizarHora(e.hora) })),
   ),
+};
+
+// The same events the web's local mode starts with: what is not a parade in
+// the parades file, plus the sample day of events.
+const events = {
+  _note: NOTE,
+  events: [
+    ...datosDesfiles.dias.flatMap((dia) =>
+      dia.eventos
+        .filter((e) => !e.esDesfile)
+        .map((e) => ({
+          id: e.id,
+          date: dia.fecha,
+          startTime: normalizarHora(e.hora),
+          endTime: null,
+          title: e.titulo,
+          description: "",
+          category: "cultural",
+          placeName: e.lugar,
+          lat: null,
+          lng: null,
+          sponsored: false,
+        })),
+    ),
+    ...datosEventos.eventos.map((e) => ({
+      id: e.id,
+      date: datosEventos.fecha,
+      startTime: normalizarHora(e.horaInicio),
+      endTime: e.horaFin ? normalizarHora(e.horaFin) : null,
+      title: e.titulo,
+      description: e.descripcion,
+      category: EVENT_CATEGORIES[e.categoria],
+      placeName: e.lugarNombre,
+      lat: e.lat,
+      lng: e.lng,
+      sponsored: e.patrocinado,
+    })),
+  ],
 };
 
 /** Points to compare against: on the course, off it and beyond both ends. */
@@ -114,4 +160,5 @@ function shift(p: { lat: number; lng: number }, d: number) {
 mkdirSync(OUT, { recursive: true });
 write("course.json", course);
 write("parades.json", parades);
+write("events.json", events);
 write("projections.json", projections());
