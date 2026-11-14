@@ -63,7 +63,7 @@ just test        # pytest
 just check       # pre-commit on the whole repo
 just db-test     # checks the migrations against a throwaway Postgres in Docker
 just db-stop     # stops the local Postgres
-just seed        # loads the sample course and parades into the local database
+just seed        # loads the sample course, parades and events into the local database
 just create-admin <email> <name>   # creates an admin in the local database (asks for the password)
 ```
 

@@ -6,11 +6,14 @@ take a parade in progress back to scheduled.
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from app.domain.dates import IS_TIME, is_real_date, normalize_time
+from app.domain.schedule import EVENT_CATEGORIES, Event
 from app.repositories.courses import CourseRecord, CoursesRepo
+from app.repositories.events import EventsRepo
 from app.repositories.parades import ParadesRepo
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "seed"
@@ -82,18 +85,67 @@ def read_parades(directory: Path) -> list[dict[str, str]]:
     return parades
 
 
+def read_events(directory: Path) -> list[Event]:
+    data = _read(directory, "events.json")
+    events = []
+    for index, raw in enumerate(_field(data, "events", "events.json")):
+        where = f"events.json, event {index}"
+        date = str(_field(raw, "date", where))
+        start_time = str(_field(raw, "startTime", where))
+        end_time = raw.get("endTime")
+        category = _field(raw, "category", where)
+        if not is_real_date(date):
+            raise SeedError(f"{where}: `date` is not YYYY-MM-DD.")
+        if not IS_TIME.match(start_time) or (end_time and not IS_TIME.match(str(end_time))):
+            raise SeedError(f"{where}: `startTime` or `endTime` is not HH:MM.")
+        if category not in EVENT_CATEGORIES:
+            raise SeedError(f"{where}: unknown `category` {category!r}.")
+        events.append(
+            Event(
+                id=str(_field(raw, "id", where)),
+                date=date,
+                start_time=normalize_time(start_time),
+                end_time=normalize_time(str(end_time)) if end_time else None,
+                title=str(_field(raw, "title", where)),
+                description=str(raw.get("description") or ""),
+                category=category,
+                place_name=str(raw.get("placeName") or ""),
+                lat=raw.get("lat"),
+                lng=raw.get("lng"),
+                sponsored=bool(raw.get("sponsored", False)),
+            )
+        )
+    return events
+
+
+@dataclass(frozen=True, slots=True)
+class Seeded:
+    course: CourseRecord
+    parades: int
+    events: int
+
+
 async def seed(
-    courses: CoursesRepo, parades: ParadesRepo, directory: Path = SEED_DIR
-) -> tuple[CourseRecord, int]:
-    """Loads the course and the parades. Returns the course and how many parades.
+    courses: CoursesRepo,
+    parades: ParadesRepo,
+    events: EventsRepo,
+    directory: Path = SEED_DIR,
+) -> Seeded:
+    """Loads the course, the parades and the events.
+
+    A seeded event is put back as the file has it; one created from the panel
+    is not touched.
 
     Everything is read and checked before the first write: a broken file
     leaves the database as it was.
     """
     course = read_course(directory)
-    to_save = read_parades(directory)
+    parades_to_save = read_parades(directory)
+    events_to_save = read_events(directory)
 
     await courses.save(course)
-    for parade in to_save:
+    for parade in parades_to_save:
         await parades.save(**parade, course_id=course.id)
-    return course, len(to_save)
+    for event in events_to_save:
+        await events.save(event)
+    return Seeded(course=course, parades=len(parades_to_save), events=len(events_to_save))

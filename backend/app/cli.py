@@ -3,7 +3,7 @@
     python -m app.cli create-admin --email ana@example.com --name "Ana"
     python -m app.cli seed
 
-`seed` loads the course and the parades from `backend/seed/`; it can be run
+`seed` loads the course, the parades and the events from `backend/seed/`; it can be run
 again at any time.
 
 To create users you need to be an admin, and at the beginning there is none:
@@ -20,6 +20,7 @@ from getpass import getpass
 from app.db import get_engine, get_session_factory
 from app.permissions import Role
 from app.repositories.courses import CoursesPostgres
+from app.repositories.events import EventsPostgres
 from app.repositories.parades import ParadesPostgres
 from app.repositories.users import UserAlreadyExists, UsersPostgres, UsersRepo
 from app.security import hash_password, validate_password
@@ -80,12 +81,17 @@ async def _create_admin_in_postgres(email: str, name: str) -> int:
 async def _seed_postgres() -> int:
     try:
         async with get_session_factory()() as session:
-            course, parades = await seed(CoursesPostgres(session), ParadesPostgres(session))
+            seeded = await seed(
+                CoursesPostgres(session), ParadesPostgres(session), EventsPostgres(session)
+            )
     except SeedError as error:
         return _fail(str(error))
     finally:
         await get_engine().dispose()
-    print(f"Senda cargada: {course.name} ({course.id}). Desfiles: {parades}.")
+    print(
+        f"Senda cargada: {seeded.course.name} ({seeded.course.id}). "
+        f"Desfiles: {seeded.parades}. Eventos: {seeded.events}."
+    )
     return 0
 
 
@@ -95,7 +101,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     admin = commands.add_parser("create-admin", help="create a user with the admin role")
     admin.add_argument("--email", required=True)
     admin.add_argument("--name", required=True)
-    commands.add_parser("seed", help="load the course and the parades from backend/seed/")
+    commands.add_parser(
+        "seed", help="load the course, the parades and the events from backend/seed/"
+    )
     args = parser.parse_args(argv)
 
     if args.command == "seed":
