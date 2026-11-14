@@ -20,6 +20,7 @@ from app.routers import (
     health,
     photos,
     positions,
+    push_subscriptions,
     schedule,
     state,
 )
@@ -67,3 +68,4 @@ app.include_router(admin_events.router)
 app.include_router(businesses.router)
 app.include_router(photos.router)
 app.include_router(photos.moderation)
+app.include_router(push_subscriptions.router)
