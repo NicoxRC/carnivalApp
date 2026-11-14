@@ -23,6 +23,7 @@ from app.repositories.announcements import (  # noqa: E402
     AnnouncementsMemory,
     get_announcements_repo,
 )
+from app.repositories.businesses import BusinessesMemory, get_businesses_repo  # noqa: E402
 from app.repositories.courses import (  # noqa: E402
     CoursesMemory,
     forget_course,
@@ -90,6 +91,11 @@ def events() -> EventsMemory:
 
 
 @pytest.fixture
+def businesses() -> BusinessesMemory:
+    return BusinessesMemory()
+
+
+@pytest.fixture
 def reader(
     parades: ParadesMemory,
     state: StateMemory,
@@ -122,6 +128,7 @@ def client(
     presences: PresencesMemory,
     announcements: AnnouncementsMemory,
     events: EventsMemory,
+    businesses: BusinessesMemory,
     sleeps: list[float],
 ) -> Iterator[TestClient]:
     """The app with the repositories in memory and a brake that does not wait."""
@@ -142,6 +149,7 @@ def client(
     app.dependency_overrides[get_presences_repo] = lambda: presences
     app.dependency_overrides[get_announcements_repo] = lambda: announcements
     app.dependency_overrides[get_events_repo] = lambda: events
+    app.dependency_overrides[get_businesses_repo] = lambda: businesses
     app.dependency_overrides[get_device_issue_limit] = lambda: device_limit
     app.dependency_overrides[get_login_rate_limit] = lambda: rate_limit
     yield TestClient(app)

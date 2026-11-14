@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.repositories.businesses import BusinessesMemory
 from app.repositories.courses import CoursesMemory
 from app.repositories.events import EventsMemory
 from app.repositories.parades import ParadesMemory
@@ -13,7 +14,7 @@ from app.seed import SEED_DIR, SeedError, seed
 @pytest.fixture
 def directory(tmp_path: Path) -> Path:
     """A copy of `backend/seed/` that a test may break."""
-    for name in ("course.json", "parades.json", "events.json"):
+    for name in ("course.json", "parades.json", "events.json", "businesses.json"):
         shutil.copy(SEED_DIR / name, tmp_path / name)
     return tmp_path
 
@@ -30,8 +31,9 @@ def edit(directory: Path, name: str, **changes: object) -> None:
 
 async def test_seed_ok() -> None:
     courses, parades, events = CoursesMemory(), ParadesMemory(), EventsMemory()
+    businesses = BusinessesMemory()
 
-    seeded = await seed(courses, parades, events)
+    seeded = await seed(courses, parades, events, businesses)
 
     stored = await courses.current()
     assert stored == seeded.course
@@ -49,14 +51,20 @@ async def test_seed_ok() -> None:
     assert seeded.events == len(stored_events) == 14
     assert stored_events[0].id == "d31-2"
     assert {event.category for event in stored_events} == {"tasca", "stage", "cultural", "kids"}
+    stored_businesses = await businesses.list()
+    assert seeded.businesses == len(stored_businesses) == 10
+    # Without a plan there is no offer, even if the file brought one.
+    assert all(b.offer is None for b in stored_businesses if b.plan is None)
+    assert any(b.offer for b in stored_businesses if b.plan == "featured")
 
 
 async def test_seed_fails(directory: Path) -> None:
     courses, parades, events = CoursesMemory(), ParadesMemory(), EventsMemory()
+    businesses = BusinessesMemory()
     edit(directory, "course.json", geojson=None)
 
     with pytest.raises(SeedError, match="course.json is missing `geojson`"):
-        await seed(courses, parades, events, directory)
+        await seed(courses, parades, events, businesses, directory)
 
     # Nothing was written.
     assert await courses.current() is None
@@ -66,9 +74,10 @@ async def test_seed_fails(directory: Path) -> None:
 
 async def test_seed_with_broken_files_fails(directory: Path, tmp_path: Path) -> None:
     courses, parades, events = CoursesMemory(), ParadesMemory(), EventsMemory()
+    businesses = BusinessesMemory()
 
     with pytest.raises(SeedError, match="does not exist"):
-        await seed(courses, parades, events, tmp_path / "nowhere")
+        await seed(courses, parades, events, businesses, tmp_path / "nowhere")
 
     edit(
         directory,
@@ -76,7 +85,7 @@ async def test_seed_with_broken_files_fails(directory: Path, tmp_path: Path) -> 
         parades=[{"id": "x", "name": "X", "date": "2027-02-31", "startTime": "10:00"}],
     )
     with pytest.raises(SeedError, match="`date` is not YYYY-MM-DD"):
-        await seed(courses, parades, events, directory)
+        await seed(courses, parades, events, businesses, directory)
     # The course was fine, but nothing is written until everything is.
     assert await courses.current() is None
 
@@ -95,32 +104,35 @@ async def test_seed_with_broken_files_fails(directory: Path, tmp_path: Path) -> 
         ],
     )
     with pytest.raises(SeedError, match="unknown `category`"):
-        await seed(courses, parades, events, directory)
+        await seed(courses, parades, events, businesses, directory)
     assert await parades.list() == []
 
     edit(directory, "course.json", geojson={"type": "Point", "coordinates": [0, 0]})
     with pytest.raises(SeedError, match="LineString"):
-        await seed(courses, parades, events, directory)
+        await seed(courses, parades, events, businesses, directory)
 
 
 async def test_seeding_twice_does_not_duplicate() -> None:
     courses, parades, events = CoursesMemory(), ParadesMemory(), EventsMemory()
-    await seed(courses, parades, events)
+    businesses = BusinessesMemory()
+    await seed(courses, parades, events, businesses)
     first = await parades.list()
 
-    await seed(courses, parades, events)
+    await seed(courses, parades, events, businesses)
 
     assert await parades.list() == first
     assert len(courses._records) == 1
     assert len(await events.list()) == 14
+    assert len(await businesses.list()) == 10
 
 
 async def test_seeding_again_keeps_the_state() -> None:
     courses, parades, events = CoursesMemory(), ParadesMemory(), EventsMemory()
-    await seed(courses, parades, events)
+    businesses = BusinessesMemory()
+    await seed(courses, parades, events, businesses)
     await parades.set_state("d31-1", "in_progress", new_run=False)
 
-    await seed(courses, parades, events)
+    await seed(courses, parades, events, businesses)
 
     # Seeding on parade day does not take a parade in progress back.
     live = await parades.by_id("d31-1")

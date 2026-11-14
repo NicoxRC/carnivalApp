@@ -14,6 +14,7 @@ from app.routers import (
     admin_parades,
     admin_users,
     auth,
+    businesses,
     course,
     density,
     health,
@@ -62,3 +63,4 @@ app.include_router(state.router)
 app.include_router(density.router)
 app.include_router(admin_announcements.router)
 app.include_router(admin_events.router)
+app.include_router(businesses.router)
