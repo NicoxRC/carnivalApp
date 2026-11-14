@@ -24,6 +24,7 @@ dev = [
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
     "ruff>=0.17.5",
+    "types-shapely>=2.1.0.20261030",
 ]
 
 # It is an application, not a library: it is run, not installed.

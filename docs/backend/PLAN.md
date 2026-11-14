@@ -268,7 +268,9 @@ base URL, the login **and mapping names** in the web's `api` adapter; screens do
 ### 1.4 The course is still 1D
 
 - Projecting lat/lng to "metres from the start" is done **in Python** with `shapely` on the
-  course reprojected to UTM 18N (EPSG:32618) with `pyproj`. No PostGIS.
+  course reprojected with `pyproj` to a flat plane in metres centred on the course. No
+  PostGIS. The plane is built on a sphere of turf's radius and not on UTM 18N: UTM measures
+  on the ellipsoid and came out 11 m short of turf at the end of the course.
 - It is computed **once on insert** and stored in `positions.course_m`.
 - The course is stored in the `courses` table (GeoJSON) and loaded in memory at startup.
 - Parity with the web: a fixture exported with turf (`backend/seed/projections.json`)
@@ -700,8 +702,8 @@ parts of their module, with their `B##` code.
 
 - **To understand:** it is the central idea of the project (README, "the course is 1D"):
   any lat/lng snaps to the nearest point of the route and is reduced to "metres from the
-  start". Degrees are not metres, so first the course is moved to UTM 18N, a coordinate
-  system in metres for the Pasto area, and there `shapely` measures.
+  start". Degrees are not metres, so first the course is moved to a flat plane measured
+  in metres, centred on the course, and there `shapely` measures.
 - **What:** `app/domain/course.py`: `Course.from_geojson(...)`, `course_metres(lat, lng)
   -> Projection(metres, offset_m, lat, lng)`, `point_at_metre(metres)`, `length_metres`,
   `waypoints` and `waypoint_by_id`. Constant `MAX_USER_OFFSET_M` equal to

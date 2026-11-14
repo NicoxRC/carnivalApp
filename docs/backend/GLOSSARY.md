@@ -50,6 +50,7 @@ code, tables, routes and JSON.
 | Reporter post | `cabeza`, `mitad`, `cola` | `head`, `middle`, `tail` |
 | Roles | `admin`, `coordinador`, `editor`, `moderador`, `reportero`, `ingesta` | `admin`, `coordinator`, `editor`, `moderator`, `reporter`, `ingest` |
 
+| Waypoint kind | `iglesia`, `comercial`, `colegio`, `universidad`, `plaza`, `parque`, `estadio`, `hospital` | `church`, `mall`, `school`, `university`, `square`, `park`, `stadium`, `hospital` |
 | Parade state | `programado`, `en_curso`, `finalizado` | `scheduled`, `in_progress`, `finished` |
 | Parade action | `iniciar`, `finalizar`, `reiniciar` | `start`, `finish`, `restart` |
 | Photo state | `pendiente`, `aprobada`, `rechazada` | `pending`, `approved`, `rejected` |
