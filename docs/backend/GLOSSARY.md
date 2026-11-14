@@ -32,6 +32,9 @@ code, tables, routes and JSON.
 | aviso (del equipo) | announcement | A message from the team to everyone |
 | aviso push | push subscription | |
 | comercio | business | |
+| promo | offer | What a business with a plan advertises |
+| horario | hours | Opening hours, free text |
+| enlace | link | |
 | foto | photo | |
 | dispositivo | device | |
 | usuario | user | |
@@ -54,6 +57,11 @@ code, tables, routes and JSON.
 | Crowd level | `tranquilo`, `con_gente`, `lleno` | `calm`, `busy`, `full` |
 | Announcement level | `info`, `alerta` | `info`, `alert` |
 | Event category | `presentacion`, `tasca`, `cultural`, `infantil` | `stage`, `tasca`, `cultural`, `kids` (`tasca` has no translation: it is a Carnival food stall) |
+| Business category | `restaurante`, `tasca`, `cafe`, `heladeria`, `panaderia`, `tienda`, `bar`, `farmacia` | `restaurant`, `tasca`, `cafe`, `ice_cream`, `bakery`, `shop`, `bar`, `pharmacy` |
+| Service category | `bano`, `hidratacion`, `salud`, `policia`, `cierre` | `toilet`, `water`, `first_aid`, `police`, `road_closure` |
+| Business plan | `basico`, `destacado` | `basic`, `featured` |
+| Offer timing (`promoMomento` → `offerTiming`) | `siempre`, `antes`, `despues` | `always`, `before`, `after` |
+| Metric type | `ficha`, `mapa`, `menu`, `whatsapp`, `enlace`, `oferta` | `card`, `map`, `menu`, `whatsapp`, `link`, `offer` |
 | Parade state | `programado`, `en_curso`, `finalizado` | `scheduled`, `in_progress`, `finished` |
 | Parade action | `iniciar`, `finalizar`, `reiniciar` | `start`, `finish`, `restart` |
 | Photo state | `pendiente`, `aprobada`, `rechazada` | `pending`, `approved`, `rejected` |

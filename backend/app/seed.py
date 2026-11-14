@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.domain.businesses import Business, BusinessError, clean_business
 from app.domain.dates import IS_TIME, is_real_date, normalize_time
 from app.domain.schedule import EVENT_CATEGORIES, Event
+from app.repositories.businesses import BusinessesRepo
 from app.repositories.courses import CourseRecord, CoursesRepo
 from app.repositories.events import EventsRepo
 from app.repositories.parades import ParadesRepo
@@ -118,23 +120,44 @@ def read_events(directory: Path) -> list[Event]:
     return events
 
 
+# The seed files use the JSON keys of the API; `clean_business` takes the
+# Python names.
+_BUSINESS_KEYS = {"offerTiming": "offer_timing"}
+
+
+def read_businesses(directory: Path) -> list[Business]:
+    data = _read(directory, "businesses.json")
+    businesses = []
+    for index, raw in enumerate(_field(data, "businesses", "businesses.json")):
+        where = f"businesses.json, business {index}"
+        fields = {_BUSINESS_KEYS.get(key, key): value for key, value in raw.items()}
+        try:
+            # The same rules as the panel: a seeded business is no exception.
+            businesses.append(clean_business(fields, str(_field(raw, "id", where))))
+        except BusinessError as error:
+            raise SeedError(f"{where}: {error}") from error
+    return businesses
+
+
 @dataclass(frozen=True, slots=True)
 class Seeded:
     course: CourseRecord
     parades: int
     events: int
+    businesses: int
 
 
 async def seed(
     courses: CoursesRepo,
     parades: ParadesRepo,
     events: EventsRepo,
+    businesses: BusinessesRepo,
     directory: Path = SEED_DIR,
 ) -> Seeded:
-    """Loads the course, the parades and the events.
+    """Loads the course, the parades, the events and the businesses.
 
-    A seeded event is put back as the file has it; one created from the panel
-    is not touched.
+    A seeded event or business is put back as the file has it; one created
+    from the panel is not touched.
 
     Everything is read and checked before the first write: a broken file
     leaves the database as it was.
@@ -142,10 +165,18 @@ async def seed(
     course = read_course(directory)
     parades_to_save = read_parades(directory)
     events_to_save = read_events(directory)
+    businesses_to_save = read_businesses(directory)
 
     await courses.save(course)
     for parade in parades_to_save:
         await parades.save(**parade, course_id=course.id)
     for event in events_to_save:
         await events.save(event)
-    return Seeded(course=course, parades=len(parades_to_save), events=len(events_to_save))
+    for business in businesses_to_save:
+        await businesses.save(business)
+    return Seeded(
+        course=course,
+        parades=len(parades_to_save),
+        events=len(events_to_save),
+        businesses=len(businesses_to_save),
+    )
