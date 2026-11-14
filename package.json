@@ -9,6 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "simular": "tsx scripts/simular-desfile.ts",
+    "seed:export": "tsx scripts/export-seed.ts",
     "mapa:estilo": "tsx scripts/generar-estilo-mapa.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "push:llaves": "tsx scripts/generar-llaves-push.ts",
