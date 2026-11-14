@@ -34,7 +34,7 @@ migrate: db
 create-admin email name: migrate
     ADMIN_EMAIL={{ quote(email) }} ADMIN_NAME={{ quote(name) }} sops exec-env {{ dev_secrets }} 'cd backend && uv run python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "$ADMIN_NAME"'
 
-# Load the course and the parades of backend/seed/ into the local database
+# Load the course, parades and events of backend/seed/ into the local database
 seed: migrate
     sops exec-env {{ dev_secrets }} 'cd backend && uv run python -m app.cli seed'
 

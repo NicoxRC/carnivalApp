@@ -170,3 +170,50 @@ class Presence(Base):
     device_id: Mapped[str] = mapped_column(Text, primary_key=True)
     bin: Mapped[int] = mapped_column(Integer)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+class Announcement(Base):
+    """A message from the team that shows above the map for everyone."""
+
+    __tablename__ = "announcements"
+    __table_args__ = (CheckConstraint("level in ('info', 'alert')", name="level_valid"),)
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    level: Mapped[str] = mapped_column(Text, server_default=text("'info'"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    # Empty: until someone removes it.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Last on purpose: from here down, `text` is this column and no longer
+    # SQLAlchemy's `text()`.
+    text: Mapped[str] = mapped_column(Text)
+
+
+class Event(Base):
+    """Something on the schedule that is not a parade: a stage, a tasca."""
+
+    __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint(
+            "category in ('tasca', 'stage', 'cultural', 'kids')", name="category_valid"
+        ),
+        Index("ix_events_date_start_time", "date", "start_time"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    # In Pasto time.
+    date: Mapped[dt.date] = mapped_column(Date)
+    start_time: Mapped[dt.time] = mapped_column(Time)
+    end_time: Mapped[dt.time | None] = mapped_column(Time)
+    title: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    category: Mapped[str] = mapped_column(Text)
+    place_name: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    # The point on the map, if it has one: both or neither.
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    sponsored: Mapped[bool] = mapped_column(server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
