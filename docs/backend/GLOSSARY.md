@@ -52,6 +52,8 @@ code, tables, routes and JSON.
 
 | Waypoint kind | `iglesia`, `comercial`, `colegio`, `universidad`, `plaza`, `parque`, `estadio`, `hospital` | `church`, `mall`, `school`, `university`, `square`, `park`, `stadium`, `hospital` |
 | Crowd level | `tranquilo`, `con_gente`, `lleno` | `calm`, `busy`, `full` |
+| Announcement level | `info`, `alerta` | `info`, `alert` |
+| Event category | `presentacion`, `tasca`, `cultural`, `infantil` | `stage`, `tasca`, `cultural`, `kids` (`tasca` has no translation: it is a Carnival food stall) |
 | Parade state | `programado`, `en_curso`, `finalizado` | `scheduled`, `in_progress`, `finished` |
 | Parade action | `iniciar`, `finalizar`, `reiniciar` | `start`, `finish`, `restart` |
 | Photo state | `pendiente`, `aprobada`, `rechazada` | `pending`, `approved`, `rejected` |
