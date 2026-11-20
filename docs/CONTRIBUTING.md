@@ -51,7 +51,8 @@ trunk
 ```
 
 1. **All work starts from a GitHub issue.** If there is no issue, it is created before the
-   branch. One issue = one branch = one PR.
+   branch. One issue = one branch = one PR. In the backend an issue is a whole
+   module (see `docs/backend/PLAN.md`), not one piece of it.
 2. All work starts on a new branch created from an up-to-date `trunk`.
 3. Branches are short-lived: a few days at most. An old branch drifts away from `trunk`
    and is then costly to integrate.
