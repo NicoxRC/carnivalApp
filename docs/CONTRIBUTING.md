@@ -51,8 +51,10 @@ trunk
 ```
 
 1. **All work starts from a GitHub issue.** If there is no issue, it is created before the
-   branch. One issue = one branch = one PR. In the backend an issue is a whole
-   module (see `docs/backend/PLAN.md`), not one piece of it.
+   branch. One issue = one branch = one PR. An issue delivers something working end
+   to end (in the backend, a whole module: tables, repository and endpoints), not one
+   piece of it. Issues that belong to a larger effort are grouped in a **milestone**,
+   whose description carries the plan and the order.
 2. All work starts on a new branch created from an up-to-date `trunk`.
 3. Branches are short-lived: a few days at most. An old branch drifts away from `trunk`
    and is then costly to integrate.
@@ -171,7 +173,7 @@ fix(eta): #21 discard speeds above 6 km/h
 - [ ] The branch is up to date with `trunk` (`git fetch origin && git rebase origin/trunk`)
 - [ ] The project's checks pass locally. Web (from `apps/web/`): `npm run typecheck` and `npm test` (and
       `npm run lint` once it exists). Backend: `just check` and `just test`, plus
-      `just db-test` if a migration changed (see `docs/backend/PLAN.md`)
+      `just db-test` if a migration changed
 - [ ] You tried the change by hand (for the UI: you opened the app and saw it work)
 - [ ] No secrets in the diff: no `.env`, no keys, no tokens
 - [ ] No debug `console.log` or commented-out code left behind
@@ -188,8 +190,12 @@ fix(eta): #21 discard speeds above 6 km/h
 
 ### Merge strategy
 
-**Squash and merge** to `trunk`: one commit per PR, with the PR title as the message.
-Afterwards the branch is deleted.
+**Rebase and merge** to `trunk` (the only method enabled): the PR's single commit lands
+on `trunk` as it is. Afterwards the branch is deleted.
+
+If your branch was based on another PR's branch, after that PR merges GitHub rewrites its
+commit with a new hash: rebase onto `trunk` dropping the old copy
+(`git rebase --onto origin/trunk <old-commit>`) and push with `--force-with-lease`.
 
 ---
 
@@ -205,6 +211,51 @@ git push --force-with-lease
 ```
 
 `--force-with-lease` only on **your own** working branch, never on `trunk`.
+
+---
+
+## Working an issue with an agent
+
+The maintainer is learning several of the tools in this repo. So an agent works each issue
+like this:
+
+1. **Explain and wait.** Before creating the branch or touching a file, write in the chat,
+   in Spanish:
+   1. **What you are going to do**, in two or three sentences and without jargon.
+   2. **How it works**: each new tool or concept of the issue explained as to someone who
+      programs but has not used it (what it is, what it is for here, what would happen
+      without it). The issue's **To understand** is the starting point.
+   3. **Which files you will create or change**, one per line with a sentence on what for.
+   4. **Which decisions you are making** that the issue does not fix, if any.
+   5. **How it is tested**: which command to run and what should be seen.
+
+   Then **stop and wait** for the maintainer's OK. Do not chain two issues without a new
+   confirmation.
+2. Create the branch, make the change, run the checks, make a single commit and open the
+   PR. Its description includes **"How it works"** (the explanation of step 1 adjusted to
+   what was built) and `Closes #<issue>`.
+3. **Stop.** The maintainer merges.
+
+Rules:
+
+- Respect the issue's **Depends on**: do not start it until its dependencies are on
+  `trunk`.
+- Do only what **What** says. **Out of scope** is not touched even if it looks easy.
+- **Needs the maintainer**: do the code part and leave the manual steps written in the PR.
+  Never make up credentials or keys.
+- Architecture decisions of the backend are in `docs/backend/ARCHITECTURE.md`; follow them
+  or open the discussion in the PR, never change them silently.
+
+### Tests
+
+- **Backend:** unit tests with pytest, no real database and no network. For every public
+  function or endpoint an issue adds, at least `test_<thing>_ok` (the good case) and
+  `test_<thing>_fails` (invalid input, missing resource, no permission…). A third test
+  only for a specific business rule or boundary the issue asks for. Endpoints are tested
+  with `TestClient` and the in-memory fake repositories (`app.dependency_overrides`).
+  Migrations are checked with `just db-test`, not unit-tested.
+- **Web:** `node:test` + `tsx` (`src/**/*.test.ts`). Pure logic (`eta.ts`, `senda.ts`,
+  `fecha.ts`, the API mapping) gets a test when it changes.
 
 ---
 

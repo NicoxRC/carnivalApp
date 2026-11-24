@@ -5,8 +5,8 @@ Colombia.
 
 **Status: the web is being connected to the backend.** The backend (FastAPI +
 PostgreSQL, in `apps/backend/`) has every module working and tested. The web's embedded
-backend and its in-memory mode were removed in #88, so until phase 7 of
-`docs/backend/PLAN.md` is done the web's screens open **without data**. What is missing
+backend and its in-memory mode were removed in #88, so until the «Connect the web to the backend» milestone on GitHub is done the
+web's screens open **without data**. What is missing
 before going public is in "What is missing before this is really useful".
  The web app is written in Spanish
 (file names, identifiers and interface texts); the backend and all the docs are in English.
@@ -59,8 +59,8 @@ certainly badly framed.
 From the backend in `apps/backend/`, and only from there. The web keeps the client logic
 (projection onto the course, ETA, dates in Pasto time, texts) and the screens; everything
 that is stored, validated or computed for everyone (the current parade, positions, crowd
-map, photos, push, users) lives in the backend. The connection is built in phase 7 of
-`docs/backend/PLAN.md`.
+map, photos, push, users) lives in the backend. The connection is built in
+the «Connect the web to the backend» milestone on GitHub. The backend's decisions are in `docs/backend/ARCHITECTURE.md`.
 
 ---
 
@@ -87,7 +87,7 @@ JSON because the `npm run simular` script runs outside the bundler.
 Ordered by what hurts most if ignored.
 
 **1. Connect the web to the backend and deploy with HTTPS.** The backend is not deployed
-yet and the web does not read from it (phases 6 and 7 of `docs/backend/PLAN.md`). And
+yet (issues #33 and #36) and the web does not read from it yet. And
 without HTTPS the reporters' panel cannot be tested on a phone: the browser does not
 hand over GPS or keep the screen on over `http://` (except on `localhost`).
 
@@ -309,7 +309,7 @@ needs to enlarge the text, and MapLibre already captures its own gestures inside
 
 ## Going to production
 
-Steps, in order (detailed in phases 6 and 7 of `docs/backend/PLAN.md`):
+Steps, in order:
 
 **1. Deploy the backend** on Railway with Terraform, with continuous deployment on merge
 (issues #33 and #36).
@@ -492,9 +492,9 @@ apps/
     scripts/                simulate, generate style/icons/keys, copy worker; backend helpers
     public/sw.js            service worker: offline, map and push notifications
     public/mapa/            Pasto tiles and label fonts
-  backend/                the FastAPI backend (see docs/backend/PLAN.md)
+  backend/                the FastAPI backend (see docs/backend/ARCHITECTURE.md)
   mobile/                 the Expo app (not started yet)
-docs/backend/             backend plan and glossary
+docs/backend/             backend architecture and glossary
 secrets/                  encrypted secrets (sops + age)
 scripts/                  local Postgres and the sops check (shared tooling)
 ```

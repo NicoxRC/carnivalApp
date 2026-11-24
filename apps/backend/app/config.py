@@ -24,12 +24,12 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
     environment: Literal["dev", "prod"] = "dev"
 
-    # Push notifications (B42, B43). Without keys the feature turns itself off.
+    # Push notifications. Without keys the feature turns itself off.
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None
     vapid_contact: str | None = None
 
-    # Photos on S3 (B39). Without a bucket they are stored on disk.
+    # Photos on S3. Without a bucket they are stored on disk.
     s3_endpoint: str | None = None
     s3_bucket: str | None = None
     s3_access_key: str | None = None
