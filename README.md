@@ -21,9 +21,11 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The screens, the map and the course draw, but there is no
-parade, schedule or businesses until the web reads from the backend (issue #37). To run
-the backend: `just dev` (see `CLAUDE.md`).
+Open <http://localhost:3000>. The map follows the current parade live from the backend at
+`NEXT_PUBLIC_API_URL` (in development, `http://localhost:8000` if it is not set): run it
+with `just dev` and load the sample data with `just seed` (see `CLAUDE.md`). The schedule,
+businesses, crowd map, photos and panels come back part by part in the «Connect the web to
+the backend» milestone.
 
 The parade moves with positions sent to the backend: from the reporters' panel or with
 `npm run simular`, which will log in as an ingest user (issue #56). Both go through the

@@ -10,22 +10,38 @@
  *                             pedazos (Range) que pide el visor se sirven
  *                             desde la caché: el mapa abre sin red
  *   - fuentes del mapa     -> cache primero
- *   - /api/estado          -> red primero con timeout corto, y si falla,
+ *   - /api/state del API   -> red primero con timeout corto, y si falla,
  *                             se devuelve la última respuesta cacheada.
  *                             Es preferible un dato viejo con su hora que un error.
- *   - /api/comercios       -> igual que /api/estado: la capa funciona sin red
- *   - /api/posiciones      -> nunca se cachea (es escritura)
- *   - /api/admin, /api/reportero -> nunca se cachean (son privadas)
+ *   - /api/state/stream    -> nunca (es una conexión viva)
+ *   - el resto del API     -> no pasa por aquí (escrituras, paneles privados)
+ *
+ * El API vive en otro origen. Llega en la URL con la que se registra este
+ * archivo (`/sw.js?api=https://…`, ver `RegistrarSW.tsx`).
  */
 
 // Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
 // se guarda por su ruta, así que sin esto los celulares se quedan con el viejo.
-const VERSION = "v4";
+const VERSION = "v5";
 const CACHE_APP = `sed-app-${VERSION}`;
 const CACHE_MAPA = `sed-mapa-${VERSION}`;
 const CACHE_DATOS = `sed-datos-${VERSION}`;
 
 const RUTA_TESELAS = "/mapa/pasto.pmtiles";
+
+/** Origen del backend, o null si no vino (entonces no se guarda nada del API). */
+const ORIGEN_API = (() => {
+  try {
+    const api = new URL(self.location.href).searchParams.get("api");
+    const url = api ? new URL(api) : null;
+    return url && (url.protocol === "https:" || url.protocol === "http:") ? url.origin : null;
+  } catch {
+    return null;
+  }
+})();
+
+/** Lo del API que se sirve sin red: la última copia, marcada como tal. */
+const RUTAS_API_CON_RESPALDO = new Set(["/api/state"]);
 const ICONO_AVISO = "/icono-192.png";
 
 const PRECARGA = [
@@ -33,12 +49,9 @@ const PRECARGA = [
   "/hoy",
   "/desfiles",
   "/fotos",
-  "/api/senda",
   "/icono.svg",
   "/icono-192.png",
   "/mapa/maplibre-worker.mjs",
-  "/api/programacion",
-  "/api/comercios",
   "/manifest.webmanifest",
   // La tipografía de display va cacheada: sin ella el titular del ETA cae a
   // la serif del sistema, que descuadra la hoja entera.
@@ -188,9 +201,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
 
-  // El stream SSE no se cachea nunca: es una conexión viva.
-  if (url.pathname.startsWith("/api/estado/stream")) return;
-  if (url.pathname.startsWith("/api/simulacion")) return;
+  if (ORIGEN_API && url.origin === ORIGEN_API) {
+    // El stream SSE nunca entra aquí: no está en la lista.
+    if (RUTAS_API_CON_RESPALDO.has(url.pathname)) {
+      event.respondWith(redPrimeroConRespaldo(req, CACHE_DATOS).catch(() => Response.error()));
+    }
+    return;
+  }
 
   if (url.origin !== self.location.origin) return;
 
@@ -198,16 +215,6 @@ self.addEventListener("fetch", (event) => {
   // por aquí (ver el `return` de arriba) y por tanto no queda disponible sin red.
   if (url.pathname.endsWith(".pmtiles")) {
     event.respondWith(servirTeselas(req).catch(() => Response.error()));
-    return;
-  }
-
-  if (
-    url.pathname === "/api/estado" ||
-    url.pathname === "/api/senda" ||
-    url.pathname === "/api/comercios" ||
-    url.pathname === "/api/programacion"
-  ) {
-    event.respondWith(redPrimeroConRespaldo(req, CACHE_DATOS).catch(() => Response.error()));
     return;
   }
 

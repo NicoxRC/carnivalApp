@@ -1,10 +1,18 @@
 import type { NextConfig } from "next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+
+import { resolverBaseApi } from "./src/lib/api/cliente";
 
 const enDesarrollo = process.env.NODE_ENV !== "production";
 
+/** El backend. Sin él la web no tiene datos (ver `src/lib/api/cliente.ts`). */
+const baseApi = resolverBaseApi(process.env.NEXT_PUBLIC_API_URL, enDesarrollo);
+const origenApi = baseApi ? new URL(baseApi).origin : "";
+
 /**
- * Política de contenido. Todo sale de nuestro dominio (mapa, fuentes, fotos),
- * así que la lista es corta. Dos concesiones:
+ * Política de contenido. Todo sale de nuestro dominio (mapa, fuentes) salvo
+ * los datos, que vienen del backend: su origen va en `connect-src`. Dos
+ * concesiones:
  *  - 'unsafe-inline' en scripts: Next inyecta scripts en línea para hidratar.
  *    Quitarlo exige nonces por petición, que obligan a renderizar todo en
  *    dinámico; queda pendiente.
@@ -16,7 +24,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  `connect-src 'self'${enDesarrollo ? " ws:" : ""}`,
+  `connect-src 'self'${origenApi ? ` ${origenApi}` : ""}${enDesarrollo ? " ws:" : ""}`,
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "frame-ancestors 'none'",
@@ -24,7 +32,16 @@ const csp = [
   "form-action 'self'",
 ].join("; ");
 
-const nextConfig: NextConfig = {
+const nextConfig = (fase: string): NextConfig => {
+  // Un despliegue sin la dirección del backend saldría sin datos (o apuntando
+  // a localhost): mejor que el build falle y lo diga.
+  if (fase === PHASE_PRODUCTION_BUILD && !baseApi) {
+    throw new Error("Falta NEXT_PUBLIC_API_URL: la dirección del backend (por ejemplo https://api.tu-dominio.co).");
+  }
+  return config;
+};
+
+const config: NextConfig = {
   reactStrictMode: true,
   async headers() {
     return [
@@ -46,13 +63,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
           { key: "Service-Worker-Allowed", value: "/" },
-        ],
-      },
-      {
-        // La senda casi nunca cambia: que el navegador la guarde.
-        source: "/api/senda",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=300, stale-while-revalidate=86400" },
         ],
       },
     ];
