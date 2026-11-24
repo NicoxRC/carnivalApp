@@ -108,31 +108,31 @@ bullet** explaining the why.
 
 ### Scope
 
-The affected area. The web scopes are the Spanish names of the areas of `apps/web/src/` and stay
-that way until the web is renamed.
+The affected area, in English like everything in the repo (only the texts people read inside the
+app are in Spanish).
 
 | Scope | What it covers |
 |---|---|
-| `senda` | The course and the 1D projection (`apps/web/src/lib/senda.ts`, `apps/web/src/data/senda-carnaval.ts`) |
+| `course` | The course and the 1D projection (`apps/web/src/lib/senda.ts`, `apps/web/src/data/senda-carnaval.ts`) |
 | `eta` | The ETA calculation and its states (`apps/web/src/lib/eta.ts`, `BarraEta`) |
-| `mapa` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
-| `densidad` | The crowd map |
-| `comercios` | The businesses layer and its cards |
-| `datos` | How the web reads and writes the backend's data |
-| `simulacion` | The simulation engine and the `simular` script |
-| `reportero` | The reporters' panel (`/reportero`, `useReporte`) |
+| `map` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
+| `density` | The crowd map |
+| `businesses` | The businesses layer and its cards |
+| `data` | How the web reads and writes the backend's data |
+| `simulation` | The simulation engine and the `simular` script |
+| `reporter` | The reporters' panel (`/reportero`, `useReporte`) |
 | `admin` | The admin panel (`/admin`) |
-| `programacion` | Parades and events: the current parade, "Hoy", "Desfiles" |
-| `fotos` | The photo wall and its moderation |
-| `avisos` | Proximity push notifications and team messages to everyone |
+| `schedule` | Parades and events: the current parade, "Hoy", "Desfiles" |
+| `photos` | The photo wall and its moderation |
+| `notifications` | Proximity push notifications and team messages to everyone |
 | `i18n` | Texts in Spanish and English |
-| `seguridad` | Sessions, rate limits, headers, input validation |
+| `security` | Sessions, rate limits, headers, input validation |
 | `ui` | Screens and components that do not fit another scope |
 | `pwa` | Service worker, manifest, icons |
 | `deps` | Dependencies |
 | `ci` | Continuous integration |
 | `repo` | Repository configuration, contribution docs, agent tooling |
-| `back` | The backend in `apps/backend/` (FastAPI), its Nix environment, pre-commit, `just` and secrets with sops |
+| `backend` | The backend in `apps/backend/` (FastAPI), its Nix environment, pre-commit, `just` and secrets with sops |
 | `infra` | Terraform and deployment (`infra/`) |
 
 If a new area appears (for example `mobile`), add it to this table in the same PR that
@@ -180,7 +180,7 @@ fix(eta): #21 discard speeds above 6 km/h
 
 ### PR requirements
 
-1. **Title**: the same as the commit, for example `feat(mapa): #12 add the stages layer`.
+1. **Title**: the same as the commit, for example `feat(map): #12 add the stages layer`.
 2. **Description**: in English, using the template (`.github/pull_request_template.md`).
    What changed and why, how it was tested and screenshots if it touches the UI. Include
    `Closes #<issue>` so the issue closes with the merge.
@@ -281,7 +281,7 @@ git switch -c feature/12-stages-layer
 
 # Work and commit (add files by name, not everything blindly)
 git add apps/web/src/components/MapaDesfile.tsx apps/web/src/data/tarimas.json
-git commit -m "feat(mapa): #12 add the stages layer" -m "- Stages are where most people stop to watch the parade."
+git commit -m "feat(map): #12 add the stages layer" -m "- Stages are where most people stop to watch the parade."
 
 # Push and open the PR
 git push -u origin feature/12-stages-layer
