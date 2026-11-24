@@ -9,10 +9,13 @@ working contract: follow it.
 in Pasto. Today it is a PWA in Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
 with its backend in **FastAPI + PostgreSQL in `apps/backend/`**, to be deployed on Railway
 with Terraform, and later an Expo app for the App Store and Play Store. The web has no
-backend of its own any more (removed in #88) and is being connected to `apps/backend/`
-(phase 7 of the plan). The plan, issue by issue, is in
-`docs/backend/PLAN.md`; if you are going to work on the backend, read it in full and
-follow its "Step 1" (explain and wait for the OK before touching files).
+backend of its own any more (removed in #88) and is being connected to `apps/backend/`:
+the plan and its order are in the «Connect the web to the backend» milestone on GitHub, one issue per part.
+
+**Plans live in milestones and issues, not in the repo.** Each issue is self-contained
+(what, why, dependencies, acceptance). Before working one, follow "Working an issue with an
+agent" in `docs/CONTRIBUTING.md`: explain in Spanish and wait for the OK before touching
+files. Backend decisions already made are in `docs/backend/ARCHITECTURE.md`.
 
 `README.md` explains the product, the decisions already made and what is missing. Read it
 before touching business logic.
@@ -59,7 +62,7 @@ npm run push:llaves  # generates the VAPID keys for push notifications
 npm run iconos       # exports the PNGs from public/icono.svg
 ```
 
-Backend (see `docs/backend/PLAN.md`):
+Backend (see `docs/backend/ARCHITECTURE.md`):
 
 ```bash
 nix develop      # environment with python, uv, postgres, sops, terraform, just (or direnv, which loads it)
@@ -89,7 +92,7 @@ applies and read it in full before writing code.** If several apply, read them a
 | What for | Skills |
 |---|---|
 | Current web (Next.js / React) | `vercel-react-best-practices` |
-| Backend (FastAPI) | `fastapi` (where it clashes with `docs/backend/PLAN.md`, the plan wins) |
+| Backend (FastAPI) | `fastapi` (where it clashes with `docs/backend/ARCHITECTURE.md`, that doc wins) |
 | Mobile app: where to start | `expo-overview` (read it first in any Expo task; it routes to the others) |
 | Moving the current web to native | `expo-web-to-native`, `expo-project-structure` |
 | Screens and navigation | `expo-native-ui`, `expo-router`, `vercel-react-native-skills` |
@@ -136,5 +139,5 @@ and update this table in the same PR.
 - **The base map is a file of our own** (`apps/web/public/mapa/pasto.pmtiles`). If it changes,
   `VERSION` in `apps/web/public/sw.js` has to be bumped.
 - **The backend's HTTP contract is English** while the web's own routes and types are
-  Spanish. They are mapped in the web's `api` adapter (phase 7 of the plan), not by
+  Spanish. They are mapped in one place of the web (`apps/web/src/lib/api/`), not by
   renaming one side to match the other in passing.

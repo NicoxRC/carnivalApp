@@ -1,6 +1,6 @@
 name: Backend
 
-# The same checks docs/backend/PLAN.md asks for before opening a PR, with the
+# The same checks docs/CONTRIBUTING.md asks for before opening a PR, with the
 # flake's tools: "works on my machine" and "works in CI" mean the same thing.
 #
 # Only runs when the PR touches the backend or its environment. Each job is a

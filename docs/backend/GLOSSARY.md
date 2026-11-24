@@ -66,7 +66,7 @@ code, tables, routes and JSON.
 | Parade action | `iniciar`, `finalizar`, `reiniciar` | `start`, `finish`, `restart` |
 | Photo state | `pendiente`, `aprobada`, `rechazada` | `pending`, `approved`, `rejected` |
 
-Permissions are new to the backend and are listed in `docs/backend/PLAN.md` §1.3. Other
+Permissions are new to the backend and are listed in `docs/backend/ARCHITECTURE.md` ("Users, roles and permissions"). Other
 value sets (event and business categories, plans) are translated in the issue that
 introduces them and added here in the same PR.
 
