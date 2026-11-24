@@ -12,7 +12,7 @@ Closes #<!-- issue number -->
 
 <!-- Checks you ran and manual steps to verify it. Tick only what you actually ran. -->
 
-- [ ] Web: `npm run typecheck` and `npm test`
+- [ ] Web (from `apps/web/`): `npm run typecheck` and `npm test`
 - [ ] Backend: `just check` and `just test` (`just db-test` if a migration changed)
 - [ ] Tried by hand
 

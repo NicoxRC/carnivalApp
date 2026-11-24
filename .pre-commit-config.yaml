@@ -24,24 +24,24 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check (backend)
-        entry: uv run --project backend ruff check --fix --force-exclude
+        entry: uv run --project apps/backend ruff check --fix --force-exclude
         language: system
-        files: ^backend/
+        files: ^apps/backend/
         types_or: [python, pyi]
 
       - id: ruff-format
         name: ruff format (backend)
-        entry: uv run --project backend ruff format --force-exclude
+        entry: uv run --project apps/backend ruff format --force-exclude
         language: system
-        files: ^backend/
+        files: ^apps/backend/
         types_or: [python, pyi]
 
       - id: mypy
-        name: mypy --strict (backend/app)
+        name: mypy --strict (apps/backend/app)
         # mypy needs to see the whole package, not just the files in the commit.
-        entry: bash -c 'cd backend && uv run mypy --strict app'
+        entry: bash -c 'cd apps/backend && uv run mypy --strict app'
         language: system
-        files: ^backend/app/
+        files: ^apps/backend/app/
         types_or: [python, pyi]
         pass_filenames: false
 

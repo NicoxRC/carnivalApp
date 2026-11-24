@@ -242,5 +242,5 @@ Para montarlo rápido, lo más útil es:
    variante patrocinada.
 
 Con eso lo llevo a código directo. Los nombres de los tokens ya existen en
-`src/app/globals.css`; si mantienes esos nombres y solo cambias los valores, el
+`apps/web/src/app/globals.css`; si mantienes esos nombres y solo cambias los valores, el
 cambio es casi mecánico.

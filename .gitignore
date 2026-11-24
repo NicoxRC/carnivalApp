@@ -10,11 +10,8 @@ build/
 next-env.d.ts
 .DS_Store
 
-# Copia en disco del modo local (lo editado desde /admin y las fotos subidas)
-.datos-local/
-
-# Se copia desde node_modules en cada dev/build (scripts/copiar-worker-mapa.mjs)
-public/mapa/maplibre-worker.mjs
+# Se copia desde node_modules en cada dev/build (apps/web/scripts/copiar-worker-mapa.mjs)
+apps/web/public/mapa/maplibre-worker.mjs
 
 # direnv (Nix environment)
 .direnv/
@@ -27,7 +24,7 @@ __pycache__/
 .ruff_cache/
 
 # Development Postgres (scripts/local-db.sh)
-backend/.pgdata/
+apps/backend/.pgdata/
 
-# Photos uploaded in development (backend/app/storage.py)
-backend/.photos/
+# Photos uploaded in development (apps/backend/app/storage.py)
+apps/backend/.photos/

@@ -1,7 +1,7 @@
 # Backend plan
 
-Plan to replace the backend embedded in `src/app/api/` (and the `local` and `supabase`
-adapters in `src/lib/datos/`) with a service of its own. It is written so an agent can
+Plan to replace the backend that was embedded in the web (`src/app/api/` and its `local` and
+`supabase` data adapters, all removed in #88) with a service of its own. It is written so an agent can
 execute it **issue by issue**, explaining each step before doing it and without making
 architecture decisions on its own.
 
@@ -11,7 +11,7 @@ Actions** and deployment with **Terraform on Railway** (first iteration).
 
 Order: minimal base → **users and roles** → course and parades → the live parade → content
 and community (announcements, events, businesses, photos, push) → deployment → connecting
-the web. **Everything `src/app/api/` does today exists in the backend before deploying.**
+the web. **Everything `apps/web/src/app/api/` does today exists in the backend before deploying.**
 
 ---
 
@@ -25,7 +25,7 @@ the web. **Everything `src/app/api/` does today exists in the backend before dep
 - **Spanish:** only human-readable text inside values, such as the message in
   `{"error": "No existe."}`, and the conversation with the maintainer: step 1 of each issue
   is explained in Spanish.
-- The web app (`src/`) is still written in Spanish. Domain terms are translated with
+- The web app (`apps/web/src/`) is still written in Spanish. Domain terms are translated with
   `docs/backend/GLOSSARY.md`; if an issue introduces a new term or value set, it adds it to
   the glossary in the same PR.
 
@@ -68,7 +68,7 @@ explanation covers all its parts.
 - Do only what `What` says. `Out of scope` is not touched even if it looks easy.
 - If an issue says **"Needs the maintainer"**, do the code part and leave the manual steps
   written in the PR. Never make up credentials or keys.
-- **When porting something from `src/`, the TypeScript code is the specification for
+- **When porting something from `apps/web/src/`, the TypeScript code is the specification for
   behaviour.** Read the route and the modules it uses before writing; if the plan and the
   code disagree on a behaviour detail (a limit, a status code), the code wins and you say so
   in the PR. Names are the exception: routes, JSON keys and values are English here (§1.2).
@@ -95,7 +95,7 @@ explanation covers all its parts.
 ```
 
 - Types: those of `docs/CONTRIBUTING.md` (`feat`, `fix`, `chore`, `docs`, `test`, `refactor`).
-- Scopes: `back` (all of `backend/`, Nix, pre-commit, sops), `infra` (Terraform in
+- Scopes: `back` (all of `apps/backend/`, Nix, pre-commit, sops), `infra` (Terraform in
   `infra/`) and `ci` (GitHub Actions). Whatever touches the web uses its usual scopes
   (`datos`, `ui`, `simulacion`…).
 - **At least one bullet** explaining the why. The what is already in the diff.
@@ -161,7 +161,7 @@ docker-compose.yml         throwaway Postgres for `just db-test`
 .pre-commit-config.yaml
 .sops.yaml
 secrets/                   *.enc.yaml encrypted with sops (never plain text)
-backend/
+apps/backend/
   pyproject.toml  uv.lock  alembic.ini  Dockerfile
   app/
     main.py                creates the app, mounts routers, CORS, errors
@@ -188,7 +188,7 @@ infra/                     Terraform (Railway)
 
 ### 1.2 The HTTP contract
 
-The web consumes `src/app/api/` today, with routes and JSON in Spanish. The backend exposes
+The web consumes `apps/web/src/app/api/` today, with routes and JSON in Spanish. The backend exposes
 **the same resources with the same behaviour, named in English**: routes, JSON keys
 (camelCase) and enum-like values. Connecting the web (phase 7) therefore means changing the
 base URL, the login **and mapping names** in the web's `api` adapter; screens do not change.
@@ -222,10 +222,10 @@ base URL, the login **and mapping names** in the web's `api` adapter; screens do
   errors answer **400**, as the web does today, not FastAPI's 422.
 - Pydantic: `model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)`;
   responses go out `by_alias=True`. Python attributes are snake_case, JSON keys camelCase.
-- **There is no "the" parade: there is the CURRENT parade** (`src/lib/desfiles.ts`). The
+- **There is no "the" parade: there is the CURRENT parade** (`apps/web/src/lib/desfiles.ts`). The
   server resolves it; the public client does not send an id. An id that does not exist
   gives 404; a parade is never created because someone asked for it.
-- **"Today" and "now" are Pasto time** (`America/Bogota`), as in `src/lib/fecha.ts`.
+- **"Today" and "now" are Pasto time** (`America/Bogota`), as in `apps/web/src/lib/fecha.ts`.
 
 ### 1.3 Users, roles and permissions
 
@@ -262,7 +262,7 @@ base URL, the login **and mapping names** in the web's `api` adapter; screens do
   lives on a different domain than the web. The price: the web keeps the token in the
   browser; it is mitigated with the CSP the web already has and the short duration.
 - **Brute-force brake** on login: growing wait per IP (up to 5 s), without blocking, like
-  `frenar()` in `src/lib/sesion.ts`.
+  `frenar()` in `apps/web/src/lib/sesion.ts`.
 - The first admin is created from the console (`python -m app.cli create-admin`).
 
 ### 1.4 The course is still 1D
@@ -273,16 +273,16 @@ base URL, the login **and mapping names** in the web's `api` adapter; screens do
   on the ellipsoid and came out 11 m short of turf at the end of the course.
 - It is computed **once on insert** and stored in `positions.course_m`.
 - The course is stored in the `courses` table (GeoJSON) and loaded in memory at startup.
-- Parity with the web: a fixture exported with turf (`backend/seed/projections.json`)
+- Parity with the web: a fixture exported with turf (`apps/backend/seed/projections.json`)
   guarantees Python and TypeScript give the same number (±2 m).
-- **The ETA the user sees is still computed on the client** (`src/lib/eta.ts`). The backend
+- **The ETA the user sees is still computed on the client** (`apps/web/src/lib/eta.ts`). The backend
   only ports `estimarVelocidad` because it needs it for push notifications (B43).
 
 ### 1.5 Database
 
 - PostgreSQL 16. SQLAlchemy 2 async + asyncpg. Migrations with Alembic, named with a short
   sequential number: `0001_users.py`, `0002_…`.
-- The schema starts from `supabase/schema.sql`, **without** what belongs to Supabase
+- The schema starts from the web's former `supabase/schema.sql` (removed in #88), **without** what belongs to Supabase
   (`auth.users`, RLS, `supabase_realtime`, `storage.buckets`) and with tables and columns in
   English. `reporteros` is replaced by `users`. The tables `anunciantes` and `promociones`
   are **not** ported (nothing uses them).
@@ -312,7 +312,7 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
 
 ### 1.8 Photos and push
 
-- **Photos:** a `Storage` interface with two implementations: disk (`backend/.photos/`,
+- **Photos:** a `Storage` interface with two implementations: disk (`apps/backend/.photos/`,
   development) and S3-compatible (`boto3`; a Railway bucket or Cloudflare R2 in production).
   Images are served through the API (`GET /api/photos/{id}`), not with a public bucket URL:
   that way a pending photo is never reachable.
@@ -323,7 +323,7 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
 
 - `sops` + `age`. Files `secrets/dev.enc.yaml` and `secrets/prod.enc.yaml`, one rule per
   file in `.sops.yaml` so different people can have access to each.
-- There is no `backend/.env`: configuration comes only from environment variables, and
+- There is no `apps/backend/.env`: configuration comes only from environment variables, and
   locally `sops exec-env` sets them (wrapped by `just dev` and `just migrate`).
 - In Terraform: the `carlpett/sops` provider reads `prod.enc.yaml` and writes it as service
   variables on Railway. Railway never receives an age key.
@@ -336,7 +336,7 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
 
 - Railway, provider `terraform-community-providers/railway`, a single environment
   (`production`), one replica.
-- Image built in CI with the `Dockerfile` in `backend/`, published to GHCR with the commit
+- Image built in CI with the `Dockerfile` in `apps/backend/`, published to GHCR with the commit
   SHA. Migrations in the pre-deploy step (`alembic upgrade head`).
 
 | Use | Python 3.12 packages |
@@ -407,7 +407,7 @@ parts of their module, with their `B##` code.
   goes out (it generates `/docs` on its own). `uv` is the package manager:
   `pyproject.toml` lists what is needed and `uv.lock` freezes versions. `/api/health` is
   what Railway queries to know whether the server is alive.
-- **What:** `backend/` with `pyproject.toml` (dependencies of §1.10, `uv.lock`),
+- **What:** `apps/backend/` with `pyproject.toml` (dependencies of §1.10, `uv.lock`),
   `app/main.py`, `app/routers/health.py` with `GET /api/health`, pytest, ruff and mypy
   configured, `[tool.fastapi] entrypoint = "app.main:app"`.
 
@@ -419,8 +419,8 @@ parts of their module, with their `B##` code.
   machine. `ruff` formats and detects common errors, `mypy` checks types, `gitleaks` looks
   for keys pasted by mistake.
 - **What:** `.pre-commit-config.yaml` at the root with local hooks that use the flake's
-  tools: `ruff check --fix` and `ruff format` on `^backend/`, `mypy --strict` on
-  `^backend/app/`, `gitleaks` on what is staged, `nixfmt`, `trailing-whitespace`,
+  tools: `ruff check --fix` and `ruff format` on `^apps/backend/`, `mypy --strict` on
+  `^apps/backend/app/`, `gitleaks` on what is staged, `nixfmt`, `trailing-whitespace`,
   `end-of-file-fixer`, `check-yaml`, `check-merge-conflict`, `sops-encrypted`
   (`scripts/check-sops.sh`: fails if a file in `^secrets/` lacks the `sops` key) and
   `terraform fmt -check` on `^infra/`. Enable once per clone with `pre-commit install`;
@@ -433,7 +433,7 @@ parts of their module, with their `B##` code.
   locally. If something fails, the PR shows red. It uses the same `flake.nix`, so "works on
   my machine" and "works in CI" mean the same.
 - **What:** `.github/workflows/backend-ci.yml`. On `pull_request` to `trunk` when
-  `backend/**`, `flake.*`, `.pre-commit-config.yaml` or the workflow change, three jobs with
+  `apps/backend/**`, `flake.*`, `.pre-commit-config.yaml` or the workflow change, three jobs with
   their own names: `pre-commit`, `gitleaks` (scans the commits of the PR) and `pytest`. The
   web's old workflow (`ci.yml`) was removed and is to be rebuilt separately, filtered by
   paths.
@@ -472,8 +472,8 @@ parts of their module, with their `B##` code.
   schema: each table change is a numbered migration file that is applied (`upgrade`) or
   reverted (`downgrade`), like commits but for the database.
 - **What:** `app/db.py` (async engine, `get_session()` as a dependency with `yield`),
-  `app/models.py` with `Base`, Alembic in `backend/migrations/` in async mode,
-  `scripts/local-db.sh` (the flake's Postgres in `backend/.pgdata/`, no Docker).
+  `app/models.py` with `Base`, Alembic in `apps/backend/migrations/` in async mode,
+  `scripts/local-db.sh` (the flake's Postgres in `apps/backend/.pgdata/`, no Docker).
   `/api/health` answers `{"ok", "db", "time"}` with a `SELECT 1`; without a database it
   answers 503.
 
@@ -630,7 +630,7 @@ parts of their module, with their `B##` code.
 - **To understand:** if someone tries passwords by brute force, each recent failure from
   their IP makes the next answer take longer (up to 5 s). It blocks no one: blocking by IP
   left the real admin out when many people share a mobile carrier's IP (see the comment on
-  `frenar()` in `src/lib/sesion.ts`).
+  `frenar()` in `apps/web/src/lib/sesion.ts`).
 - **What:** `app/rate_limits.py` with `ip_of(request)` (§1.7) and `LoginRateLimit`
   (`wait(ip)`, `record(ip, ok)`, 10 min window, 500 ms per failure, 5 s cap, pruning of the
   map). Used in `/api/auth/login`. The clock and the `sleep` are injected so it can be
@@ -678,19 +678,19 @@ parts of their module, with their `B##` code.
   `finished`). `run_started_at` marks since when positions count, to restart without
   deleting (§1.5).
 - **What:** migration `0002`: `courses` and `parades` as `sendas` and `desfiles` in
-  `supabase/schema.sql`, plus `parades.run_started_at timestamptz not null default now()`.
+  the former `supabase/schema.sql`, plus `parades.run_started_at timestamptz not null default now()`.
 - **Acceptance:** `just db-test` passes.
 
 ##### B19 · Export the web's data and seed the database
 
-- **To understand:** the course and the sample data live in `src/data/` today. A script
+- **To understand:** the course and the sample data live in `apps/web/src/data/` today. A script
   exports them to JSON so the backend can load them, and along the way stores test points
   computed with turf to check later that Python gives the same metres. "Seeding" is loading
   the initial data; idempotent means running it twice leaves the same result.
 - **What:**
-  - `scripts/export-seed.ts` (with `tsx`): writes to `backend/seed/` `course.json` (with
+  - `apps/web/scripts/export-seed.ts` (with `tsx`): writes to `apps/backend/seed/` `course.json` (with
     waypoints already projected), `parades.json`, `events.json`, `businesses.json` (from
-    `src/data/*-ejemplo.json`) and `projections.json` (~10 points with `metres` and
+    `apps/web/src/data/*-ejemplo.json`) and `projections.json` (~10 points with `metres` and
     `offsetM` from turf: one before the start, one after the end, one 300 m off the
     course). The export translates keys and values with the glossary.
   - `python -m app.cli seed`: inserts course and parades. Events and businesses are seeded
@@ -709,7 +709,7 @@ parts of their module, with their `B##` code.
 - **What:** `app/domain/course.py`: `Course.from_geojson(...)`, `course_metres(lat, lng)
   -> Projection(metres, offset_m, lat, lng)`, `point_at_metre(metres)`, `length_metres`,
   `waypoints` and `waypoint_by_id`. Constant `MAX_USER_OFFSET_M` equal to
-  `DESVIO_MAX_USUARIO_M` in `src/lib/senda.ts`.
+  `DESVIO_MAX_USUARIO_M` in `apps/web/src/lib/senda.ts`.
 - **Tests:** `test_course_metres_ok`, `test_course_metres_fails` (lat out of range →
   `ValueError`) and **specific**: `test_parity_with_turf` (±2 m over
   `seed/projections.json`).
@@ -720,7 +720,7 @@ parts of their module, with their `B##` code.
 - **To understand:** the course almost never changes, so it is answered with
   `Cache-Control` so the browser and the service worker keep it and do not ask for it on
   every load.
-- **What:** same response as `src/app/api/senda/route.ts`, in English, with the same
+- **What:** same response as `apps/web/src/app/api/senda/route.ts`, in English, with the same
   `Cache-Control`.
 - **Tests:** `test_course_ok`, `test_course_fails` (no course loaded → 503 with `error`).
 
@@ -728,11 +728,11 @@ parts of their module, with their `B##` code.
 
 - **To understand:** the Carnival has one parade per day and the app does not ask which one
   to watch: it shows the one happening, or today's, or the next one, or the last one there
-  was (rule in `src/lib/desfiles.ts`). "Today" is computed in Pasto time, not with the
+  was (rule in `apps/web/src/lib/desfiles.ts`). "Today" is computed in Pasto time, not with the
   server clock (which on Railway is UTC).
 - **What:**
   - `app/domain/dates.py`: `today_in_pasto(ts)` and `normalize_time` (port of
-    `src/lib/fecha.ts`).
+    `apps/web/src/lib/fecha.ts`).
   - `app/domain/parades.py`: `current_parade(parades, today)`.
   - `resolve_parade(id | None)` as a dependency, with a 2 s cache of the list (like
     `listarDesfilesCacheado`).
@@ -748,8 +748,8 @@ parts of their module, with their `B##` code.
   (back to `scheduled`) moves `run_started_at` to "now": old positions stay stored but are
   not shown. Creating or editing name, date and time is another permission, because someone
   else does it (whoever loads the schedule).
-- **What:** port of `src/app/api/admin/desfiles/`: `GET` and `PUT /{id}` (`parades:edit`,
-  validation of `validarDesfile` in `src/lib/programacion.ts`), `PATCH /{id}` with
+- **What:** port of `apps/web/src/app/api/admin/desfiles/`: `GET` and `PUT /{id}` (`parades:edit`,
+  validation of `validarDesfile` in `apps/web/src/lib/programacion.ts`), `PATCH /{id}` with
   `{action: "start" | "finish" | "restart"}` (`parades:state`), `DELETE /{id}`
   (`parades:edit`).
 - **Tests:** `test_parade_action_ok`, `test_parade_action_fails` (editor tries to start →
@@ -788,7 +788,7 @@ parts of their module, with their `B##` code.
   rejected before reaching the code) and go out in camelCase.
 - **What:** `app/schemas/` with `PositionInput` (with optional `waypointId`), `Position`,
   `HistorySample`, `ParadeState` (with `date`, `startTime`, `announcements`),
-  `Announcement`, `Parade`, `Density`, `DensityBin`, after `src/lib/tipos.ts`. Each schema
+  `Announcement`, `Parade`, `Density`, `DensityBin`, after `apps/web/src/lib/tipos.ts`. Each schema
   notes the web type it mirrors, so the web's `api` adapter (B51) can map them.
 - **Tests:** `test_position_input_ok`, `test_position_input_fails` (post `"tail2"`) and
   **specific**: `test_state_serializes_in_camelcase`.
@@ -796,7 +796,7 @@ parts of their module, with their `B##` code.
 ##### B26 · Add the parade state repository
 
 - **To understand:** it is the Python equivalent of the "live" part of `AdaptadorDatos`
-  (`src/lib/datos/adaptador.ts`). The rules of §1.5 live here: the latest position is the
+  (`apps/web/src/lib/datos/adaptador.ts`). The rules of §1.5 live here: the latest position is the
   one with the highest `ts`, `run_started_at` is respected and the first report of a
   scheduled parade moves it to `in_progress`.
 - **What:** `app/repositories/state.py` (Protocol + Postgres + memory):
@@ -815,7 +815,7 @@ parts of their module, with their `B##` code.
   HTTP.
 - **What:** `app/domain/positions.py` with `validate_batch(body, forced_post, parade_id,
   now, course)` → `(entries, discarded)` or an error, exact port of `validar()` in
-  `src/app/api/posiciones/route.ts`: `MAX_BATCH` 200, `waypointId` → point on the course,
+  `apps/web/src/app/api/posiciones/route.ts`: `MAX_BATCH` 200, `waypointId` → point on the course,
   discards future > 2 min, older than 1 h and accuracy > `MAX_ACCURACY_M`; sorts by `ts`.
 - **Tests:** `test_validate_batch_ok`, `test_validate_batch_fails` (201 points → error)
   and **specific**: `test_point_with_bad_accuracy_is_discarded_without_failing_the_batch`.
@@ -826,7 +826,7 @@ parts of their module, with their `B##` code.
   own post and always to the current parade. If two reporters have the same post, the one
   sending is the holder and the other waits until the holder goes silent for a minute
   (**handover**): otherwise the head would jump between two phones blocks apart.
-- **What:** port of `src/app/api/posiciones/route.ts`. With `positions:own` the server
+- **What:** port of `apps/web/src/app/api/posiciones/route.ts`. With `positions:own` the server
   sets the post and the parade and applies the handover (`HANDOVER_MS`, `RELEVO_MS` in the
   web); with `positions:any` the body can name the parade (which has to exist) and the
   post. Response `{ok, saved, discarded, waiting, serverTs}`.
@@ -864,7 +864,7 @@ parts of their module, with their `B##` code.
   past each reference point ("pasó por Cristo Rey a las 3:40"). It is what the web shows
   when the parade has already passed where you are.
 - **What:** `app/domain/progress.py` with `waypoint_passes` (port of `pasosPorHito` in
-  `src/lib/recorrido.ts`) and `GET /api/parades/{id}/progress` → `{parade, passes}`, same
+  `apps/web/src/lib/recorrido.ts`) and `GET /api/parades/{id}/progress` → `{parade, passes}`, same
   `Cache-Control`.
 - **Tests:** `test_waypoint_passes_ok`, `test_waypoint_passes_fails` (empty history → no
   passes) and **specific**: `test_waypoint_not_reached_does_not_appear`.
@@ -885,7 +885,7 @@ parts of their module, with their `B##` code.
   and a stretch with fewer than 3 reports is left without data (which is not the same as
   empty).
 - **What:** `app/domain/density.py` and `app/domain/constants.py` with the same constants
-  and rules as `src/lib/densidad.ts` and `src/lib/tipos.ts`. Each constant with a comment
+  and rules as `apps/web/src/lib/densidad.ts` and `apps/web/src/lib/tipos.ts`. Each constant with a comment
   pointing to the TS file it comes from: if one changes, the other changes.
 - **Tests:** `test_classify_ok` (60 users → bins with levels), `test_classify_fails` (40
   users → `enough=False`) and **specific**: `test_stretch_with_few_samples_does_not_appear`.
@@ -897,7 +897,7 @@ parts of their module, with their `B##` code.
   issues the id, signed with HMAC, and issuing has a cap per IP. It is anonymous: it says
   nothing about the person.
 - **What:** `POST /api/device` → `{device}` or 429; `issue_device` and `valid_device`
-  (port of `src/lib/sesion.ts`, signed with a key derived from `JWT_SECRET`); cap of 300
+  (port of `apps/web/src/lib/sesion.ts`, signed with a key derived from `JWT_SECRET`); cap of 300
   per IP per hour in `app/rate_limits.py`.
 - **Tests:** `test_valid_device_ok`, `test_valid_device_fails` (tampered signature →
   `None`) and **specific**: `test_issuing_301_from_the_same_ip_is_429`.
@@ -907,7 +907,7 @@ parts of their module, with their `B##` code.
 - **To understand:** the `POST` is anonymous (any phone with an issued id contributes its
   stretch) and the `GET` returns only the aggregate, never raw rows, so nobody can
   reconstruct where a device went.
-- **What:** port of `src/app/api/densidad/route.ts`, always on the current parade. `POST
+- **What:** port of `apps/web/src/app/api/densidad/route.ts`, always on the current parade. `POST
   {device, bin}`: invalid device → 401 (the client asks for a new one); upsert by device;
   deletes presences outside the window in the same `POST` (no cron).
 - **Tests:** `test_density_post_ok`, `test_density_post_fails` (`bin` off the course →
@@ -965,7 +965,7 @@ parts of their module, with their `B##` code.
 - **What:** table `businesses` (migration), repository, seeding from
   `seed/businesses.json`, `GET /api/businesses` (only visible ones, same `Cache-Control`)
   and `GET/PUT/DELETE /api/admin/businesses` (`businesses:edit`), port of
-  `validarComercio` (`src/lib/comercios.ts`).
+  `validarComercio` (`apps/web/src/lib/comercios.ts`).
 - **Tests:** `test_save_business_ok`, `test_save_business_fails` (lat out of range → 400)
   and **specific**: `test_service_never_has_plan_or_offer`.
 
@@ -1007,7 +1007,7 @@ parts of their module, with their `B##` code.
   the file is checked to really be a JPEG (its first three bytes), without trusting what
   the browser says.
 - **What:** table `photos` (migration, `storage_path`), repository, port of
-  `src/app/api/fotos/route.ts` and `fotos/[id]/route.ts`: multipart `POST` (device, maximum
+  `apps/web/src/app/api/fotos/route.ts` and `fotos/[id]/route.ts`: multipart `POST` (device, maximum
   size 1.5 MB, JPEG, optional `metres`), `GET` approved ones, `GET /{id}` serves the image
   (pending or rejected → 404 unless with `photos:moderate`). States: `pending`,
   `approved`, `rejected`.
@@ -1037,7 +1037,7 @@ parts of their module, with their `B##` code.
   *subscription* (where to send the notification and with which keys) and the person says
   at which metre of the course they are waiting. Nothing else: no name, no account.
 - **What:** table `push_subscriptions` (migration), repository, port of
-  `src/app/api/avisos-push/route.ts` at `/api/push-subscriptions`: `GET` (configured, and
+  `apps/web/src/app/api/avisos-push/route.ts` at `/api/push-subscriptions`: `GET` (configured, and
   the public key), `POST` (validations and `thresholdMin` bounded to 5–60), `DELETE`.
 - **Tests:** `test_subscribe_ok`, `test_subscribe_fails` (endpoint without `https://` →
   400).
@@ -1047,7 +1047,7 @@ parts of their module, with their `B##` code.
 - **To understand:** every time a position of the head arrives, it is checked who has
   little time left, they are sent the notification with web push and their subscription is
   deleted (one notification per request). To know how long is left the parade's speed is
-  needed, so `estimarVelocidad` from `src/lib/eta.ts` is ported. A failure sending
+  needed, so `estimarVelocidad` from `apps/web/src/lib/eta.ts` is ported. A failure sending
   notifications cannot bring down ingestion.
 - **What:** `app/domain/eta.py` with `estimate_speed` (exact port, same constants),
   `app/push.py` with `notify_nearby(state)` (at most one check every 15 s per parade,
@@ -1066,10 +1066,10 @@ parts of their module, with their `B##` code.
   installed in one stage and only what is needed goes to the final image, so it weighs
   less.
 - **Depends on:** #52 (M8)
-- **What:** multi-stage `backend/Dockerfile` with uv's official image (`uv sync --frozen
+- **What:** multi-stage `apps/backend/Dockerfile` with uv's official image (`uv sync --frozen
   --no-dev`), copies `app/`, `migrations/`, `seed/`, `alembic.ini`; non-root user;
   `CMD fastapi run --host 0.0.0.0 --port ${PORT}`. `.dockerignore`.
-- **Acceptance:** `docker build backend/` works and the container answers `/api/health`.
+- **Acceptance:** `docker build apps/backend/` works and the container answers `/api/health`.
 
 #### #33 · M9 · `chore(infra)`: deploy the backend on Railway with Terraform
 
@@ -1143,7 +1143,7 @@ parts of their module, with their `B##` code.
 - **What:** `.github/workflows/backend-cd.yml`:
   - PR that touches `infra/**`: `terraform fmt -check`, `validate` and `plan` commented on
     the PR.
-  - Push to `trunk` that touches `backend/**` or `infra/**`: build and push to GHCR (tag =
+  - Push to `trunk` that touches `apps/backend/**` or `infra/**`: build and push to GHCR (tag =
     SHA) and `terraform apply -var image_tag=$SHA` in `production`.
 - **Acceptance:** a merge deploys and `/api/health` answers on the Railway domain.
 
@@ -1157,16 +1157,16 @@ effort.
 
 #### #37 · B51 · `feat(datos)`: move the web's public reads to the backend
 
-- **To understand:** the web already knows how to talk to two data sources (`local` and
-  `supabase`). `api` is added: the public screens ask `NEXT_PUBLIC_API_URL` for everything
+- **To understand:** since #88 the web has no data source of its own. `api` is
+  added: the public screens ask `NEXT_PUBLIC_API_URL` for everything
   instead of Next's own `/api`. The adapter translates the backend's English routes, keys
-  and values to the web's existing types (`src/lib/tipos.ts`), so screens do not change.
+  and values to the web's existing types (`apps/web/src/lib/tipos.ts`), so screens do not change.
 - **Depends on:** B50
 - **What:** `NEXT_PUBLIC_DATOS=api` + `NEXT_PUBLIC_API_URL`. The public hooks and screens
   (state and stream, density, device, schedule, businesses and their event, photos,
   progress, push subscriptions) use a function `urlApi(route)` that respects the mode, and
   a mapping layer between the English contract and the web's types. The service worker
-  also caches the backend's responses. `local` and `supabase` are not touched.
+  also caches the backend's responses.
 - **Acceptance:** with the local backend, `npm run dev` in `api` mode shows the backend's
   parade, schedule and businesses.
 - **Tests:** `npm run typecheck` and `npm test` pass; a test of `urlApi` (ok and without
@@ -1185,14 +1185,13 @@ effort.
 - **Acceptance:** an admin creates a reporter from the panel, the reporter logs in and
   their positions move the parade.
 - **Tests:** `npm run typecheck` and `npm test` pass.
-- **Out of scope:** removing the `local` and `supabase` modes.
 
 #### #56 · B53 · `feat(simulacion)`: make the simulator log in with an ingest user
 
 - **To understand:** the simulator sends positions of the three posts, so it logs in with
   a service account with the `ingest` role instead of with `INGESTA_TOKEN`.
 - **Depends on:** B51
-- **What:** `scripts/simular-desfile.ts` accepts `--email` and `--password` (or
+- **What:** `apps/web/scripts/simular-desfile.ts` accepts `--email` and `--password` (or
   environment variables), logs in and sends `Authorization: Bearer`, using the backend's
   English routes and keys. `python -m app.cli seed --dev` creates a user `simulator@local`
   with the `ingest` role (only with `ENVIRONMENT=dev`).
@@ -1205,7 +1204,7 @@ effort.
 - **To understand:** it closes the loop: someone new can bring everything up by reading a
   single file.
 - **Depends on:** B52, B53
-- **What:** `backend/README.md` (Nix, `just`, local database, sops, tests, creating an
+- **What:** `apps/backend/README.md` (Nix, `just`, local database, sops, tests, creating an
   admin, seeding, deploying). In the root `README.md`, update the sections on the data
   adapters and on going to production. In `CLAUDE.md`, move the backend commands from
   "when it exists" to real.
@@ -1233,6 +1232,6 @@ M7 are independent of each other, and M4 does not need M3.
 
 So they are not lost, but they are **not** done now: password recovery by email, refresh
 tokens, rate limits shared between replicas, staging, observability, integration tests
-against Postgres in CI, advertisers and promotions, removing the `local` and `supabase`
-adapters, renaming the web app (`src/`) to English, rebuilding the web's CI workflow, the
+against Postgres in CI, advertisers and promotions, removing the web's
+`local` adapter (done in #88), renaming the web app (`apps/web/src/`) to English, rebuilding the web's CI workflow, the
 mobile app.

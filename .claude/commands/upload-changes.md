@@ -18,7 +18,7 @@ commit messages, PR title and description) is in English.
 - **Never merge the PR** (`gh pr merge` is forbidden). Your work ends when the PR is open.
 - Never use `--no-verify` or disable hooks. Commits go through pre-commit, so make them
   from inside the Nix environment (`nix develop -c git commit …` if direnv is not active).
-- Never commit secrets: `.env`, `.env.local`, keys, tokens, `SUPABASE_SERVICE_ROLE_KEY` or
+- Never commit secrets: `.env`, `.env.local`, keys, tokens, server keys or
   anything like it. Files in `secrets/` only go in encrypted, and you never decrypt them.
 - If something does not fit this flow (conflicts you do not understand, checks failing
   because of something unrelated to your changes, changes on very different topics mixed
@@ -54,7 +54,7 @@ Before adding anything, look in the modified and new files for:
 - `.env*` files (other than `.env.example`), keys or tokens
 - Debug `console.log` or `print`, or leftover commented-out code
 - Generated files that do not belong in the repo (`.next/`, `node_modules/`,
-  `*.tsbuildinfo`, `backend/.venv/`, `backend/.pgdata/`)
+  `*.tsbuildinfo`, `apps/backend/.venv/`, `apps/backend/.pgdata/`)
 
 If you find something, tell the user and do not include it.
 
@@ -78,8 +78,8 @@ Tell the user which branch name you chose.
 
 ### 5. Run the checks
 
-- If the change touches the web: look at the `scripts` in `package.json` and run those
-  that exist from this list: `typecheck`, `lint`, `test`. If `node_modules` does not
+- If the change touches the web: look at the `scripts` in `apps/web/package.json` and run those
+  that exist from this list (from `apps/web/`): `typecheck`, `lint`, `test`. If `node_modules` does not
   exist, run `npm install` first.
 - If the change touches the backend, its scripts or its configuration: `just check` and
   `just test`, plus `just db-test` if a migration changed.
