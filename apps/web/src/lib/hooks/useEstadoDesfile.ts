@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ErrorApi, pedirApi, urlApi } from "@/lib/api/cliente";
+import { estadoDesdeApi } from "@/lib/api/estado";
 import type { EstadoDesfile } from "@/lib/tipos";
 
 export type Conexion = "conectando" | "en_vivo" | "reintentando" | "sin_conexion";
@@ -21,7 +23,8 @@ const REINTENTO_MAX_MS = 20_000;
 
 /**
  * Una sola fuente de estado para toda la UI: el primer dato por HTTP y luego
- * SSE en vivo, con sondeo de respaldo si el stream muere sin avisar.
+ * SSE en vivo, con sondeo de respaldo si el stream muere sin avisar. Los dos
+ * vienen del backend (`GET /api/state` y `/api/state/stream`).
  *
  * Siempre sigue el desfile ACTUAL: el servidor decide cuál es (el que está en
  * curso, o el próximo). La app no le pregunta al usuario qué desfile quiere.
@@ -75,15 +78,14 @@ export function useEstadoDesfile(): Resultado {
 
   const refrescar = useCallback(async () => {
     try {
-      const r = await fetch("/api/estado", { cache: "no-store" });
-      if (r.status === 404) {
+      const r = await pedirApi("/api/state", { cache: "no-store" });
+      aplicar(estadoDesdeApi(await r.json()), r.headers.get("X-Desde-Cache") === "1");
+    } catch (e) {
+      if (e instanceof ErrorApi && e.estado === 404) {
         // No hay ningún desfile programado: no es un error de red.
         setConexion("en_vivo");
         return;
       }
-      if (!r.ok) throw new Error(String(r.status));
-      aplicar((await r.json()) as EstadoDesfile, r.headers.get("X-Desde-Cache") === "1");
-    } catch {
       // Nunca se borra lo que ya se tenía: se marca la conexión y se sigue
       // mostrando el último dato conocido con su hora.
       setConexion((c) => (c === "en_vivo" ? "reintentando" : "sin_conexion"));
@@ -103,15 +105,21 @@ export function useEstadoDesfile(): Resultado {
 
     const conectar = () => {
       if (cerrado) return;
-      es = new EventSource("/api/estado/stream");
+      try {
+        es = new EventSource(urlApi("/api/state/stream"));
+      } catch {
+        // Sin dirección del API no hay stream; el sondeo de abajo lo reporta.
+        setConexion("sin_conexion");
+        return;
+      }
 
       es.onmessage = (ev) => {
         try {
-          const nuevo = JSON.parse(ev.data) as EstadoDesfile;
+          const nuevo = estadoDesdeApi(JSON.parse(ev.data));
           desfileDelStream.current = nuevo.desfileId;
           aplicar(nuevo);
         } catch {
-          // Un mensaje corrupto no debe tumbar el stream.
+          // Un mensaje corrupto o con otra forma no debe tumbar el stream.
         }
       };
 
