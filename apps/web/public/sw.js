@@ -10,9 +10,12 @@
  *                             pedazos (Range) que pide el visor se sirven
  *                             desde la caché: el mapa abre sin red
  *   - fuentes del mapa     -> cache primero
- *   - /api/state del API   -> red primero con timeout corto, y si falla,
+ *   - /api/state, /api/schedule y /api/businesses del API
+ *                          -> red primero con timeout corto, y si falla,
  *                             se devuelve la última respuesta cacheada.
  *                             Es preferible un dato viejo con su hora que un error.
+ *                             La programación y los comercios se precargan al
+ *                             instalar: «Hoy» y la capa de comercios abren sin red.
  *   - /api/state/stream    -> nunca (es una conexión viva)
  *   - el resto del API     -> no pasa por aquí (escrituras, paneles privados)
  *
@@ -22,7 +25,7 @@
 
 // Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
 // se guarda por su ruta, así que sin esto los celulares se quedan con el viejo.
-const VERSION = "v5";
+const VERSION = "v6";
 const CACHE_APP = `sed-app-${VERSION}`;
 const CACHE_MAPA = `sed-mapa-${VERSION}`;
 const CACHE_DATOS = `sed-datos-${VERSION}`;
@@ -41,7 +44,10 @@ const ORIGEN_API = (() => {
 })();
 
 /** Lo del API que se sirve sin red: la última copia, marcada como tal. */
-const RUTAS_API_CON_RESPALDO = new Set(["/api/state"]);
+const RUTAS_API_CON_RESPALDO = new Set(["/api/state", "/api/schedule", "/api/businesses"]);
+
+/** Lo del API que se precarga al instalar. `/api/state` no: sin desfile actual da 404. */
+const PRECARGA_API = ["/api/schedule", "/api/businesses"];
 const ICONO_AVISO = "/icono-192.png";
 
 const PRECARGA = [
@@ -70,6 +76,11 @@ self.addEventListener("install", (e) => {
       // El mapa base entero (≈2,4 MB), de una vez: es lo que permite abrir el
       // mapa con la celda saturada.
       caches.open(CACHE_MAPA).then((c) => c.add(RUTA_TESELAS)),
+      ORIGEN_API
+        ? caches
+            .open(CACHE_DATOS)
+            .then((c) => Promise.allSettled(PRECARGA_API.map((ruta) => c.add(new URL(ruta, ORIGEN_API).href))))
+        : null,
     ]).then(() => self.skipWaiting()),
   );
 });

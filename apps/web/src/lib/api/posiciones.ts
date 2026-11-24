@@ -7,11 +7,8 @@
  * un coordinador); a un reportero se lo pone el servidor.
  */
 
-import type { EntradaPosicion, Rol } from "@/lib/tipos";
-
-export type PostApi = "head" | "middle" | "tail";
-
-const POST_DE_ROL: Record<Rol, PostApi> = { cabeza: "head", mitad: "middle", cola: "tail" };
+import { POST_DE_ROL, type PostApi } from "@/lib/api/valores";
+import type { EntradaPosicion } from "@/lib/tipos";
 
 export interface PosicionApi {
   post: PostApi;

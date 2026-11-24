@@ -2,15 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import type { Desfile, Evento } from "@/lib/tipos";
-
-export interface Programacion {
-  desfiles: Desfile[];
-  eventos: Evento[];
-  /** YYYY-MM-DD de hoy en Pasto, según el servidor. */
-  hoy: string;
-  actualId: string | null;
-}
+import { pedirApi } from "@/lib/api/cliente";
+import { programacionDesdeApi, type Programacion } from "@/lib/api/programacion";
 
 /** La programación completa. Cambia poco: se pide al abrir y al volver a la app. */
 export function useProgramacion(): Programacion | null {
@@ -19,13 +12,14 @@ export function useProgramacion(): Programacion | null {
   useEffect(() => {
     let vivo = true;
     const leer = () =>
-      fetch("/api/programacion")
-        .then((r) => (r.ok ? (r.json() as Promise<Programacion>) : null))
-        .then((d) => {
-          if (vivo && d) setP(d);
+      pedirApi("/api/schedule")
+        .then((r) => r.json())
+        .then((json) => {
+          if (vivo) setP(programacionDesdeApi(json));
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           // Sin red: el service worker devuelve la última copia, o queda lo que había.
+          if (!(error instanceof TypeError)) console.warn("No se pudo leer la programación:", error);
         });
     void leer();
     const alVolver = () => {

@@ -8,53 +8,9 @@
  * nunca se pinta un estado a medias.
  */
 
-import type { Aviso, EstadoDesfile, MuestraHistorial, Posicion, Rol } from "@/lib/tipos";
-
-const ROL_DE_POST: Record<string, Rol> = { head: "cabeza", middle: "mitad", tail: "cola" };
-
-const ESTADO_DE_STATE: Record<string, EstadoDesfile["estado"]> = {
-  scheduled: "programado",
-  in_progress: "en_curso",
-  finished: "finalizado",
-};
-
-const NIVEL_DE_LEVEL: Record<string, Aviso["nivel"]> = { info: "info", alert: "alerta" };
-
-type Objeto = Record<string, unknown>;
-
-function objeto(v: unknown, campo: string): Objeto {
-  if (v && typeof v === "object" && !Array.isArray(v)) return v as Objeto;
-  throw new Error(`Estado del API inválido: ${campo} no es un objeto.`);
-}
-
-function lista(v: unknown, campo: string): unknown[] {
-  if (Array.isArray(v)) return v;
-  throw new Error(`Estado del API inválido: ${campo} no es una lista.`);
-}
-
-function texto(o: Objeto, campo: string): string {
-  const v = o[campo];
-  if (typeof v === "string") return v;
-  throw new Error(`Estado del API inválido: falta ${campo}.`);
-}
-
-function numero(o: Objeto, campo: string): number {
-  const v = o[campo];
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  throw new Error(`Estado del API inválido: falta ${campo}.`);
-}
-
-function numeroONulo(o: Objeto, campo: string): number | null {
-  const v = o[campo];
-  if (v === null || v === undefined) return null;
-  return numero(o, campo);
-}
-
-function deTabla<T>(tabla: Record<string, T>, valor: string, campo: string): T {
-  const traducido = tabla[valor];
-  if (traducido === undefined) throw new Error(`Estado del API inválido: ${campo} «${valor}» desconocido.`);
-  return traducido;
-}
+import { deTabla, lista, numero, numeroONulo, objeto, texto } from "@/lib/api/leer";
+import { ESTADO_DE_STATE, NIVEL_DE_LEVEL, ROL_DE_POST } from "@/lib/api/valores";
+import type { Aviso, EstadoDesfile, MuestraHistorial, Posicion } from "@/lib/tipos";
 
 function posicion(v: unknown, campo: string): Posicion {
   const o = objeto(v, campo);
