@@ -56,7 +56,7 @@ npm install
 npm run dev          # http://localhost:3000
 npm run typecheck    # types
 npm test             # tests (node:test + tsx): src/**/*.test.ts. No lint yet.
-npm run simular      # moves a fake parade along the course
+npm run simular      # moves a fake parade on the backend (as simulator@local, see just seed)
 npm run mapa:estilo  # regenerates src/data/estilo-mapa.json (base map colours)
 npm run push:llaves  # generates the VAPID keys for push notifications
 npm run iconos       # exports the PNGs from public/icono.svg
@@ -72,7 +72,7 @@ just test        # pytest
 just check       # pre-commit on the whole repo
 just db-test     # checks the migrations against a throwaway Postgres in Docker
 just db-stop     # stops the local Postgres
-just seed        # loads the sample course, parades and events into the local database
+just seed        # loads the sample data into the local database, plus the simulator@local ingest user
 just create-admin <email> <name>   # creates an admin in the local database (asks for the password)
 ```
 

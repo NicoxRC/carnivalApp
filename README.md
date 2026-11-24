@@ -27,9 +27,20 @@ with `just dev` and load the sample data with `just seed` (see `CLAUDE.md`). The
 businesses, crowd map, photos and panels come back part by part in the «Connect the web to
 the backend» milestone.
 
-The parade moves with positions sent to the backend: from the reporters' panel or with
-`npm run simular`, which will log in as an ingest user (issue #56). Both go through the
-same `POST /api/positions`: **there is no "pretend" path parallel to the real one**.
+The parade moves with positions sent to the backend: from the reporters' panel or with the
+simulator. In another terminal, from `apps/web/`:
+
+```bash
+npm run simular -- --velocidad=1.5
+```
+
+It logs in as `simulator@local`, the `ingest` user `just seed` creates in development, and
+sends head, middle and tail of the current parade to `POST /api/positions`, the same door
+as a reporter's phone: **there is no "pretend" path parallel to the real one**. Options:
+`--velocidad` (km/h, 1.5), `--intervalo` (seconds, 12), `--separacion` (metres between
+posts, 550), `--paradas=false` (never stops), `--inicio` (starting metres), `--url`
+(`http://localhost:8000`). Against another server it needs a real `ingest` account:
+`--email=… --password=…` (or `SIMULADOR_EMAIL` / `SIMULADOR_PASSWORD`).
 
 ---
 
@@ -325,8 +336,8 @@ server secrets: they all live in the backend.
 
 ### What you need to know before showing it to someone
 
-- **To move the parade on a deployment** the simulator script is used against the
-  backend, logged in as an ingest user (issue #56).
+- **To move the parade on a deployment** the simulator is run against the backend with a
+  real `ingest` account: `npm run simular -- --url=https://… --email=… --password=…`.
 - **It is still untested with a bad network**, which is the project's number one risk.
 - The course, the waypoints, the businesses and the schedule are still **sample data**.
 

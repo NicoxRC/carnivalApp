@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 
 import { API_DESARROLLO, resolverBaseApi, urlApi } from "@/lib/api/cliente";
 import { estadoDesdeApi } from "@/lib/api/estado";
+import { posicionParaApi } from "@/lib/api/posiciones";
+import type { EntradaPosicion } from "@/lib/tipos";
 
 describe("dónde está el API", () => {
   it("arma la URL con la base configurada, sin barras de más", () => {
@@ -55,5 +57,19 @@ describe("el estado del API se traduce al de la web", () => {
     const { serverTs: _, ...sinReloj } = ESTADO_API;
     assert.throws(() => estadoDesdeApi(sinReloj), /serverTs/);
     assert.throws(() => estadoDesdeApi({ ...ESTADO_API, state: "paused" }), /state/);
+  });
+});
+
+describe("las posiciones se traducen al API", () => {
+  const entrada: EntradaPosicion = { desfileId: "d31-1", rol: "mitad", lat: 1.21, lng: -77.28, precisionM: 6, ts: 1000 };
+
+  it("manda el puesto en inglés y sin el id del desfile", () => {
+    const p = posicionParaApi(entrada);
+    assert.deepEqual(p, { post: "middle", lat: 1.21, lng: -77.28, accuracyM: 6, ts: 1000 });
+    assert.equal(posicionParaApi({ ...entrada, precisionM: undefined, ts: undefined }).accuracyM, null);
+  });
+
+  it("falla con un rol desconocido", () => {
+    assert.throws(() => posicionParaApi({ ...entrada, rol: "lateral" as EntradaPosicion["rol"] }), /lateral/);
   });
 });
