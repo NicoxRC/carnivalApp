@@ -1,6 +1,6 @@
 # Backend glossary
 
-The web app (`src/`) is written in Spanish; the backend is written in English. This is the
+The web app (`apps/web/src/`) is written in Spanish; the backend is written in English. This is the
 agreed translation of the domain terms, so the same thing always gets the same name in
 code, tables, routes and JSON.
 
@@ -11,7 +11,7 @@ code, tables, routes and JSON.
   PRs and issues.
 - **Spanish:** only human-readable text inside values, such as the message in
   `{"error": "No existe."}`.
-- When porting something from `src/`, the TypeScript code is still the specification for
+- When porting something from `apps/web/src/`, the TypeScript code is still the specification for
   behaviour. Its names are translated with this table.
 
 ## Domain terms

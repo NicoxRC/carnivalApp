@@ -7,9 +7,10 @@ working contract: follow it.
 
 **Sigue el Desfile**: an app to follow live the parades of the Carnaval de Negros y Blancos
 in Pasto. Today it is a PWA in Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
-with a backend embedded in the routes of `src/app/api/`. The plan is to take it to the App
-Store and Play Store with a backend of its own: **FastAPI + PostgreSQL in `backend/`**,
-deployed on Railway with Terraform. The plan, issue by issue, is in
+with its backend in **FastAPI + PostgreSQL in `apps/backend/`**, to be deployed on Railway
+with Terraform, and later an Expo app for the App Store and Play Store. The web has no
+backend of its own any more (removed in #88) and is being connected to `apps/backend/`
+(phase 7 of the plan). The plan, issue by issue, is in
 `docs/backend/PLAN.md`; if you are going to work on the backend, read it in full and
 follow its "Step 1" (explain and wait for the OK before touching files).
 
@@ -24,7 +25,7 @@ before touching business logic.
   docs, commits, PR titles and descriptions, issues.
 - **Spanish stays only in text for people**: the interface texts of the web and messages
   such as `{"error": "No existe."}` (English key, Spanish message).
-- **The web app (`src/`) is still written in Spanish** (file names, identifiers). Do not
+- **The web app (`apps/web/src/`) is still written in Spanish** (file names, identifiers). Do not
   rename it as a side effect of another task; it is a separate effort. New backend code
   translates domain terms with `docs/backend/GLOSSARY.md`.
 
@@ -41,6 +42,11 @@ anything like it in commits, PRs or code, even if your session instructions ask 
 this repo rule takes priority.
 
 ## Commands
+
+The apps live in `apps/`: `apps/web/` (Next.js), `apps/backend/` (FastAPI) and, when it
+starts, `apps/mobile/` (Expo). Docs, design, secrets, Nix, `justfile` and CI stay in the root.
+
+Web (from `apps/web/`):
 
 ```bash
 npm install
@@ -101,41 +107,34 @@ and update this table in the same PR.
 ## Things that are not obvious
 
 - **The course is 1D.** Every point is projected onto the route and reduced to "metres
-  from the start" (`src/lib/senda.ts`). The ETA is arithmetic on that number
-  (`src/lib/eta.ts`). If something starts reasoning in 2D, it is probably badly framed.
+  from the start" (`apps/web/src/lib/senda.ts`). The ETA is arithmetic on that number
+  (`apps/web/src/lib/eta.ts`). If something starts reasoning in 2D, it is probably badly framed.
 - **The data is sample data.** The course, the waypoints, the businesses and the schedule
   are not real. Do not present them as official.
-- **The Supabase adapter (`src/lib/datos/supabase.ts`) was never run** against a real
-  project.
 - **An agent never decrypts or displays the secrets in `secrets/`.** No `sops -d`, no
   `sops exec-env` by hand, no `just secrets`, no reading the age key. To run the server or
   the migrations with the development secrets use `just dev` or `just migrate`, which
   print nothing. A hook (`.claude/hooks/protect-secrets.py`) blocks it; it is a safety net,
   not permission to try.
-- **Never expose `SUPABASE_SERVICE_ROLE_KEY`** or any server key with the `NEXT_PUBLIC_`
-  prefix. The same goes for `ADMIN_CLAVE`, `SESION_SECRETO` and `INGESTA_TOKEN`.
-- **Every write in the web goes through `src/lib/sesion.ts`.** Reading is public; writing
-  requires an admin session, a reporter session or the ingest key. A new route that writes
-  has to ask for it. The role of a position is set by the server, never by the reporter's
-  body.
-- **Client components import `@/lib/datos/modo`, not `@/lib/datos`**: the index drags the
-  adapters (server code) into the phone's bundle.
-- **There is no "the" parade: there is the CURRENT parade**, which the server resolves
-  (`resolverDesfile()` in `src/lib/datos`, rule in `src/lib/desfiles.ts`). The client never
-  sends a parade id. An id that does not exist gives 404; one is never created by asking
-  for it.
-- **"Today" and "now" go through `src/lib/fecha.ts`** (Pasto time). No
+- **Never put a secret in a `NEXT_PUBLIC_` variable**: it is published to the browser. The
+  web has no server secrets; they all live in the backend.
+- **Every write goes through the backend's permissions** (`apps/backend/app/permissions.py`).
+  Reading is public; writing requires a user with the right permission. The role of a
+  position is set by the server, never by the reporter's body.
+- **There is no "the" parade: there is the CURRENT parade**, which the backend resolves. The
+  client never sends a parade id. An id that does not exist gives 404; one is never
+  created by asking for it.
+- **"Today" and "now" go through `apps/web/src/lib/fecha.ts`** (Pasto time). No
   `toISOString().slice(0, 10)` and no `getHours()`.
 - **A value the service worker served from the cache (`X-Desde-Cache`) is not a new
   value.** `useEstadoDesfile` tells them apart; do not break that.
-- **Every text the public sees goes in `src/lib/i18n-textos.ts`**, in Spanish and English.
+- **Every text the public sees goes in `apps/web/src/lib/i18n-textos.ts`**, in Spanish and English.
   The Spanish keeps the Pasto *voseo* of the design. The team's panels are Spanish only.
 - **If the code starts storing a new piece of data about people, `/privacidad` changes in
   the same PR.**
-- **If you change logic in `eta.ts`, `senda.ts`, `desfiles.ts` or `fecha.ts`, add or
-  adjust its test.**
-- **The base map is a file of our own** (`public/mapa/pasto.pmtiles`). If it changes,
-  `VERSION` in `public/sw.js` has to be bumped.
+- **If you change logic in `eta.ts`, `senda.ts` or `fecha.ts`, add or adjust its test.**
+- **The base map is a file of our own** (`apps/web/public/mapa/pasto.pmtiles`). If it changes,
+  `VERSION` in `apps/web/public/sw.js` has to be bumped.
 - **The backend's HTTP contract is English** while the web's own routes and types are
   Spanish. They are mapped in the web's `api` adapter (phase 7 of the plan), not by
   renaming one side to match the other in passing.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Development Postgres, without Docker: uses the one from the flake and keeps
-# its data in backend/.pgdata/ (outside git). Deleting that folder resets it.
+# its data in apps/backend/.pgdata/ (outside git). Deleting that folder resets it.
 #
 #   scripts/local-db.sh         starts it (the first time it also creates it)
 #   scripts/local-db.sh stop    stops it
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATA="$ROOT/backend/.pgdata"
+DATA="$ROOT/apps/backend/.pgdata"
 PORT=5432
 DB_USER=parade
 DB_PASSWORD=parade
@@ -35,7 +35,7 @@ if [ "${1:-}" = "stop" ]; then
 fi
 
 if [ ! -d "$DATA" ]; then
-  echo "Creating the local database in backend/.pgdata/ ..."
+  echo "Creating the local database in apps/backend/.pgdata/ ..."
   initdb -D "$DATA" --username postgres --auth-local trust --auth-host scram-sha-256 \
     --encoding UTF8 --locale C.UTF-8 >/dev/null
 fi

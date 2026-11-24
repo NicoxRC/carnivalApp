@@ -14,7 +14,7 @@ mandatory: read it in full before creating a branch or making a commit.
 - **English:** code, comments, docs, commit messages, PR titles and descriptions, issues.
 - **Spanish:** text shown to people (interface texts, error messages) and the conversation
   between the maintainer and the agent.
-- The web app (`src/`) is still written in Spanish and keeps its names until it is renamed
+- The web app (`apps/web/src/`) is still written in Spanish and keeps its names until it is renamed
   in its own effort; new backend code follows `docs/backend/GLOSSARY.md`.
 
 ---
@@ -106,21 +106,20 @@ bullet** explaining the why.
 
 ### Scope
 
-The affected area. The web scopes are the Spanish names of the areas of `src/` and stay
+The affected area. The web scopes are the Spanish names of the areas of `apps/web/src/` and stay
 that way until the web is renamed.
 
 | Scope | What it covers |
 |---|---|
-| `senda` | The course and the 1D projection (`src/lib/senda.ts`, `src/data/senda-carnaval.ts`) |
-| `eta` | The ETA calculation and its states (`src/lib/eta.ts`, `BarraEta`) |
+| `senda` | The course and the 1D projection (`apps/web/src/lib/senda.ts`, `apps/web/src/data/senda-carnaval.ts`) |
+| `eta` | The ETA calculation and its states (`apps/web/src/lib/eta.ts`, `BarraEta`) |
 | `mapa` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
 | `densidad` | The crowd map |
 | `comercios` | The businesses layer and its cards |
-| `datos` | The data adapters (`src/lib/datos/`) |
-| `api` | The routes in `src/app/api/` |
+| `datos` | How the web reads and writes the backend's data |
 | `simulacion` | The simulation engine and the `simular` script |
 | `reportero` | The reporters' panel (`/reportero`, `useReporte`) |
-| `admin` | The admin panel (`/admin`, `src/app/api/admin/`) |
+| `admin` | The admin panel (`/admin`) |
 | `programacion` | Parades and events: the current parade, "Hoy", "Desfiles" |
 | `fotos` | The photo wall and its moderation |
 | `avisos` | Proximity push notifications and team messages to everyone |
@@ -131,7 +130,7 @@ that way until the web is renamed.
 | `deps` | Dependencies |
 | `ci` | Continuous integration |
 | `repo` | Repository configuration, contribution docs, agent tooling |
-| `back` | The backend in `backend/` (FastAPI), its Nix environment, pre-commit, `just` and secrets with sops |
+| `back` | The backend in `apps/backend/` (FastAPI), its Nix environment, pre-commit, `just` and secrets with sops |
 | `infra` | Terraform and deployment (`infra/`) |
 
 If a new area appears (for example `mobile`), add it to this table in the same PR that
@@ -170,7 +169,7 @@ fix(eta): #21 discard speeds above 6 km/h
 ### Before opening the PR
 
 - [ ] The branch is up to date with `trunk` (`git fetch origin && git rebase origin/trunk`)
-- [ ] The project's checks pass locally. Web: `npm run typecheck` and `npm test` (and
+- [ ] The project's checks pass locally. Web (from `apps/web/`): `npm run typecheck` and `npm test` (and
       `npm run lint` once it exists). Backend: `just check` and `just test`, plus
       `just db-test` if a migration changed (see `docs/backend/PLAN.md`)
 - [ ] You tried the change by hand (for the UI: you opened the app and saw it work)
@@ -230,7 +229,7 @@ git pull origin trunk
 git switch -c feature/12-stages-layer
 
 # Work and commit (add files by name, not everything blindly)
-git add src/components/MapaDesfile.tsx src/data/tarimas.json
+git add apps/web/src/components/MapaDesfile.tsx apps/web/src/data/tarimas.json
 git commit -m "feat(mapa): #12 add the stages layer" -m "- Stages are where most people stop to watch the parade."
 
 # Push and open the PR

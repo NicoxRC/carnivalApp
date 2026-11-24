@@ -46,9 +46,9 @@ sops -d secrets/dev.enc.yaml
 ```
 
 `sops exec-env` decrypts in memory, passes each value as an environment variable to the
-command and leaves nothing on disk. The app reads them in `backend/app/config.py`.
+command and leaves nothing on disk. The app reads them in `apps/backend/app/config.py`.
 
-Tests do not use these files: they have fixed values in `backend/tests/conftest.py`.
+Tests do not use these files: they have fixed values in `apps/backend/tests/conftest.py`.
 
 **Agents never decrypt.** Only `just dev` and `just migrate` are allowed to them, because
 they print nothing; a Claude Code hook (`.claude/hooks/protect-secrets.py`) blocks the

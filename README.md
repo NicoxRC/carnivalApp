@@ -3,13 +3,12 @@
 Web app (PWA) to follow live the parades of the Carnaval de Negros y Blancos in Pasto,
 Colombia.
 
-**Status: it works end to end in local mode; the production path (Supabase) is written and
-untested.** You can open it, move a parade along the course, see the ETA, get a
-notification when it gets close, upload photos and manage everything from `/admin`. What is
-missing before going public is in "What is missing before this is really useful".
-
-A backend of its own (FastAPI + PostgreSQL, in `backend/`) is being built to replace the
-one embedded in the web app; see `docs/backend/PLAN.md`. The web app is written in Spanish
+**Status: the web is being connected to the backend.** The backend (FastAPI +
+PostgreSQL, in `apps/backend/`) has every module working and tested. The web's embedded
+backend and its in-memory mode were removed in #88, so until phase 7 of
+`docs/backend/PLAN.md` is done the web's screens open **without data**. What is missing
+before going public is in "What is missing before this is really useful".
+ The web app is written in Spanish
 (file names, identifiers and interface texts); the backend and all the docs are in English.
 
 ---
@@ -17,48 +16,25 @@ one embedded in the web app; see `docs/backend/PLAN.md`. The web app is written 
 ## Getting started
 
 ```bash
+cd apps/web
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The parade does not move on its own: there are three ways to
-move it.
+Open <http://localhost:3000>. The screens, the map and the course draw, but there is no
+parade, schedule or businesses until the web reads from the backend (issue #37). To run
+the backend: `just dev` (see `CLAUDE.md`).
 
-**1. The button (to show it).** On the map, bottom left: *Modo demo → Iniciar desfile*. It
-runs inside the Next process. It is what you use in a meeting room.
-
-**2. The script (to develop).** In another terminal:
-
-```bash
-npm run simular -- --velocidad=1.5 --desfile=demo
-```
-
-| Option | Default | What it does |
-|---|---|---|
-| `--velocidad` | `1.5` | km/h of the head when it moves |
-| `--intervalo` | `12` | seconds between reports |
-| `--separacion` | `550` | metres between head, middle and tail |
-| `--paradas` | `true` | `false` so it never stops |
-| `--inicio` | `0` | starting metres of the head |
-| `--desfile` | `demo` | parade id |
-| `--url` | `http://localhost:3000` | which deployment to point at |
-
-Against a deployment you need the ingest key: `INGESTA_TOKEN=… npm run simular --
---url=https://…` (or `--token=…`).
-
-**3. A real reporter.** Set `ADMIN_CLAVE` in `.env.local`, go to `/admin`, create a
-reporter in the *Reporteros* tab and open `/reportero` with that code on a phone. See
-"Reporters' panel".
-
-All three paths do `POST /api/posiciones` with the same payload. **There is no "pretend"
-path parallel to the real one**: what is tested in October is the same code that runs on
-December 31.
+The parade moves with positions sent to the backend: from the reporters' panel or with
+`npm run simular`, which will log in as an ingest user (issue #56). Both go through the
+same `POST /api/positions`: **there is no "pretend" path parallel to the real one**.
 
 ---
 
 ```bash
+cd apps/web
 npm run typecheck    # types
-npm test             # tests of the ETA, the course, dates and validations
+npm test             # tests of the ETA, the course and dates
 npm run build
 ```
 
@@ -71,43 +47,20 @@ Run them before opening a PR: the web has no CI yet (the backend's is in
 
 The course is a known fixed route. Any point (the head, the tail, the user) is projected
 onto that line and reduced to **a single number: metres from the start**
-(`src/lib/senda.ts`). The ETA is arithmetic on that number (`src/lib/eta.ts`).
+(`apps/web/src/lib/senda.ts`). The ETA is arithmetic on that number (`apps/web/src/lib/eta.ts`).
 
 Nothing in the app reasons in two dimensions. If something starts needing to, it is almost
 certainly badly framed.
 
 ---
 
-## The two data adapters
+## Where the data comes from
 
-A single interface (`src/lib/datos/adaptador.ts`), two implementations. The switch is
-`NEXT_PUBLIC_DATOS`.
-
-| | `local` (default) | `supabase` |
-|---|---|---|
-| Store | memory of the Next process + a copy in `.datos-local/` of what was edited in `/admin` | Postgres + Storage |
-| Real time | SSE (`/api/estado/stream`) | Supabase Realtime |
-| Survives a restart | edited data does (businesses, reporters, schedule, photos); live data does not | yes |
-| Works on Vercel | **no** | yes |
-| Tested | yes, end to end | **no** |
-
-### Honest status of the Supabase adapter
-
-It is **written but never run against a real project**, because there are no credentials
-yet. Connecting it should be environment variables only, but it has to be treated as
-untested until someone runs it:
-
-1. Create the project on Supabase (you have to do that: they are credentials).
-2. Paste `supabase/schema.sql` into the SQL Editor and run it.
-3. Copy `.env.example` to `.env.local` and fill in the three Supabase variables (the
-   `service_role` one is required: the server uses it to write and to read the reporters)
-   and those of the panels.
-4. Set `NEXT_PUBLIC_DATOS=supabase`.
-5. Load the real course into the `sendas` table.
-
-The local adapter **does not work on Vercel**: each serverless invocation is a different
-process, so the in-memory store and the simulator's `setInterval` do not survive. For a
-deployed demo Supabase has to be connected.
+From the backend in `apps/backend/`, and only from there. The web keeps the client logic
+(projection onto the course, ETA, dates in Pasto time, texts) and the screens; everything
+that is stored, validated or computed for everyone (the current parade, positions, crowd
+map, photos, push, users) lives in the backend. The connection is built in phase 7 of
+`docs/backend/PLAN.md`.
 
 ---
 
@@ -117,7 +70,7 @@ deployed demo Supabase has to be connected.
 Pasto, drawn by hand to be able to develop. The streets the waypoints name are indicative,
 not verified. The app warns about it on screen while that is so.
 
-To replace it, edit `src/data/senda-carnaval.ts`:
+To replace it, edit `apps/web/src/data/senda-carnaval.ts`:
 
 - `geojson.geometry.coordinates`: the official route as `[lng, lat]` (in that order!),
   from the starting point to the finish.
@@ -133,9 +86,9 @@ JSON because the `npm run simular` script runs outside the bundler.
 
 Ordered by what hurts most if ignored.
 
-**1. Connect Supabase and deploy with HTTPS.** Everything in this README was tested in
-local mode. The Supabase adapter, the photos bucket and Realtime **have never been run**.
-And without HTTPS the reporters' panel cannot be tested on a phone: the browser does not
+**1. Connect the web to the backend and deploy with HTTPS.** The backend is not deployed
+yet and the web does not read from it (phases 6 and 7 of `docs/backend/PLAN.md`). And
+without HTTPS the reporters' panel cannot be tested on a phone: the browser does not
 hand over GPS or keep the screen on over `http://` (except on `localhost`).
 
 **2. Test the reporters' panel while walking.** On iPhone and on Android, with the screen
@@ -166,18 +119,14 @@ UNESCO heritage.
 
 **Known limitations still open:**
 
-- **A single administrator with a single password.** There are no users, no record of who
-  changed what, and no way to close a stolen session before 12 hours. Solving it properly
-  is part of the backend plan (`docs/backend/PLAN.md`).
 - **The crowd map can still be faked with many IPs.** Device ids are signed by the server
   and issuing them is capped per IP, so a loop is no longer enough; but it is not
   tamper-proof. And it still measures users of the app, not people.
 - **The CSP allows inline scripts** (`'unsafe-inline'`): removing it requires per-request
   nonces. And there is a high-severity vulnerability in the `postcss` bundled with Next 15;
   it goes away by moving to Next 16.
-- **There is no lint and no error monitoring.** API failures stay in the server logs
-  (`[api]`) and `/api/salud` is there for an external monitor, but nothing alerts on its
-  own if something goes down.
+- **There is no lint and no error monitoring.** The backend's `/api/health` is there for an
+  external monitor, but nothing alerts on its own if something goes down.
 - **The 1D projection assumes the course does not pass twice through the same place.** If
   the official route has nearly parallel stretches, a point can snap to the wrong one; the
   projection would have to be bounded to the surroundings of the last position.
@@ -200,12 +149,10 @@ convincing, here is the why:
   leaves the user without a useful signal for nine. After 3 minutes a soft notice appears
   ("sin avanzar hace 4 min") and after 10 the headline turns red.
 - **The course goes in the bundle**, it is not fetched over the network. It is ~2 KB and
-  that way the map draws without depending on the cell tower. `/api/senda` is there for the
-  service worker and tools.
-- **`posiciones.rol` is denormalised** in the SQL schema. The read runs every few seconds
-  with thousands of clients on top and cannot afford a join.
+  that way the map draws without depending on the cell tower. The backend's `/api/course`
+  is there for tools.
 - **The app follows ONE parade: the "current" one.** The one in progress; if there is
-  none, today's; otherwise the next one (`src/lib/desfiles.ts`). The user is not asked
+  none, today's; otherwise the next one (the backend decides it). The user is not asked
   which one to watch, and reporters always write to that one. Asking for a parade that
   does not exist gives 404: one is never created by naming it.
 - **With the head silent for more than 5 min no time is given.** The headline becomes
@@ -216,22 +163,20 @@ convincing, here is the why:
   reset its age, and never lets it overwrite something more recent.
 - **One role, one sender.** If two reporters have the same role, the one already sending
   wins; the other stays as backup and takes the role only if the holder goes silent for a
-  minute (`RELEVO_MS`). Two phones blocks apart made the head jump.
+  minute. Two phones blocks apart made the head jump.
 - **A GPS fix worse than ±150 m is discarded** on the server (and worse than ±100 m is
   not even sent).
-- **"Today" is Pasto's date**, not the phone's and not UTC (`src/lib/fecha.ts`).
+- **"Today" is Pasto's date**, not the phone's and not UTC (`apps/web/src/lib/fecha.ts`).
 - **The brake on guessing passwords is a wait, not a block.** Each failure makes the next
   answer take longer (up to 5 s). With a block, six attempts by anyone locked the
   administrator out.
-- **No INSERT policy in RLS.** Only the backend writes. In phase 2, when the reporter's
-  phone sends GPS directly, one validating `auth.uid()` has to be added.
 
 ---
 
 ## The base map
 
-The tiles are our own: `public/mapa/pasto.pmtiles` (≈2.4 MB, all of Pasto up to z15,
-derived from OpenStreetMap by Protomaps) and the label fonts in `public/mapa/fuentes/`.
+The tiles are our own: `apps/web/public/mapa/pasto.pmtiles` (≈2.4 MB, all of Pasto up to z15,
+derived from OpenStreetMap by Protomaps) and the label fonts in `apps/web/public/mapa/fuentes/`.
 There is no dependency on `tile.openstreetmap.org`, whose usage policy does not allow a
 mass-market app.
 
@@ -239,19 +184,19 @@ mass-market app.
   visit and cuts from the cache the pieces the viewer asks for. Tested: with the network
   cut the map draws completely.
 - **The style** (paper colours, without the base map's points of interest) is generated
-  with `npm run mapa:estilo` and versioned in `src/data/estilo-mapa.json`, so the style
+  with `npm run mapa:estilo` and versioned in `apps/web/src/data/estilo-mapa.json`, so the style
   library is not sent to the phone.
-- **MapLibre's worker** is copied from `node_modules` to `public/mapa/` before every `dev`
+- **MapLibre's worker** is copied from `node_modules` to `apps/web/public/mapa/` before every `dev`
   and `build` (`npm run mapa:worker`): since version 6 it is not embedded.
 - **Updating the tiles** (once a year is enough):
 
   ```bash
   go install github.com/protomaps/go-pmtiles@latest
-  pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/mapa/pasto.pmtiles \
+  pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles apps/web/public/mapa/pasto.pmtiles \
     --bbox=-77.33,1.16,-77.23,1.26 --maxzoom=15
   ```
 
-  And bump `VERSION` in `public/sw.js`, or phones keep the old file.
+  And bump `VERSION` in `apps/web/public/sw.js`, or phones keep the old file.
   `NEXT_PUBLIC_MAPA_PMTILES` lets you point to another path **on the same domain**. If the
   file is served from another domain (R2, S3), the map works with a network but the
   service worker does not store it: the map is lost without signal.
@@ -259,33 +204,29 @@ mass-market app.
 ## Who can write
 
 Reading the parade is public. Writing is not: a fake head lies to the whole course at once.
-Everything goes through `src/lib/sesion.ts`:
+Everything that writes goes through the backend, with users, roles and permissions
+(`apps/backend/app/permissions.py`):
 
-| Who | How they get in | What they can do |
-|---|---|---|
-| Administrator | `/admin` with `ADMIN_CLAVE` | Everything: schedule, businesses, reporters, announcements, photos, correcting positions |
-| Reporter | `/reportero` with a code the admin generates | Send positions of the current parade, always with their role |
-| Public | no account; a device id signed by the server | Contribute to the crowd map and upload photos (pending moderation) |
-| Script / tools | `Authorization: Bearer <INGESTA_TOKEN>` | Send positions |
+| Role | What they can do |
+|---|---|
+| `admin` | Everything, including managing users |
+| `coordinator` | The parade's state and positions of any role |
+| `editor` | Parades, schedule, businesses and announcements |
+| `moderator` | Photo moderation |
+| `reporter` | Send positions of the current parade, always with their own post |
+| `ingest` | Send positions of any post (the simulator and tools) |
 
-- Sessions are cookies signed with `SESION_SECRETO`. There is no sessions table.
-- Only the hash of the reporter's code is stored. It is shown once on creation; if it is
-  lost, another is generated and the old one stops working. Deactivating a reporter also
-  cuts whatever sessions they have open.
-- Each failed attempt slows down the next answer from that IP (up to 5 s). It lives in
-  process memory: on serverless it is a brake, not a wall.
+- Login with email and password returns a token (JWT); there is no sessions table.
 - The public has no account. For the crowd map and photos a device id issued and signed by
-  the server is used (`POST /api/dispositivo`), with a cap on issuing per IP.
-- **In local mode without `INGESTA_TOKEN` ingestion is open**, to develop. In supabase mode
-  a key is always needed. The embedded simulator only exists in local mode.
-- It is deliberately small: the backend in `backend/` replaces it with users, roles and
-  permissions without touching the screens.
+  the server is used (`POST /api/device`), with a cap on issuing per IP.
+- The web's panels still log in the old way (a password and reporter codes) and have no
+  backend behind them until issue #55 moves them to these users.
 
 ## Reporters' panel
 
 `/reportero`. A dark, minimal screen, designed for four hours in the hand in full sun.
 
-1. The reporter types their code (once a day) and taps **Empezar a reportar**.
+1. The reporter logs in (once a day) and taps **Empezar a reportar**.
 2. From there **GPS goes out on its own every 20 s**. Nothing has to be touched.
 3. **«Estoy aquí»** sends instantly. For when the parade stops or starts again.
 4. If GPS is no good, they mark **by reference point** (the list of waypoints).
@@ -307,7 +248,7 @@ GPS; the panel warns about it.
 
 ## Admin panel
 
-`/admin`, with `ADMIN_CLAVE`. Five tabs:
+`/admin`. Five tabs (until issue #55 it has no backend behind it):
 
 - **En vivo**: the current parade on a map, where each role is, how long ago it sent and
   who reports it. Buttons to mark it in progress, finish it or restart it.
@@ -339,7 +280,7 @@ places**, not street crossings, and the app speaks in those terms:
 - The user gets confirmation of where the app thinks they are ("estás por Unicentro"),
   which is the only way they can notice if the point is wrong.
 
-Waypoints are edited in `src/data/senda-carnaval.ts`: name, short name, type and
+Waypoints are edited in `apps/web/src/data/senda-carnaval.ts`: name, short name, type and
 coordinate. Each one is projected onto the course on its own.
 
 ⚠️ **The waypoints that ship are a template.** The names are of places that exist in
@@ -368,35 +309,22 @@ needs to enlarge the text, and MapLibre already captures its own gestures inside
 
 ## Going to production
 
-⚠️ **As it stands it cannot be deployed on Vercel.** The `local` adapter keeps everything
-in process memory, and on serverless each request is a different process: the parade's
-positions and the crowd map would be lost between one load and the next. It is not a bug,
-it is the boundary of development mode.
+Steps, in order (detailed in phases 6 and 7 of `docs/backend/PLAN.md`):
 
-Steps, in order:
+**1. Deploy the backend** on Railway with Terraform, with continuous deployment on merge
+(issues #33 and #36).
 
-**1. Supabase (the maintainer does it: they are credentials).**
-   1. Create a project on supabase.com (the free plan is plenty).
-   2. SQL Editor → paste `supabase/schema.sql` → Run.
-   3. Project Settings → API → copy `URL`, `anon public` and `service_role`.
+**2. Point the web at the backend** (`NEXT_PUBLIC_API_URL`) and move the panels' login to
+the backend's users (issues #37 and #55).
 
-**2. Connect (with those three keys).**
-   - `.env.local` with `NEXT_PUBLIC_DATOS=supabase`, the three Supabase variables and
-     `ADMIN_CLAVE`, `SESION_SECRETO` and `INGESTA_TOKEN` (see `.env.example`).
-   - Load the course into the `sendas` table and create the parade's row.
-   - **Test the Supabase adapter end to end**, which today is written but never run
-     against a real project. Assume something fails the first time.
-
-**3. Vercel (the maintainer's account).**
-   - Import the repo into Vercel and set the same environment variables.
-   - `SUPABASE_SERVICE_ROLE_KEY` goes only as a server variable. Never with the
-     `NEXT_PUBLIC_` prefix, which would publish it to the browser.
+**3. Vercel (the maintainer's account).** Import the repo into Vercel with **Root
+Directory `apps/web`** and set the web's environment variables. The web no longer has
+server secrets: they all live in the backend.
 
 ### What you need to know before showing it to someone
 
-- **The embedded simulator (`Modo demo`) does not work on Vercel**, because it is a
-  `setInterval` inside the process. To move the parade on the deployment the script is
-  used: `INGESTA_TOKEN=… npm run simular -- --url=https://your-deployment.vercel.app`.
+- **To move the parade on a deployment** the simulator script is used against the
+  backend, logged in as an ingest user (issue #56).
 - **It is still untested with a bad network**, which is the project's number one risk.
 - The course, the waypoints, the businesses and the schedule are still **sample data**.
 
@@ -439,13 +367,13 @@ toilet on a map someone uses to find a toilet is worse than not offering the lay
   twice; anyone could inflate them with a script, so they are good for showing interest,
   not for billing per click.
 
-Businesses are managed from `/admin`. In local mode, `src/data/comercios-ejemplo.json` is
-the initial load. ⚠️ The ten in the JSON are **made up**: no real business has signed up
+Businesses are managed from `/admin`. `apps/web/src/data/comercios-ejemplo.json` is the
+source of the backend's sample seed (`npm run seed:export`). ⚠️ The ten in the JSON are **made up**: no real business has signed up
 for anything.
 
 ## Notifications, sharing and photos
 
-- **«Avisame cuando esté cerca».** In the ETA bar. With VAPID keys on the server
+- **«Avisame cuando esté cerca».** In the ETA bar. With VAPID keys on the backend
   (`npm run push:llaves`) the notification arrives even with the app closed: every time a
   position of the head comes in, it is checked who has 10 min or less left, they are
   notified and their subscription is deleted. Without keys, or if the browser does not
@@ -461,7 +389,7 @@ for anything.
   someone on the team approves it. Maximum 8 per device per hour.
 - **Where it went.** In «Desfiles», each parade that has already gone out shows at what
   time the head passed each reference point.
-- **English.** The interface is in Spanish and English (`src/lib/i18n-textos.ts`); it is
+- **English.** The interface is in Spanish and English (`apps/web/src/lib/i18n-textos.ts`); it is
   chosen automatically from the phone's language and can be changed. Content loaded by the
   team is not translated.
 
@@ -471,8 +399,8 @@ The "Gentío" layer paints the route from green to red according to how many peo
 each 100 m stretch. It helps decide where to stand.
 
 **How it is measured.** Each phone sends once a minute **the number of the stretch** it is
-in: never lat/lng, never a history. In the database there is one row per device that is
-overwritten; the id only serves not to count the same person twice.
+in: never lat/lng, never a history. In the backend's database there is one row per device
+that is overwritten; the id only serves not to count the same person twice.
 
 **Two safeguards, and why they exist:**
 
@@ -538,47 +466,35 @@ built as they were:
 ## Structure
 
 ```
-src/
-  app/
-    page.tsx              live map
-    hoy/ desfiles/ fotos/ the other three tabs
-    privacidad/           which data the app uses (draft)
-    reportero/ admin/     the team's panels
-    error.tsx not-found.tsx robots.ts manifest.ts
-    api/
-      posiciones/         ingestion: the only way in
-      estado/             snapshot + SSE stream of the current parade
-      programacion/       parades and events (public)
-      desfiles/[id]/recorrido/  at what time it passed each waypoint
-      comercios/          the visible ones (public) + metrics counter
-      densidad/ dispositivo/    crowd map and signed anonymous id
-      avisos-push/        subscription to «avisame cuando esté cerca»
-      fotos/              upload, list and serve photos
-      reportero/sesion/   log in and out with the code
-      admin/              session, parades, events, announcements, businesses, reporters, photos
-      simulacion/         the demo button (local mode only)
-      salud/ senda/
-  components/
-    MapaDesfile.tsx       MapLibre: course in 3 stretches, markers, points of interest
-    BarraEta.tsx          the white sheet: the ETA states, notification and sharing
-    Pantalla*.tsx         one per tab
-    PanelReportero.tsx    the reporters' panel
-    admin/                the admin panel, one tab per file
-  lib/
-    senda.ts              1D projection (Turf)
-    eta.ts                speed, ranges, stops, no signal
-    desfiles.ts fecha.ts  which is the current parade; dates in Pasto time
-    sesion.ts             who can write: signed cookies, codes, rate limits
-    push.ts recorrido.ts  proximity notifications; passing each waypoint
-    i18n-textos.ts        Spanish and English
-    datos/                local + Supabase adapter (modo.ts: what the client sees)
-    *.test.ts             tests (npm test)
-  data/                   sample data and map style
-scripts/                  simulate, generate style/icons/keys, copy worker; backend helpers
-supabase/schema.sql
-public/sw.js              service worker: offline, map and push notifications
-public/mapa/              Pasto tiles and label fonts
-backend/                  the FastAPI backend (see docs/backend/PLAN.md)
+apps/
+  web/                    the Next.js PWA
+    src/
+      app/
+        page.tsx              live map
+        hoy/ desfiles/ fotos/ the other three tabs
+        privacidad/           which data the app uses (draft)
+        reportero/ admin/     the team's panels
+        error.tsx not-found.tsx robots.ts manifest.ts
+      components/
+        MapaDesfile.tsx       MapLibre: course in 3 stretches, markers, points of interest
+        BarraEta.tsx          the white sheet: the ETA states, notification and sharing
+        Pantalla*.tsx         one per tab
+        PanelReportero.tsx    the reporters' panel
+        admin/                the admin panel, one tab per file
+      lib/
+        senda.ts              1D projection (Turf)
+        eta.ts                speed, ranges, stops, no signal
+        fecha.ts              dates in Pasto time
+        i18n-textos.ts        Spanish and English
+        hooks/                live state, schedule, businesses, crowd map, GPS
+        *.test.ts             tests (npm test)
+      data/                   sample data and map style
+    scripts/                simulate, generate style/icons/keys, copy worker; backend helpers
+    public/sw.js            service worker: offline, map and push notifications
+    public/mapa/            Pasto tiles and label fonts
+  backend/                the FastAPI backend (see docs/backend/PLAN.md)
+  mobile/                 the Expo app (not started yet)
 docs/backend/             backend plan and glossary
 secrets/                  encrypted secrets (sops + age)
+scripts/                  local Postgres and the sops check (shared tooling)
 ```

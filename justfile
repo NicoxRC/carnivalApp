@@ -16,7 +16,7 @@ default:
 
 # Start everything the backend needs and run it on http://localhost:8000
 dev: migrate
-    sops exec-env {{ dev_secrets }} 'cd backend && uv run fastapi dev'
+    sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run fastapi dev'
 
 # Start the local Postgres (the first time it also creates it)
 db:
@@ -28,19 +28,19 @@ db-stop:
 
 # Apply pending migrations to the local database
 migrate: db
-    sops exec-env {{ dev_secrets }} 'cd backend && uv run alembic upgrade head'
+    sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run alembic upgrade head'
 
 # Create a user with the admin role in the local database (asks for the password)
 create-admin email name: migrate
-    ADMIN_EMAIL={{ quote(email) }} ADMIN_NAME={{ quote(name) }} sops exec-env {{ dev_secrets }} 'cd backend && uv run python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "$ADMIN_NAME"'
+    ADMIN_EMAIL={{ quote(email) }} ADMIN_NAME={{ quote(name) }} sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "$ADMIN_NAME"'
 
-# Load the course, parades and events of backend/seed/ into the local database
+# Load the course, parades and events of apps/backend/seed/ into the local database
 seed: migrate
-    sops exec-env {{ dev_secrets }} 'cd backend && uv run python -m app.cli seed'
+    sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run python -m app.cli seed'
 
 # Run the backend tests; extra arguments go to pytest
 test *args:
-    cd backend && uv run pytest {{ args }}
+    cd apps/backend && uv run pytest {{ args }}
 
 # Run every pre-commit hook on the whole repo
 check:
@@ -58,7 +58,7 @@ db-test:
     trap 'docker compose down --volumes' EXIT
     export DATABASE_URL={{ test_database_url }}
     export JWT_SECRET=not-a-secret-only-for-the-migration-check
-    cd backend
+    cd apps/backend
     echo "==> upgrade head"
     uv run alembic upgrade head
     echo "==> models and migrations agree"
