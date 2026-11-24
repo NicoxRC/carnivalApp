@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { pedirApi } from "@/lib/api/cliente";
+import { recorridoDesdeApi } from "@/lib/api/programacion";
 import { minutosDeHora, partesDeFecha } from "@/lib/fecha";
 import { horaCorta, horaDelDia } from "@/lib/formato";
 import { useProgramacion } from "@/lib/hooks/useProgramacion";
@@ -156,10 +158,10 @@ function Recorrido({ desfileId }: { desfileId: string }) {
   useEffect(() => {
     if (!abierto) return;
     let vivo = true;
-    fetch(`/api/desfiles/${encodeURIComponent(desfileId)}/recorrido`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ pasos: PasoPorHito[] }>) : null))
-      .then((d) => {
-        if (vivo && d) setPasos(d.pasos);
+    pedirApi(`/api/parades/${encodeURIComponent(desfileId)}/progress`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (vivo) setPasos(recorridoDesdeApi(json));
       })
       .catch(() => undefined);
     return () => {

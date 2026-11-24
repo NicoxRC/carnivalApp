@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { pedirApi } from "@/lib/api/cliente";
+import { comerciosDesdeApi } from "@/lib/api/comercios";
 import type { Comercio } from "@/lib/tipos";
 
 /**
@@ -14,13 +16,14 @@ export function useComercios(activo: boolean): Comercio[] {
   useEffect(() => {
     if (!activo) return;
     let vivo = true;
-    fetch("/api/comercios")
-      .then((r) => (r.ok ? (r.json() as Promise<{ comercios: Comercio[] }>) : null))
-      .then((d) => {
-        if (vivo && d) setComercios(d.comercios);
+    pedirApi("/api/businesses")
+      .then((r) => r.json())
+      .then((json) => {
+        if (vivo) setComercios(comerciosDesdeApi(json));
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         // Sin red y sin copia: la capa queda vacía, el resto del mapa sigue.
+        if (!(error instanceof TypeError)) console.warn("No se pudieron leer los comercios:", error);
       });
     return () => {
       vivo = false;
