@@ -34,9 +34,10 @@ migrate: db
 create-admin email name: migrate
     ADMIN_EMAIL={{ quote(email) }} ADMIN_NAME={{ quote(name) }} sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "$ADMIN_NAME"'
 
-# Load the course, parades and events of apps/backend/seed/ into the local database
+# Load the course, parades, events and businesses of apps/backend/seed/ into the local
+# database, and the simulator's ingest user (simulator@local)
 seed: migrate
-    sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run python -m app.cli seed'
+    sops exec-env {{ dev_secrets }} 'cd apps/backend && uv run python -m app.cli seed --dev'
 
 # Run the backend tests; extra arguments go to pytest
 test *args:

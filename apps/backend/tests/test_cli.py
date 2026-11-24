@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import pytest
 
-from app.cli import create_admin
+from app.cli import SIMULATOR_EMAIL, SIMULATOR_PASSWORD, create_admin, ensure_simulator
 from app.permissions import Role
 from app.repositories.users import UsersMemory
 from app.security import verify_password
@@ -80,3 +80,27 @@ async def test_create_admin_invalid_email_fails() -> None:
 
     assert code == 1
     assert await repo.list() == []
+
+
+async def test_ensure_simulator_ok(capsys: pytest.CaptureFixture[str]) -> None:
+    repo = UsersMemory()
+
+    assert await ensure_simulator(repo, environment="dev") == 0
+    user = await repo.by_email(SIMULATOR_EMAIL)
+    assert user is not None
+    assert user.roles == {Role.INGEST}
+    assert verify_password(SIMULATOR_PASSWORD, user.password_hash)
+
+    # Run again, it puts the account back as it should be instead of failing.
+    await repo.update(user.id, {"active": False})
+    assert await ensure_simulator(repo, environment="dev") == 0
+    again = await repo.by_email(SIMULATOR_EMAIL)
+    assert again is not None and again.active and again.id == user.id
+
+
+async def test_ensure_simulator_fails(capsys: pytest.CaptureFixture[str]) -> None:
+    repo = UsersMemory()
+
+    assert await ensure_simulator(repo, environment="prod") == 1
+    assert await repo.by_email(SIMULATOR_EMAIL) is None
+    assert "ENVIRONMENT=dev" in capsys.readouterr().err

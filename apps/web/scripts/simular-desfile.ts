@@ -2,32 +2,47 @@
  * Simulador de desfile.
  *
  *   npm run simular
- *   npm run simular -- --velocidad=1.5 --desfile=demo
- *   npm run simular -- --url=https://sigue-el-desfile.vercel.app --intervalo=12
- *   INGESTA_TOKEN=… npm run simular -- --url=https://…
+ *   npm run simular -- --velocidad=1.5 --intervalo=12
+ *   npm run simular -- --url=https://api.… --email=… --password=…
  *
- * Recorre la senda con un tracker falso y hace POST a /api/posiciones
- * exactamente igual que lo haría el celular de un reportero: mismo endpoint,
- * mismo payload, misma validación. No hay un camino "de mentiras" paralelo.
+ * Recorre la senda con un tracker falso y manda las tres posiciones (cabeza,
+ * mitad, cola) al backend por `POST /api/positions`, la misma puerta del
+ * celular de un reportero: mismo endpoint, misma validación. No hay un camino
+ * "de mentiras" paralelo. Siempre al desfile ACTUAL, que decide el backend.
  *
- * Requiere que la app esté corriendo (`npm run dev` en otra terminal).
- *
- * Contra un despliegue (o en local con INGESTA_TOKEN definido) hace falta la
- * llave de ingesta: se lee de la variable INGESTA_TOKEN o de --token.
+ * Entra con un usuario de servicio con rol `ingest` (puede mandar cualquier
+ * puesto). En local, `just seed` crea `simulator@local` y este script lo usa
+ * por defecto; requiere el backend corriendo (`just dev`). Contra otro
+ * servidor hay que pasar --email y --password (o SIMULADOR_EMAIL y
+ * SIMULADOR_PASSWORD) de una cuenta real.
  */
 
+import { posicionParaApi } from "../src/lib/api/posiciones";
 import { SENDA } from "../src/lib/senda";
 import { INTERVALO_REPORTE_MS, SimuladorDesfile } from "../src/lib/simulacion/motor";
 
+/** Las de `just seed` (`apps/backend/app/cli.py`). Solo existen en una base local. */
+const URL_LOCAL = "http://localhost:8000";
+const EMAIL_LOCAL = "simulator@local";
+const PASSWORD_LOCAL = "simulator-dev-only";
+
 interface Opciones {
   url: string;
-  desfile: string;
+  email: string;
+  password: string;
   velocidad: number;
   intervaloS: number;
   separacion: number;
   paradas: boolean;
   inicio: number;
-  token: string | null;
+}
+
+function esLocal(url: string): boolean {
+  try {
+    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 function leerArgumentos(argv: string[]): Opciones {
@@ -48,15 +63,24 @@ function leerArgumentos(argv: string[]): Opciones {
     return n;
   };
 
+  const url = (mapa.get("url") ?? URL_LOCAL).replace(/\/+$/, "");
+  const email = mapa.get("email") ?? process.env.SIMULADOR_EMAIL;
+  const password = mapa.get("password") ?? process.env.SIMULADOR_PASSWORD;
+  if ((!email || !password) && !esLocal(url)) {
+    // Las credenciales de desarrollo nunca salen hacia un servidor real.
+    console.error(`Contra ${url} hace falta una cuenta real: --email=… --password=… (o SIMULADOR_EMAIL y SIMULADOR_PASSWORD).`);
+    process.exit(1);
+  }
+
   return {
-    url: (mapa.get("url") ?? "http://localhost:3000").replace(/\/$/, ""),
-    desfile: mapa.get("desfile") ?? "demo",
+    url,
+    email: email ?? EMAIL_LOCAL,
+    password: password ?? PASSWORD_LOCAL,
     velocidad: num("velocidad", 1.5),
     intervaloS: num("intervalo", INTERVALO_REPORTE_MS / 1000),
     separacion: num("separacion", 550),
     paradas: mapa.get("paradas") !== "false",
     inicio: num("inicio", 0),
-    token: mapa.get("token") ?? process.env.INGESTA_TOKEN ?? null,
   };
 }
 
@@ -69,7 +93,8 @@ const sim = new SimuladorDesfile({
   inicioM: o.inicio,
 });
 
-const endpoint = `${o.url}/api/posiciones`;
+const endpoint = `${o.url}/api/positions`;
+let token: string | null = null;
 let enviados = 0;
 let fallidos = 0;
 let corriendo = true;
@@ -77,8 +102,8 @@ let corriendo = true;
 console.log(`
 Sigue el Desfile — simulador
   senda      : ${SENDA.nombre} (${(SENDA.longitudMetros / 1000).toFixed(2)} km)
-  destino    : ${endpoint}
-  desfile    : ${o.desfile}
+  destino    : ${endpoint} (el desfile actual)
+  usuario    : ${o.email}
   velocidad  : ${o.velocidad} km/h
   intervalo  : ${o.intervaloS} s
   separación : ${o.separacion} m entre cabeza-mitad-cola
@@ -87,27 +112,61 @@ Sigue el Desfile — simulador
 Ctrl+C para detener.
 `);
 
+/** El mensaje del backend (`{"error": "..."}`) o, si no hay, el cuerpo crudo. */
+async function mensajeDe(res: Response): Promise<string> {
+  const texto = await res.text().catch(() => "");
+  try {
+    const cuerpo = JSON.parse(texto) as { error?: unknown };
+    if (typeof cuerpo.error === "string") return cuerpo.error;
+  } catch {
+    // No era JSON.
+  }
+  return texto.slice(0, 160);
+}
+
+/** Inicia sesión y guarda el token. Una cuenta mal puesta detiene el script. */
+async function entrar(): Promise<void> {
+  const res = await fetch(`${o.url}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: o.email, password: o.password }),
+  });
+  if (!res.ok) {
+    console.error(`  ✗ no se pudo entrar como ${o.email}: ${res.status} ${await mensajeDe(res)}`);
+    if (o.email === EMAIL_LOCAL) console.error("    ¿Corriste `just seed`? Crea ese usuario en la base local.");
+    process.exit(1);
+  }
+  token = ((await res.json()) as { token: string }).token;
+}
+
+function mandar(cuerpo: string): Promise<Response> {
+  return fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: cuerpo,
+  });
+}
+
 async function enviar() {
-  const entradas = sim.avanzar(o.intervaloS, o.desfile);
+  // Las tres posiciones en un solo POST: menos viajes, que es lo que hará el
+  // reportero real cuando la red esté saturada. El id del desfile no viaja.
+  const cuerpo = JSON.stringify(sim.avanzar(o.intervaloS, "actual").map(posicionParaApi));
 
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(o.token ? { Authorization: `Bearer ${o.token}` } : {}),
-      },
-      // Las tres posiciones en un solo POST: menos viajes, que es lo que hará
-      // el reportero real cuando la red esté saturada.
-      body: JSON.stringify(entradas),
-    });
+    if (!token) await entrar();
+    let res = await mandar(cuerpo);
+    if (res.status === 401) {
+      // El token venció (dura 20 h) o lo revocaron: se entra de nuevo una vez.
+      await entrar();
+      res = await mandar(cuerpo);
+    }
 
     if (!res.ok) {
       fallidos++;
-      const texto = await res.text().catch(() => "");
-      console.error(`  ✗ ${res.status} ${texto.slice(0, 160)}`);
-      if (res.status === 401) {
-        console.error("    Falta la llave: define INGESTA_TOKEN o pasa --token=…");
+      console.error(`  ✗ ${res.status} ${await mensajeDe(res)}`);
+      if (res.status === 401 || res.status === 403) {
+        console.error(`    ${o.email} no puede mandar posiciones: necesita el rol ingest.`);
+        process.exit(1);
       }
       return;
     }
@@ -115,7 +174,7 @@ async function enviar() {
   } catch (e) {
     fallidos++;
     const msg = e instanceof Error ? e.message : String(e);
-    console.error(`  ✗ sin respuesta de ${o.url} — ¿está corriendo "npm run dev"? (${msg})`);
+    console.error(`  ✗ sin respuesta de ${o.url} — ¿está corriendo el backend (\`just dev\`)? (${msg})`);
     return;
   }
 
