@@ -1,5 +1,5 @@
-import { PantallaMapa } from "@/components/PantallaMapa";
+import { MapScreen } from "@/components/MapScreen";
 
-export default function Pagina() {
-  return <PantallaMapa />;
+export default function Page() {
+  return <MapScreen />;
 }

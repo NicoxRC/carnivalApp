@@ -10,8 +10,6 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    // El papel de la app, no el negro del tema oscuro que hubo antes: es el
-    // color de la pantalla de arranque al abrirla desde el ícono.
     background_color: "#eceae2",
     theme_color: "#eceae2",
     lang: "es-CO",

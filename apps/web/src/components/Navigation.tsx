@@ -5,8 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { setLanguage, useLanguage } from "@/lib/i18n";
 
-/** Los cuatro iconos del diseño, como trazo de 2px sobre 24×24. */
-const ICONOS: Record<string, React.ReactNode> = {
+const ICONS: Record<string, React.ReactNode> = {
   map: <path d="M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4l-5.5 2m0 12V6m0 0L9 4" />,
   today: (
     <>
@@ -31,26 +30,22 @@ const ICONOS: Record<string, React.ReactNode> = {
 };
 
 const TABS = [
-  { href: "/", key: "nav.map", icono: "map" },
-  { href: "/hoy", key: "nav.today", icono: "today" },
-  { href: "/desfiles", key: "nav.parades", icono: "parades" },
-  { href: "/fotos", key: "nav.photos", icono: "photos" },
+  { href: "/", key: "nav.map", icon: "map" },
+  { href: "/today", key: "nav.today", icon: "today" },
+  { href: "/parades", key: "nav.parades", icon: "parades" },
+  { href: "/photos", key: "nav.photos", icon: "photos" },
 ] as const;
 
-export function Navegacion() {
+export function Navigation() {
   const path = usePathname();
   const { language, t } = useLanguage();
 
-  // Los paneles del equipo no son pestañas del público: no llevan esta barra,
-  // y al reportero le quita la tentación de salirse del panel en plena senda.
-  if (path.startsWith("/admin") || path.startsWith("/reportero")) return null;
+  if (path.startsWith("/admin") || path.startsWith("/reporter")) return null;
 
   return (
     <nav
       className={
-        // Móvil: barra inferior pegada, dentro del área segura.
-        "pb-seguro sticky bottom-0 z-30 border-t border-borde bg-blanco " +
-        // Escritorio: riel de 92 px a la izquierda, alto completo y fijo.
+        "pb-safe sticky bottom-0 z-30 border-t border-line bg-white " +
         "lg:top-0 lg:h-dvh lg:w-[92px] lg:shrink-0 lg:border-t-0 lg:border-r lg:pb-0"
       }
     >
@@ -62,24 +57,24 @@ export function Navegacion() {
               <Link
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
-                className="flex flex-col items-center gap-[3px] rounded-xl py-2 lg:py-3 lg:hover:bg-papel-2"
+                className="flex flex-col items-center gap-[3px] rounded-xl py-2 lg:py-3 lg:hover:bg-paper-2"
               >
                 <svg
                   width="24"
                   height="24"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke={active ? "var(--color-cabeza)" : "var(--color-tinta-4)"}
+                  stroke={active ? "var(--color-head)" : "var(--color-ink-4)"}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   aria-hidden
                 >
-                  {ICONOS[tab.icono]}
+                  {ICONS[tab.icon]}
                 </svg>
                 <span
                   className={`text-[11px] ${
-                    active ? "font-extrabold text-cabeza" : "font-bold text-tinta-4"
+                    active ? "font-extrabold text-head" : "font-bold text-ink-4"
                   }`}
                 >
                   {t(tab.key)}
@@ -88,14 +83,11 @@ export function Navegacion() {
             </li>
           );
         })}
-        {/* Solo en escritorio: en el celular el cambio de idioma está en la
-            pantalla de inicio y en la de privacidad, para no robarle una
-            quinta parte de la barra a algo que se toca una vez. */}
         <li className="hidden lg:mt-auto lg:block">
           <button
             type="button"
             onClick={() => setLanguage(language === "es" ? "en" : "es")}
-            className="w-full rounded-xl py-3 text-[11px] font-bold text-tinta-3 hover:bg-papel-2"
+            className="w-full rounded-xl py-3 text-[11px] font-bold text-ink-3 hover:bg-paper-2"
           >
             {t("nav.language")}
           </button>

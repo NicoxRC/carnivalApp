@@ -25,7 +25,7 @@
 
 // Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
 // se guarda por su ruta, así que sin esto los celulares se quedan con el viejo.
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE_APP = `sed-app-${VERSION}`;
 const CACHE_MAPA = `sed-mapa-${VERSION}`;
 const CACHE_DATOS = `sed-datos-${VERSION}`;
@@ -52,9 +52,9 @@ const ICONO_AVISO = "/icono-192.png";
 
 const PRECARGA = [
   "/",
-  "/hoy",
-  "/desfiles",
-  "/fotos",
+  "/today",
+  "/parades",
+  "/photos",
   "/icono.svg",
   "/icono-192.png",
   "/mapa/maplibre-worker.mjs",

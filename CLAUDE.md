@@ -133,7 +133,7 @@ and update this table in the same PR.
   value.** `useParadeState` tells them apart; do not break that.
 - **Every text the public sees goes in `apps/web/src/lib/i18n-texts.ts`**, in Spanish and English.
   The Spanish keeps the Pasto *voseo* of the design. The team's panels are Spanish only.
-- **If the code starts storing a new piece of data about people, `/privacidad` changes in
+- **If the code starts storing a new piece of data about people, `/privacy` changes in
   the same PR.**
 - **If you change logic in `eta.ts`, `course.ts` or `dates.ts`, add or adjust its test.**
 - **The base map is a file of our own** (`apps/web/public/mapa/pasto.pmtiles`). If it changes,
