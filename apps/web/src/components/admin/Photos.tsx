@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { api, SecondaryButton, CARD_CLASS } from "@/components/admin/common";
+import { api, CARD_CLASS, failureText, SecondaryButton } from "@/components/admin/common";
+import { API_BASE } from "@/lib/api/client";
+import { parsePhotos } from "@/lib/api/photos";
+import { readToken } from "@/lib/session";
 import { nearestWaypoint } from "@/lib/course";
 import type { Photo } from "@/lib/types";
 
@@ -11,10 +14,15 @@ export function PhotosAdmin({ onExpired }: { onExpired: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const r = await api<{ photos: Photo[] }>("/api/admin/fotos");
-    if (r.ok) setPhotos(r.data.photos);
-    else if (r.status === 401) onExpired();
-    else setError(r.error);
+    const r = await api<unknown>("/api/admin/photos");
+    if (r.ok) {
+      try {
+        setPhotos(parsePhotos(r.data));
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Respuesta inválida.");
+      }
+    } else if (r.status === 401) onExpired();
+    else setError(failureText(r));
   }, [onExpired]);
 
   useEffect(() => {
@@ -24,15 +32,15 @@ export function PhotosAdmin({ onExpired }: { onExpired: () => void }) {
   }, [reload]);
 
   const moderate = async (f: Photo, state: Photo["state"]) => {
-    const r = await api(`/api/admin/fotos/${f.id}`, { method: "PATCH", body: JSON.stringify({ state }) });
-    if (!r.ok) setError(r.error);
+    const r = await api(`/api/admin/photos/${encodeURIComponent(f.id)}`, { method: "PATCH", body: JSON.stringify({ state }) });
+    if (!r.ok) setError(failureText(r));
     void reload();
   };
 
   const remove = async (f: Photo) => {
     if (!confirm("¿Borrar esta foto para siempre?")) return;
-    const r = await api(`/api/admin/fotos/${f.id}`, { method: "DELETE" });
-    if (!r.ok) setError(r.error);
+    const r = await api(`/api/admin/photos/${encodeURIComponent(f.id)}`, { method: "DELETE" });
+    if (!r.ok) setError(failureText(r));
     void reload();
   };
 
@@ -42,8 +50,7 @@ export function PhotosAdmin({ onExpired }: { onExpired: () => void }) {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {list.map((f) => (
         <figure key={f.id} className="overflow-hidden rounded-2xl border border-line-2 bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element -- imagen privada servida por la API */}
-          <img src={f.url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+          <PrivateImage url={f.url} />
           <figcaption className="space-y-2 p-2.5">
             <p className="text-[12px] text-ink-3">
               {new Date(f.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "short" })}
@@ -111,4 +118,32 @@ export function PhotosAdmin({ onExpired }: { onExpired: () => void }) {
       )}
     </div>
   );
+}
+
+function PrivateImage({ url }: { url: string }) {
+  const fromApi = API_BASE !== null && url.startsWith(API_BASE);
+  const [src, setSrc] = useState<string | null>(fromApi ? null : url);
+
+  useEffect(() => {
+    if (!fromApi) return setSrc(url);
+    let objectUrl: string | null = null;
+    let alive = true;
+    const token = readToken();
+    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((blob) => {
+        if (!blob || !alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, fromApi]);
+
+  if (!src) return <div className="aspect-square w-full bg-paper-2" />;
+  // eslint-disable-next-line @next/next/no-img-element -- a private image: a signed bucket URL, or fetched from the API with the session
+  return <img src={src} alt="" loading="lazy" className="aspect-square w-full object-cover" />;
 }

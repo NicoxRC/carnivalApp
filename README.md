@@ -232,14 +232,15 @@ Everything that writes goes through the backend, with users, roles and permissio
 - Login with email and password returns a token (JWT); there is no sessions table.
 - The public has no account. For the crowd map and photos a device id issued and signed by
   the server is used (`POST /api/device`), with a cap on issuing per IP.
-- The web's panels still log in the old way (a password and reporter codes) and have no
-  backend behind them until issue #55 moves them to these users.
+- `/admin` and `/reporter` share one login (email and password); each tab of the admin
+  panel shows only if the user has the permission it needs.
 
 ## Reporters' panel
 
 `/reporter`. A dark, minimal screen, designed for four hours in the hand in full sun.
 
-1. The reporter logs in (once a day) and taps **Empezar a reportar**.
+1. The reporter logs in with their email and password (once a day) and taps **Empezar a
+   reportar**. Their post (head, middle or tail) comes from their user.
 2. From there **GPS goes out on its own every 20 s**. Nothing has to be touched.
 3. **«Estoy aquí»** sends instantly. For when the parade stops or starts again.
 4. If GPS is no good, they mark **by reference point** (the list of waypoints).
@@ -251,7 +252,7 @@ GPS**. If the browser does not allow it, the panel says so. The screen also conf
 reporter where the app thinks they are («estás por Colegio Champagnat»): if it says
 something odd, they notice at once.
 
-**Substitutes.** A substitute per role is advisable, with their own code and the panel
+**Substitutes.** A substitute per post is advisable, with their own user and the panel
 open. They do not get in the way: while the holder sends, the substitute sees «de
 respaldo» and their points do not go in; if the holder goes silent for a minute, the
 substitute takes the role on their own.
@@ -261,7 +262,7 @@ GPS; the panel warns about it.
 
 ## Admin panel
 
-`/admin`. Five tabs (until issue #55 it has no backend behind it):
+`/admin`. Five tabs, each one shown only with its permission:
 
 - **En vivo**: the current parade on a map, where each role is, how long ago it sent and
   who reports it. Buttons to mark it in progress, finish it or restart it.
@@ -274,8 +275,9 @@ GPS; the panel warns about it.
     con 40 min de retraso»). It expires on its own.
 - **Programación**: each day's parades and the other events. It is what feeds «Hoy»,
   «Desfiles» and the Tarimas layer.
-- **Reporteros**: create (generates the code), change role, deactivate, regenerate code,
-  delete.
+- **Usuarios**: the team. Create a person with email, initial password, roles and, for
+  reporters, a post; change the post, deactivate, change the password, delete. Without
+  `users:manage` it is read-only.
 - **Comercios**: creating and editing with the location on the map, plan, offer, menu,
   WhatsApp and link; and the services (toilets, water…). Each business shows **its
   numbers**: how many saw the offer, opened the card, saw the menu or tapped WhatsApp.

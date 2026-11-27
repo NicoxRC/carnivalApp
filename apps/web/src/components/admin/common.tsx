@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiUrl } from "@/lib/api/client";
 import { clearSession, readToken } from "@/lib/session";
-import type { Reporter, Post } from "@/lib/types";
+import { parseTeam } from "@/lib/api/admin";
+import type { Post, TeamUser } from "@/lib/types";
 
 export const POST_NAME: Record<Post, string> = { head: "Cabeza", middle: "Mitad", tail: "Cola" };
 export const POST_COLOR: Record<Post, string> = { head: "bg-head", middle: "bg-middle", tail: "bg-tail" };
@@ -35,18 +36,23 @@ export async function api<T>(url: string, init?: RequestInit): Promise<Answer<T>
   }
 }
 
-export function useReporters(onExpired: () => void, everyMs?: number) {
-  const [reporters, setReporters] = useState<Reporter[] | null>(null);
+export function useTeam(onExpired: () => void, everyMs?: number, enabled = true) {
+  const [team, setTeam] = useState<TeamUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const r = await api<{ reporters: Reporter[] }>("/api/admin/reporteros");
+    if (!enabled) return;
+    const r = await api<unknown>("/api/admin/users");
     if (r.ok) {
-      setReporters(r.data.reporters);
-      setError(null);
+      try {
+        setTeam(parseTeam(r.data));
+        setError(null);
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Respuesta inválida.");
+      }
     } else if (r.status === 401) onExpired();
     else setError(r.error);
-  }, [onExpired]);
+  }, [onExpired, enabled]);
 
   useEffect(() => {
     void reload();
@@ -55,7 +61,28 @@ export function useReporters(onExpired: () => void, everyMs?: number) {
     return () => clearInterval(t);
   }, [reload, everyMs]);
 
-  return { reporters, error, reload };
+  return { team, error, reload };
+}
+
+export function slugId(name: string, taken: Iterable<string>): string {
+  const base =
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 34)
+      .replace(/-+$/, "") || "item";
+  const used = new Set(taken);
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
+export type Can = (permission: string) => boolean;
+
+export function failureText(r: { status: number; error: string }): string {
+  return r.status === 403 ? "No tenés permiso para esto." : r.error;
 }
 
 export function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {

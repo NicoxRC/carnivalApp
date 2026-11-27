@@ -3,7 +3,17 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
-import { api, PrimaryButton, SecondaryButton, Field, INPUT_CLASS, CARD_CLASS } from "@/components/admin/common";
+import {
+  api,
+  CARD_CLASS,
+  failureText,
+  Field,
+  INPUT_CLASS,
+  PrimaryButton,
+  SecondaryButton,
+  slugId,
+} from "@/components/admin/common";
+import { parseAdminBusinesses } from "@/lib/api/businesses";
 import { BUSINESS_CATEGORIES, SERVICE_CATEGORIES, isService, OFFER_TIMINGS, categoryName, BUSINESS_PLANS } from "@/lib/businesses";
 import type { Business, MenuItem, OfferTiming, BusinessPlan, MetricType } from "@/lib/types";
 
@@ -50,12 +60,17 @@ export function BusinessesAdmin({ onExpired }: { onExpired: () => void }) {
   const [filter, setFilter] = useState("");
 
   const reload = useCallback(async () => {
-    const r = await api<{ businesses: Business[]; metrics: Metrics }>("/api/admin/comercios");
+    const r = await api<unknown>("/api/admin/businesses");
     if (r.ok) {
-      setBusinesses(r.data.businesses);
-      setMetrics(r.data.metrics);
+      try {
+        const parsed = parseAdminBusinesses(r.data);
+        setBusinesses(parsed.businesses);
+        setMetrics(parsed.metrics);
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Respuesta inválida.");
+      }
     } else if (r.status === 401) onExpired();
-    else setError(r.error);
+    else setError(failureText(r));
   }, [onExpired]);
 
   useEffect(() => {
@@ -63,13 +78,12 @@ export function BusinessesAdmin({ onExpired }: { onExpired: () => void }) {
   }, [reload]);
 
   const save = async (b: Draft) => {
-    const r = await api(b.id ? `/api/admin/comercios/${b.id}` : "/api/admin/comercios", {
-      method: b.id ? "PUT" : "POST",
-      body: JSON.stringify(b),
-    });
+    const id = b.id ?? slugId(b.name, (businesses ?? []).map((c) => c.id));
+    const { id: _, ...body } = b;
+    const r = await api(`/api/admin/businesses/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
     if (!r.ok) {
       if (r.status === 401) onExpired();
-      return r.error;
+      return failureText(r);
     }
     setEditing(null);
     void reload();
@@ -78,8 +92,8 @@ export function BusinessesAdmin({ onExpired }: { onExpired: () => void }) {
 
   const remove = async (c: Business) => {
     if (!confirm(`¿Borrar «${c.name}» del mapa? Si solo es por hoy, mejor ocultalo.`)) return;
-    const r = await api(`/api/admin/comercios/${c.id}`, { method: "DELETE" });
-    if (!r.ok) setError(r.error);
+    const r = await api(`/api/admin/businesses/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+    if (!r.ok) setError(failureText(r));
     void reload();
   };
 

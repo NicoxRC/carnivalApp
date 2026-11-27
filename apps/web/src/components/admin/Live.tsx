@@ -3,7 +3,18 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, PrimaryButton, SecondaryButton, POST_COLOR, INPUT_CLASS, POST_NAME, CARD_CLASS, useReporters } from "@/components/admin/common";
+import {
+  api,
+  CARD_CLASS,
+  failureText,
+  INPUT_CLASS,
+  POST_COLOR,
+  POST_NAME,
+  PrimaryButton,
+  SecondaryButton,
+  useTeam,
+  type Can,
+} from "@/components/admin/common";
 import { noSignal } from "@/lib/eta";
 import { shortDistance, timeAgo } from "@/lib/format";
 import { useParadeState, useClock } from "@/lib/hooks/useParadeState";
@@ -32,18 +43,18 @@ function beep() {
   } catch {}
 }
 
-export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
+export function LiveAdmin({ onExpired, can }: { onExpired: () => void; can: Can }) {
   const { state, connection, clockOffsetMs } = useParadeState();
-  const { reporters } = useReporters(onExpired, 15_000);
+  const { team } = useTeam(onExpired, 15_000, can("users:view"));
   const now = useClock(1000) + clockOffsetMs;
   const [error, setError] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<Post | null>(null);
 
   const handle = useCallback(
-    (r: { ok: boolean; error?: string; status?: number }) => {
+    (r: { ok: true } | { ok: false; error: string; status: number }) => {
       if (r.ok) return setError(null);
       if (r.status === 401) onExpired();
-      setError(r.error ?? "Error");
+      setError(failureText(r));
     },
     [onExpired],
   );
@@ -52,7 +63,7 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
     if (!state) return;
     if (a === "restart" && !confirm("¿Reiniciar el desfile? Se borran todas las posiciones de este recorrido.")) return;
     if (a === "finish" && !confirm("¿Marcar el desfile como finalizado?")) return;
-    handle(await api(`/api/admin/desfiles/${state.paradeId}`, { method: "PATCH", body: JSON.stringify({ action: a }) }));
+    handle(await api(`/api/admin/parades/${encodeURIComponent(state.paradeId)}`, { method: "PATCH", body: JSON.stringify({ action: a }) }));
   };
 
   const correct = async (lat: number, lng: number) => {
@@ -60,7 +71,7 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
     const post = correcting;
     setCorrecting(null);
     handle(
-      await api("/api/posiciones", {
+      await api("/api/positions", {
         method: "POST",
         body: JSON.stringify({ post, lat, lng, paradeId: state.paradeId }),
       }),
@@ -119,7 +130,7 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
           <span className="text-[12px] font-bold text-ink-3">
             {connection === "live" ? "· datos en vivo" : "· reconectando…"}
           </span>
-          {state && (
+          {state && can("parades:state") && (
             <div className="ml-auto flex flex-wrap gap-2">
               <SecondaryButton onClick={() => action("start")}>Marcar en curso</SecondaryButton>
               <SecondaryButton onClick={() => action("finish")}>Finalizar</SecondaryButton>
@@ -152,17 +163,19 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
         {POSTS.map((post) => {
           const pos = state?.positions[post];
           const off = pos ? noSignal(pos.ts, now) : false;
-          const assigned = (reporters ?? []).filter((r) => r.post === post && r.active);
+          const assigned = (team ?? []).filter((u) => u.post === post && u.active && u.roles.includes("reporter"));
           return (
             <article key={post} className={CARD_CLASS}>
               <p className="flex items-center gap-2 text-[15px] font-extrabold text-ink">
                 <span className={`size-3 rounded-full ${POST_COLOR[post]}`} aria-hidden />
                 {POST_NAME[post]}
-                <span className="ml-auto">
-                  <SecondaryButton active={correcting === post} onClick={() => setCorrecting(correcting === post ? null : post)}>
-                    Corregir
-                  </SecondaryButton>
-                </span>
+                {can("positions:any") && (
+                  <span className="ml-auto">
+                    <SecondaryButton active={correcting === post} onClick={() => setCorrecting(correcting === post ? null : post)}>
+                      Corregir
+                    </SecondaryButton>
+                  </span>
+                )}
               </p>
               {pos ? (
                 <>
@@ -181,6 +194,7 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
               ) : (
                 <p className="mt-3 text-[15px] font-semibold text-ink-3">Todavía no reporta</p>
               )}
+              {team === null ? null : (
               <ul className="mt-4 space-y-1 border-t border-line pt-3 text-[13px]">
                 {assigned.length === 0 ? (
                   <li className="font-semibold text-warn-text">Nadie asignado a este rol</li>
@@ -189,12 +203,13 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
                     <li key={r.id} className="flex justify-between gap-2 text-ink-2">
                       <span className="truncate">{r.name}</span>
                       <span className="shrink-0 text-ink-3">
-                        {r.lastSignalTs ? timeAgo(r.lastSignalTs, now) : "never"}
+                        {r.lastSignalAt ? timeAgo(r.lastSignalAt, now) : "nunca"}
                       </span>
                     </li>
                   ))
                 )}
               </ul>
+              )}
             </article>
           );
         })}
@@ -232,7 +247,7 @@ export function LiveAdmin({ onExpired }: { onExpired: () => void }) {
         ) : null}
       </section>
 
-      <AnnouncementsAdmin announcements={state?.announcements ?? []} onAnswer={handle} />
+      {can("announcements:manage") && <AnnouncementsAdmin announcements={state?.announcements ?? []} onAnswer={handle} />}
     </div>
   );
 }
@@ -242,7 +257,7 @@ function AnnouncementsAdmin({
   onAnswer,
 }: {
   announcements: { id: string; text: string; level: string; expiresAt: number | null }[];
-  onAnswer: (r: { ok: boolean; error?: string; status?: number }) => void;
+  onAnswer: (r: { ok: true } | { ok: false; error: string; status: number }) => void;
 }) {
   const [text, setText] = useState("");
   const [level, setLevel] = useState("info");
@@ -250,7 +265,7 @@ function AnnouncementsAdmin({
 
   const publish = async (e: React.FormEvent) => {
     e.preventDefault();
-    const r = await api("/api/admin/avisos", { method: "POST", body: JSON.stringify({ text, level, durationMin }) });
+    const r = await api("/api/admin/announcements", { method: "POST", body: JSON.stringify({ text, level, durationMin }) });
     onAnswer(r);
     if (r.ok) setText("");
   };
@@ -296,7 +311,7 @@ function AnnouncementsAdmin({
               <span className="min-w-0 flex-1 text-ink">{a.text}</span>
               <SecondaryButton
                 danger
-                onClick={async () => onAnswer(await api(`/api/admin/avisos/${a.id}`, { method: "DELETE" }))}
+                onClick={async () => onAnswer(await api(`/api/admin/announcements/${encodeURIComponent(a.id)}`, { method: "DELETE" }))}
               >
                 Quitar
               </SecondaryButton>
