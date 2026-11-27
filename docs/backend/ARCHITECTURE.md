@@ -68,7 +68,8 @@ and enum-like values. The web keeps its Spanish types and maps the names in one 
 | `GET/PUT/DELETE /api/admin/events` | `schedule:edit` |
 | `GET /api/businesses`, `GET/PUT/DELETE /api/admin/businesses` | public / `businesses:edit` |
 | `POST /api/businesses/event`, metrics in admin | public / `metrics:view` |
-| `GET/POST /api/photos`, `GET /api/photos/{id}` | public / device |
+| `GET /api/photos`, `GET /api/photos/{id}` | public (approved only) |
+| `POST /api/photos/uploads`, `PUT /api/photos/uploads/{id}` (only without a bucket), `POST /api/photos/uploads/{id}/done` | device |
 | `GET/PATCH/DELETE /api/admin/photos` | `photos:moderate` |
 | `GET/POST/DELETE /api/push-subscriptions` | public |
 | ~~web's former `/api/admin/sesion`, `/api/reportero/sesion`~~ | replaced by `/api/auth` |
@@ -166,10 +167,23 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
 
 ## Photos and push
 
-- **Photos:** a `Storage` interface with two implementations: disk (`apps/backend/.photos/`,
-  development) and S3-compatible (`boto3`; a Railway bucket or Cloudflare R2 in production).
-  Images are served through the API (`GET /api/photos/{id}`), not with a public bucket URL:
-  that way a pending photo is never reachable.
+- **Photos live on Cloudflare R2** (S3-compatible, `boto3`): 10 GB free and no charge for
+  downloads, which is what parade day spends. Without a bucket (development, tests) they go to
+  disk (`apps/backend/.photos/`).
+- **The phone uploads straight to the bucket**, so the files do not go through our server:
+  1. `POST /api/photos/uploads` `{device, size}` checks the device, the per-device cap and the
+     size, and answers a signed `PUT` URL (path, type and exact size fixed; 5 min) plus a
+     signed token with the photo id, the device, the size and the expiry.
+  2. The phone `PUT`s the JPEG to that URL. It lands in `incoming/`.
+  3. `POST /api/photos/uploads/{id}/done` `{token, metres}` checks that the file arrived, its
+     size and its first bytes (a JPEG), moves it to `photos/` and only then creates the row,
+     pending. A file that fails is deleted; one never confirmed is deleted by a bucket rule.
+  No table holds unfinished uploads: the token is enough. Without a bucket, the upload URL is
+  `PUT /api/photos/uploads/{id}?token=…` on the API itself.
+- **The bucket is private.** Photo URLs are signed and expire after an hour; only approved
+  photos get one in public, and only a moderator gets one for a pending photo (the admin list
+  is behind a login). `GET /api/photos/{id}` keeps those checks and redirects to a signed URL,
+  or serves the file when there is no bucket.
 - **Push:** `pywebpush` with VAPID keys (the same ones `npm run push:keys` generates).
   Without keys, the feature turns itself off.
 

@@ -66,9 +66,38 @@ Names are uppercase, exactly as the app reads them.
 | `CORS_ORIGINS` | no (`http://localhost:3000`) | Origins of the web that may call the API, comma-separated |
 | `ENVIRONMENT` | no (`dev`) | `dev` or `prod` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT` | no | Push notifications. Without them the feature turns itself off |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | no | Photos on S3. Without a bucket they are stored on disk |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | no | Photos on a bucket (Cloudflare R2, see below). Without one they are stored on disk |
+| `S3_REGION` | no (`auto`) | The bucket's region. R2 takes `auto` |
 
 To generate a new `JWT_SECRET`: `openssl rand -hex 32`.
+
+### The photos bucket (Cloudflare R2)
+
+One bucket per environment (for example `sigue-el-desfile-dev` and `sigue-el-desfile-prod`).
+
+1. In the Cloudflare dashboard, **R2 → Create bucket**. Leave it private: no public access and
+   no custom domain. The backend signs every URL.
+2. **R2 → Manage API tokens → Create API token** with *Object Read & Write*, limited to that
+   bucket. It shows an *Access Key ID*, a *Secret Access Key* and the endpoint
+   `https://<account id>.r2.cloudflarestorage.com`.
+3. In the bucket, **Settings → CORS policy**, so the browser can upload straight to it
+   (put the web's origins):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["http://localhost:3000", "https://your-web-domain"],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedHeaders": ["content-type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+4. In the bucket, **Settings → Object lifecycle rules**: delete objects with the prefix
+   `incoming/` after 1 day. They are uploads nobody confirmed.
+5. Put the values into the environment's secrets (`sops secrets/dev.enc.yaml`):
+   `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`. `S3_REGION` stays `auto`.
 
 ## Getting access for the first time
 
