@@ -1,0 +1,89 @@
+name: Web
+
+# The same checks the web asks for before opening a PR, with the flake's
+# Node: "works on my machine" and "works in CI" mean the same thing.
+#
+# Only runs when the PR touches the web or its environment. Each job is a
+# check with its own name; on the PR they show up as "Web / lint".
+on:
+  pull_request:
+    branches: [trunk]
+    paths:
+      - "apps/web/**"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/web-ci.yml"
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the previous run.
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/web
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: nix develop -c npm ci --no-audit --no-fund
+      - run: nix develop -c npm run typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: nix develop -c npm ci --no-audit --no-fund
+      - run: nix develop -c npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: nix develop -c npm ci --no-audit --no-fund
+      - run: nix develop -c npm test
+
+  # A production build refuses to start without the backend's address; this
+  # one is a placeholder, not a secret.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_API_URL: https://api.example.invalid
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: nix develop -c npm ci --no-audit --no-fund
+      - run: nix develop -c npm run build

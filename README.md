@@ -42,12 +42,12 @@ as a reporter's phone: **there is no "pretend" path parallel to the real one**. 
 ```bash
 cd apps/web
 npm run typecheck    # types
-npm test             # tests of the ETA, the course and dates
+npm run lint         # ESLint with Next's rules, no warnings allowed
+npm test             # tests
 npm run build
 ```
 
-Run them before opening a PR: the web has no CI yet (the backend's is in
-`.github/workflows/backend-ci.yml`).
+CI runs the same checks on every PR that touches the web (`.github/workflows/web-ci.yml`).
 
 ---
 
@@ -135,7 +135,7 @@ UNESCO heritage.
 - **The CSP allows inline scripts** (`'unsafe-inline'`): removing it requires per-request
   nonces. And there is a high-severity vulnerability in the `postcss` bundled with Next 15;
   it goes away by moving to Next 16.
-- **There is no lint and no error monitoring.** The backend's `/api/health` is there for an
+- **There is no error monitoring.** The backend's `/api/health` is there for an
   external monitor, but nothing alerts on its own if something goes down.
 - **The 1D projection assumes the course does not pass twice through the same place.** If
   the official route has nearly parallel stretches, a point can snap to the wrong one; the

@@ -43,9 +43,10 @@ seed: migrate
 test *args:
     cd apps/backend && uv run pytest {{ args }}
 
-# Run every pre-commit hook on the whole repo
+# Run every pre-commit hook on the whole repo, and the web's lint
 check:
     pre-commit run --all-files
+    cd apps/web && npm run -s lint
 
 # Edit the development secrets (decrypts, opens $EDITOR, encrypts on save)
 secrets:

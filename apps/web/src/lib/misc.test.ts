@@ -5,7 +5,6 @@ import { todayInPasto, minuteOfDayInPasto, normalizeTime, dateParts } from "@/li
 import { timeAgo, timeOfDay } from "@/lib/format";
 import { translate } from "@/lib/i18n-texts";
 import { projectOnCourse, pointAtMetre, describePosition, COURSE } from "@/lib/course";
-import type { Parade } from "@/lib/types";
 
 describe("dates in Pasto time", () => {
   it("at 8 p.m. in Pasto it is still today, even if it is tomorrow in UTC", () => {
