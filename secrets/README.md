@@ -35,8 +35,8 @@ just dev
 
 # The same, by hand
 scripts/local-db.sh        # local Postgres; `scripts/local-db.sh stop` stops it
-sops exec-env secrets/dev.enc.yaml 'cd backend && uv run alembic upgrade head'
-sops exec-env secrets/dev.enc.yaml 'cd backend && uv run fastapi dev'
+sops exec-env secrets/dev.enc.yaml 'cd apps/backend && uv run alembic upgrade head'
+sops exec-env secrets/dev.enc.yaml 'cd apps/backend && uv run fastapi dev'
 
 # Edit: opens the decrypted file in $EDITOR and encrypts it again on save
 just secrets               # or: sops secrets/dev.enc.yaml

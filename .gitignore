@@ -31,3 +31,6 @@ apps/backend/.photos/
 
 # Wrangler local state (apps/web)
 .wrangler/
+
+# Personal notes that never reach the repo (deployment steps, test checklists)
+*.local.md
