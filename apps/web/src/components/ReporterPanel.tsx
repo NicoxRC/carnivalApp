@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+
+import { LoginForm } from "@/components/LoginForm";
+import type { SessionUser } from "@/lib/api/auth";
 
 import { shortDistance, timeAgo } from "@/lib/format";
 import { useClock } from "@/lib/hooks/useParadeState";
 import { SEND_INTERVAL_MS, ACCEPTABLE_ACCURACY_M, useReporting, type Reporting } from "@/lib/hooks/useReporting";
 import { projectOnCourse, describePosition, COURSE } from "@/lib/course";
-import type { Reporter, Post } from "@/lib/types";
+import { useSession } from "@/lib/hooks/useSession";
+import type { Post } from "@/lib/types";
 
 const POST_LABEL: Record<Post, { name: string; color: string; help: string }> = {
   head: { name: "Cabeza", color: "bg-head", help: "Caminá con la primera carroza o comparsa." },
@@ -14,127 +18,74 @@ const POST_LABEL: Record<Post, { name: string; color: string; help: string }> = 
   tail: { name: "Cola", color: "bg-tail", help: "Caminá con lo último del desfile." },
 };
 
-type Session =
-  | { state: "loading" }
-  | { state: "out" }
-  | { state: "in"; reporter: Reporter; parade: string | null };
-
 export function ReporterPanel() {
-  const [session, setSession] = useState<Session>({ state: "loading" });
-
-  useEffect(() => {
-    fetch("/api/reportero/sesion", { cache: "no-store" })
-      .then((r) =>
-        r.ok
-          ? (r.json() as Promise<{ reporter: Reporter | null; parade?: string | null }>)
-          : { reporter: null, parade: null },
-      )
-      .then((d) =>
-        setSession(
-          d.reporter ? { state: "in", reporter: d.reporter, parade: d.parade ?? null } : { state: "out" },
-        ),
-      )
-      .catch(() => setSession({ state: "out" }));
-  }, []);
-
-  const onExpired = useCallback(() => setSession({ state: "out" }), []);
+  const { session, retry, loggedIn, logOut, expired } = useSession();
 
   return (
     <div className="pt-safe pb-safe min-h-dvh bg-ink text-paper">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 py-6">
         {session.state === "loading" ? (
           <p className="m-auto text-sm text-ink-4">Cargando…</p>
+        ) : session.state === "offline" ? (
+          <div className="m-auto text-center">
+            <p className="text-[15px] text-ink-4">Sin conexión con el servidor.</p>
+            <button type="button" onClick={retry} className="mt-4 rounded-full bg-paper px-6 py-3 font-bold text-ink">
+              Probar otra vez
+            </button>
+          </div>
         ) : session.state === "out" ? (
-          <LogIn onLogIn={(reporter, parade) => setSession({ state: "in", reporter, parade })} />
+          <div className="my-auto">
+            <p className="display-font text-[28px] leading-tight">Panel de reporteros</p>
+            <p className="mt-2 text-[15px] text-ink-4">Entrá con el correo y la contraseña que te dio el coordinador.</p>
+            <LoginForm tone="dark" expired={session.expired} onLoggedIn={loggedIn} />
+          </div>
+        ) : session.user.post === null || !session.user.permissions.includes("positions:own") ? (
+          <NoPost user={session.user} onLogOut={logOut} />
         ) : (
-          <ReportingView
-            reporter={session.reporter}
-            parade={session.parade}
-            onLogOut={() => setSession({ state: "out" })}
-            onExpired={onExpired}
-          />
+          <ReportingView user={session.user} post={session.user.post} onLogOut={logOut} onExpired={expired} />
         )}
       </div>
     </div>
   );
 }
 
-function LogIn({ onLogIn }: { onLogIn: (r: Reporter, parade: string | null) => void }) {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await fetch("/api/reportero/sesion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const d = (await r.json()) as { reporter?: Reporter; parade?: string | null; error?: string };
-      if (!r.ok || !d.reporter) setError(d.error ?? "No se pudo entrar.");
-      else onLogIn(d.reporter, d.parade ?? null);
-    } catch {
-      setError("Sin conexión. Intentá otra vez cuando tengas señal.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
+function NoPost({ user, onLogOut }: { user: SessionUser; onLogOut: () => void }) {
   return (
-    <form onSubmit={send} className="my-auto">
-      <p className="display-font text-[28px] leading-tight">Panel de reporteros</p>
-      <p className="mt-2 text-[15px] text-ink-4">
-        Escribí el código que te dio el coordinador. Solo hay que hacerlo una vez por día.
+    <div className="my-auto">
+      <p className="display-font text-[24px] leading-tight">Tu usuario no tiene un puesto asignado</p>
+      <p className="mt-3 text-[15px] text-ink-4">
+        {user.name}: pedile al coordinador que te asigne cabeza, mitad o cola.
       </p>
-      <label className="mt-8 block text-sm font-bold" htmlFor="code">
-        Tu código
-      </label>
-      <input
-        id="code"
-        value={code}
-        onChange={(e) => setCode(e.target.value.toUpperCase())}
-        autoComplete="one-time-code"
-        autoCapitalize="characters"
-        spellCheck={false}
-        placeholder="ABCD-2345"
-        className="mt-2 w-full rounded-2xl border-2 border-ink-2 bg-[#202024] px-4 py-4 text-center font-mono text-2xl tracking-[0.2em] text-paper placeholder:text-ink-3 focus:border-paper focus:outline-none"
-      />
-      {error ? <p className="mt-3 text-sm font-semibold text-[#ff8a7a]">{error}</p> : null}
       <button
-        type="submit"
-        disabled={busy || code.replace(/[^A-Z0-9]/g, "").length < 8}
-        className="mt-6 w-full rounded-full bg-paper py-4 text-lg font-extrabold text-ink disabled:opacity-40"
+        type="button"
+        onClick={onLogOut}
+        className="mt-6 rounded-full border border-ink-2 px-5 py-2.5 text-[14px] font-bold text-ink-4"
       >
-        {busy ? "Entrando…" : "Entrar"}
+        Salir
       </button>
-    </form>
+    </div>
   );
 }
 
 function ReportingView({
-  reporter,
-  parade,
+  user,
+  post: userPost,
   onLogOut,
   onExpired,
 }: {
-  reporter: Reporter;
-  parade: string | null;
+  user: SessionUser;
+  post: Post;
   onLogOut: () => void;
   onExpired: () => void;
 }) {
   const r = useReporting(onExpired);
   const now = useClock(1000);
-  const post = POST_LABEL[reporter.post];
+  const post = POST_LABEL[userPost];
   const [safe, setSafe] = useState(true);
   useEffect(() => setSafe(window.isSecureContext), []);
 
-  const logOut = async () => {
+  const logOut = () => {
     r.stop();
-    await fetch("/api/reportero/sesion", { method: "DELETE" }).catch(() => undefined);
     onLogOut();
   };
 
@@ -144,8 +95,7 @@ function ReportingView({
         <span className={`size-4 shrink-0 rounded-full ${post.color}`} aria-hidden />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-ink-4">
-            {reporter.name}
-            {parade ? ` · ${parade}` : ""}
+            {user.name}
           </p>
           <p className="display-font text-[24px] leading-none">{post.name}</p>
         </div>

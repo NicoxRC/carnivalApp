@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { apiUrl } from "@/lib/api/client";
+import { clearSession, readToken } from "@/lib/session";
 import type { Reporter, Post } from "@/lib/types";
 
 export const POST_NAME: Record<Post, string> = { head: "Cabeza", middle: "Mitad", tail: "Cola" };
@@ -14,12 +16,18 @@ export type Answer<T> = { ok: true; data: T } | { ok: false; error: string; stat
 
 export async function api<T>(url: string, init?: RequestInit): Promise<Answer<T>> {
   try {
-    const r = await fetch(url, {
+    const token = readToken();
+    const r = await fetch(apiUrl(url), {
       cache: "no-store",
       ...init,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
     });
     const d = (await r.json().catch(() => ({}))) as T & { error?: string };
+    if (r.status === 401) clearSession();
     if (!r.ok) return { ok: false, error: d.error ?? `Error ${r.status}`, status: r.status };
     return { ok: true, data: d };
   } catch {
