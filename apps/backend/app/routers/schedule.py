@@ -21,7 +21,7 @@ class ParadeOut(Schema):
 
 
 class EventOut(Schema):
-    """Web: `Evento`."""
+    """Web: `ScheduleEvent`."""
 
     id: str
     date: str

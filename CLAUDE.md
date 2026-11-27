@@ -26,11 +26,12 @@ before touching business logic.
 - **Everything that goes into the repo or GitHub is in English**: code, comments, tests,
   tables and columns, environment variables, HTTP routes, JSON keys, enum-like values,
   docs, commits, PR titles and descriptions, issues.
-- **Spanish stays only in text for people**: the interface texts of the web and messages
-  such as `{"error": "No existe."}` (English key, Spanish message).
-- **The web app (`apps/web/src/`) is still written in Spanish** (file names, identifiers). Do not
-  rename it as a side effect of another task; it is a separate effort. New backend code
-  translates domain terms with `docs/backend/GLOSSARY.md`.
+- **Spanish stays only in text for people**: the texts people read inside the app (the
+  interface, the team's panels) and messages such as `{"error": "No existe."}` (English
+  key, Spanish message).
+- **The web and the backend use the same English names** for the same thing: the ones in
+  `docs/backend/GLOSSARY.md`. Routes, files, identifiers, CSS tokens, storage keys and
+  commit scopes are English too.
 
 ## Required reading before any commit
 
@@ -56,10 +57,10 @@ npm install
 npm run dev          # http://localhost:3000
 npm run typecheck    # types
 npm test             # tests (node:test + tsx): src/**/*.test.ts. No lint yet.
-npm run simular      # moves a fake parade on the backend (as simulator@local, see just seed)
-npm run mapa:estilo  # regenerates src/data/map-style.json (base map colours)
-npm run push:llaves  # generates the VAPID keys for push notifications
-npm run iconos       # exports the PNGs from public/icono.svg
+npm run simulate     # moves a fake parade on the backend (as simulator@local, see just seed)
+npm run map:style    # regenerates src/data/map-style.json (base map colours)
+npm run push:keys    # generates the VAPID keys for push notifications
+npm run icons        # exports the PNGs from public/icon.svg
 ```
 
 Backend (see `docs/backend/ARCHITECTURE.md`):
@@ -129,14 +130,14 @@ and update this table in the same PR.
   created by asking for it.
 - **"Today" and "now" go through `apps/web/src/lib/dates.ts`** (Pasto time). No
   `toISOString().slice(0, 10)` and no `getHours()`.
-- **A value the service worker served from the cache (`X-Desde-Cache`) is not a new
+- **A value the service worker served from the cache (`X-From-Cache`) is not a new
   value.** `useParadeState` tells them apart; do not break that.
 - **Every text the public sees goes in `apps/web/src/lib/i18n-texts.ts`**, in Spanish and English.
   The Spanish keeps the Pasto *voseo* of the design. The team's panels are Spanish only.
 - **If the code starts storing a new piece of data about people, `/privacy` changes in
   the same PR.**
 - **If you change logic in `eta.ts`, `course.ts` or `dates.ts`, add or adjust its test.**
-- **The base map is a file of our own** (`apps/web/public/mapa/pasto.pmtiles`). If it changes,
+- **The base map is a file of our own** (`apps/web/public/map/pasto.pmtiles`). If it changes,
   `VERSION` in `apps/web/public/sw.js` has to be bumped.
 - **The web uses the backend's HTTP contract as it is**: the same field names and values.
   `apps/web/src/lib/api/` only checks the shape of what arrives; it does not rename anything.

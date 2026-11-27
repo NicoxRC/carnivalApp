@@ -1,4 +1,4 @@
-const KEY = "sed:dispositivo-firmado";
+const KEY = "sed:signed-device";
 
 let inFlight: Promise<string | null> | null = null;
 

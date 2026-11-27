@@ -9,7 +9,7 @@ export type AlertState =
   | { mode: "push" | "local"; thresholdMin: number }
   | { mode: "denied" };
 
-const KEY = "sed:aviso-cercania";
+const KEY = "sed:proximity-alert";
 export const ALERT_THRESHOLD_MIN = 10;
 
 function base64ToUint8(base64: string): Uint8Array<ArrayBuffer> {
@@ -97,7 +97,7 @@ export function useProximityAlert(eta: Eta, title: string, body: (min: number) =
     if (arrived) return save({ mode: "off" });
     if (minMin === null || minMin > alert.thresholdMin) return;
     if (alert.mode === "local" && Notification.permission === "granted") {
-      const options = { body: bodyRef.current(Math.max(minMin, 5)), tag: "desfile-cerca", icon: "/icono-192.png" };
+      const options = { body: bodyRef.current(Math.max(minMin, 5)), tag: "parade-near", icon: "/icon-192.png" };
       void (async () => {
         try {
           const reg = await navigator.serviceWorker?.getRegistration();

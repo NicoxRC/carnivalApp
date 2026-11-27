@@ -36,7 +36,7 @@ const LAYERS = [
 
 type LayerId = (typeof LAYERS)[number]["id"];
 
-const HOME_SEEN_KEY = "sed:inicio-visto";
+const HOME_SEEN_KEY = "sed:home-seen";
 const OFFER_RADIUS_M = 300;
 
 function offerActive(c: Business, state: ParadeState | null): boolean {

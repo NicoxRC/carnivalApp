@@ -6,7 +6,7 @@ import { translate, type Language, type Translator } from "@/lib/i18n-texts";
 
 export type { TextKey, Language, Translator } from "@/lib/i18n-texts";
 
-const KEY = "sed:idioma";
+const KEY = "sed:language";
 const listeners = new Set<() => void>();
 let current: Language | null = null;
 

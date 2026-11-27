@@ -9,7 +9,7 @@ import {
 } from "@/lib/density";
 import { getDevice, forgetDevice } from "@/lib/device";
 
-const SHARE_KEY = "sed:compartir-gentio";
+const SHARE_KEY = "sed:share-crowd";
 
 export type SharePermission = "undecided" | "yes" | "no";
 

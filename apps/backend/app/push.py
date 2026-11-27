@@ -5,7 +5,7 @@ Every time a position of the head arrives it is checked who has little time
 left, they are sent the notification and their subscription is deleted: one
 notification per request.
 
-It needs VAPID keys (`npm run push:llaves`). Without them the feature turns
+It needs VAPID keys (`npm run push:keys`). Without them the feature turns
 itself off and the app uses its local alert, which only sounds while open.
 """
 

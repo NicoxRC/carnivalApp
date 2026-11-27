@@ -34,7 +34,7 @@ class MenuItemOut(Schema):
 
 
 class BusinessOut(Schema):
-    """Web: `Comercio`."""
+    """Web: `Business`."""
 
     id: str
     name: str

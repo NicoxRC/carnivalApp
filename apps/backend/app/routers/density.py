@@ -22,7 +22,7 @@ class DeviceOut(Schema):
 
 
 class DensityBinOut(Schema):
-    """Web: `BinDensidad`."""
+    """Web: `DensityBin`."""
 
     bin: int
     from_m: float
@@ -32,7 +32,7 @@ class DensityBinOut(Schema):
 
 
 class DensityOut(Schema):
-    """Web: `Densidad`."""
+    """Web: `Density`."""
 
     # Only the stretches with enough samples.
     bins: list[DensityBinOut]

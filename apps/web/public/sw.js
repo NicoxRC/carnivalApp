@@ -1,39 +1,11 @@
-/*
- * Service worker de "Sigue el Desfile".
- *
- * Premisa: el 31 de diciembre la celda va a estar saturada. La app tiene que
- * ABRIR igual, aunque los datos lleguen tarde o no lleguen.
- *
- * Estrategia por tipo de recurso:
- *   - armazón y estáticos  -> cache primero (la app abre sin red)
- *   - mapa base (.pmtiles) -> el archivo entero se guarda una vez y los
- *                             pedazos (Range) que pide el visor se sirven
- *                             desde la caché: el mapa abre sin red
- *   - fuentes del mapa     -> cache primero
- *   - /api/state, /api/schedule y /api/businesses del API
- *                          -> red primero con timeout corto, y si falla,
- *                             se devuelve la última respuesta cacheada.
- *                             Es preferible un dato viejo con su hora que un error.
- *                             La programación y los comercios se precargan al
- *                             instalar: «Hoy» y la capa de comercios abren sin red.
- *   - /api/state/stream    -> nunca (es una conexión viva)
- *   - el resto del API     -> no pasa por aquí (escrituras, paneles privados)
- *
- * El API vive en otro origen. Llega en la URL con la que se registra este
- * archivo (`/sw.js?api=https://…`, ver `RegistrarSW.tsx`).
- */
-
-// Subir la versión cada vez que cambie `public/mapa/pasto.pmtiles`: el archivo
-// se guarda por su ruta, así que sin esto los celulares se quedan con el viejo.
-const VERSION = "v7";
+const VERSION = "v8";
 const CACHE_APP = `sed-app-${VERSION}`;
-const CACHE_MAPA = `sed-mapa-${VERSION}`;
-const CACHE_DATOS = `sed-datos-${VERSION}`;
+const CACHE_MAP = `sed-map-${VERSION}`;
+const CACHE_DATA = `sed-data-${VERSION}`;
 
-const RUTA_TESELAS = "/mapa/pasto.pmtiles";
+const TILES_PATH = "/map/pasto.pmtiles";
 
-/** Origen del backend, o null si no vino (entonces no se guarda nada del API). */
-const ORIGEN_API = (() => {
+const API_ORIGIN = (() => {
   try {
     const api = new URL(self.location.href).searchParams.get("api");
     const url = api ? new URL(api) : null;
@@ -43,43 +15,36 @@ const ORIGEN_API = (() => {
   }
 })();
 
-/** Lo del API que se sirve sin red: la última copia, marcada como tal. */
-const RUTAS_API_CON_RESPALDO = new Set(["/api/state", "/api/schedule", "/api/businesses"]);
+const API_PATHS_WITH_FALLBACK = new Set(["/api/state", "/api/schedule", "/api/businesses"]);
 
-/** Lo del API que se precarga al instalar. `/api/state` no: sin desfile actual da 404. */
-const PRECARGA_API = ["/api/schedule", "/api/businesses"];
-const ICONO_AVISO = "/icono-192.png";
+const API_PRECACHE = ["/api/schedule", "/api/businesses"];
+const NOTIFICATION_ICON = "/icon-192.png";
 
-const PRECARGA = [
+const PRECACHE = [
   "/",
   "/today",
   "/parades",
   "/photos",
-  "/icono.svg",
-  "/icono-192.png",
-  "/mapa/maplibre-worker.mjs",
+  "/icon.svg",
+  "/icon-192.png",
+  "/map/maplibre-worker.mjs",
   "/manifest.webmanifest",
-  // La tipografía de display va cacheada: sin ella el titular del ETA cae a
-  // la serif del sistema, que descuadra la hoja entera.
-  "/fuentes/alfa-slab-one-latin.woff2",
+  "/fonts/alfa-slab-one-latin.woff2",
 ];
 
-const TIMEOUT_RED_MS = 4000;
+const NETWORK_TIMEOUT_MS = 4000;
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
     Promise.allSettled([
       caches
         .open(CACHE_APP)
-        // addAll falla entero si un recurso falla; se agregan uno a uno.
-        .then((c) => Promise.allSettled(PRECARGA.map((u) => c.add(u)))),
-      // El mapa base entero (≈2,4 MB), de una vez: es lo que permite abrir el
-      // mapa con la celda saturada.
-      caches.open(CACHE_MAPA).then((c) => c.add(RUTA_TESELAS)),
-      ORIGEN_API
+        .then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u)))),
+      caches.open(CACHE_MAP).then((c) => c.add(TILES_PATH)),
+      API_ORIGIN
         ? caches
-            .open(CACHE_DATOS)
-            .then((c) => Promise.allSettled(PRECARGA_API.map((ruta) => c.add(new URL(ruta, ORIGEN_API).href))))
+            .open(CACHE_DATA)
+            .then((c) => Promise.allSettled(API_PRECACHE.map((path) => c.add(new URL(path, API_ORIGIN).href))))
         : null,
     ]).then(() => self.skipWaiting()),
   );
@@ -89,9 +54,9 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
       .keys()
-      .then((claves) =>
+      .then((keys) =>
         Promise.all(
-          claves
+          keys
             .filter((k) => k.startsWith("sed-") && !k.endsWith(VERSION))
             .map((k) => caches.delete(k)),
         ),
@@ -100,10 +65,10 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-function conTimeout(promesa, ms) {
+function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("timeout")), ms);
-    promesa.then(
+    promise.then(
       (v) => {
         clearTimeout(t);
         resolve(v);
@@ -116,92 +81,82 @@ function conTimeout(promesa, ms) {
   });
 }
 
-async function redPrimeroConRespaldo(req, nombreCache) {
-  const cache = await caches.open(nombreCache);
+async function networkFirstWithFallback(req, cacheName) {
+  const cache = await caches.open(cacheName);
   try {
-    const res = await conTimeout(fetch(req), TIMEOUT_RED_MS);
+    const res = await withTimeout(fetch(req), NETWORK_TIMEOUT_MS);
     if (res && res.ok) cache.put(req, res.clone());
     return res;
   } catch {
-    const guardado = await cache.match(req);
-    if (guardado) {
-      // Se marca para que la UI sepa que este dato viene de la caché.
-      const cabeceras = new Headers(guardado.headers);
-      cabeceras.set("X-Desde-Cache", "1");
-      return new Response(guardado.body, {
-        status: guardado.status,
-        statusText: guardado.statusText,
-        headers: cabeceras,
+    const saved = await cache.match(req);
+    if (saved) {
+      const headers = new Headers(saved.headers);
+      headers.set("X-From-Cache", "1");
+      return new Response(saved.body, {
+        status: saved.status,
+        statusText: saved.statusText,
+        headers: headers,
       });
     }
-    throw new Error("sin red y sin caché");
+    throw new Error("no network and no cache");
   }
 }
 
-async function cachePrimero(req, nombreCache) {
-  const cache = await caches.open(nombreCache);
-  const guardado = await cache.match(req);
-  if (guardado) return guardado;
+async function cacheFirst(req, cacheName) {
+  const cache = await caches.open(cacheName);
+  const saved = await cache.match(req);
+  if (saved) return saved;
   const res = await fetch(req);
   if (res && res.ok) await cache.put(req, res.clone());
   return res;
 }
 
-/*
- * El visor no pide el .pmtiles entero: pide pedazos con la cabecera Range.
- * La Cache API no guarda respuestas parciales (206), así que se guarda el
- * archivo completo y los pedazos se recortan aquí. El buffer queda en memoria
- * mientras el service worker esté vivo, para no releerlo en cada tesela.
- */
-let bufferTeselas = null;
+let tilesBuffer = null;
 
-let rutaDelBuffer = null;
+let bufferPath = null;
 
-/* `ruta` y no una constante: el archivo puede vivir en otra ruta del mismo
-   origen (NEXT_PUBLIC_MAPA_PMTILES). Solo se guarda uno en memoria. */
-async function archivoTeselas(ruta) {
-  if (bufferTeselas && rutaDelBuffer === ruta) return bufferTeselas;
-  const cache = await caches.open(CACHE_MAPA);
-  let res = await cache.match(ruta);
+async function tilesFile(path) {
+  if (tilesBuffer && bufferPath === path) return tilesBuffer;
+  const cache = await caches.open(CACHE_MAP);
+  let res = await cache.match(path);
   if (!res) {
-    const red = await fetch(ruta);
-    if (!red.ok || red.status !== 200) return null;
-    await cache.put(ruta, red.clone());
-    res = red;
+    const network = await fetch(path);
+    if (!network.ok || network.status !== 200) return null;
+    await cache.put(path, network.clone());
+    res = network;
   }
-  bufferTeselas = await res.arrayBuffer();
-  rutaDelBuffer = ruta;
-  return bufferTeselas;
+  tilesBuffer = await res.arrayBuffer();
+  bufferPath = path;
+  return tilesBuffer;
 }
 
-async function servirTeselas(req) {
+async function serveTiles(req) {
   let buffer = null;
   try {
-    buffer = await archivoTeselas(new URL(req.url).pathname);
+    buffer = await tilesFile(new URL(req.url).pathname);
   } catch {
-    // Sin caché y sin red: abajo se intenta la petición original.
   }
   if (!buffer) return fetch(req);
 
   const total = buffer.byteLength;
-  const rango = /^bytes=(\d+)-(\d*)$/.exec(req.headers.get("range") || "");
-  if (!rango) {
+  const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.get("range") || "");
+  if (!range) {
     return new Response(buffer, {
       status: 200,
       headers: { "Content-Type": "application/octet-stream", "Content-Length": String(total) },
     });
   }
-  const inicio = Number(rango[1]);
-  const fin = Math.min(rango[2] ? Number(rango[2]) : total - 1, total - 1);
-  if (inicio > fin) {
+  const start = Number(range[1]);
+  const end = Math.min(range[2] ? Number(range[2]) : total - 1, total - 1);
+  if (start > end) {
     return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${total}` } });
   }
-  return new Response(buffer.slice(inicio, fin + 1), {
+  return new Response(buffer.slice(start, end + 1), {
     status: 206,
     headers: {
       "Content-Type": "application/octet-stream",
-      "Content-Length": String(fin - inicio + 1),
-      "Content-Range": `bytes ${inicio}-${fin}/${total}`,
+      "Content-Length": String(end - start + 1),
+      "Content-Range": `bytes ${start}-${end}/${total}`,
     },
   });
 }
@@ -212,27 +167,23 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
 
-  if (ORIGEN_API && url.origin === ORIGEN_API) {
-    // El stream SSE nunca entra aquí: no está en la lista.
-    if (RUTAS_API_CON_RESPALDO.has(url.pathname)) {
-      event.respondWith(redPrimeroConRespaldo(req, CACHE_DATOS).catch(() => Response.error()));
+  if (API_ORIGIN && url.origin === API_ORIGIN) {
+    if (API_PATHS_WITH_FALLBACK.has(url.pathname)) {
+      event.respondWith(networkFirstWithFallback(req, CACHE_DATA).catch(() => Response.error()));
     }
     return;
   }
 
   if (url.origin !== self.location.origin) return;
 
-  // Cualquier .pmtiles de nuestro origen. Uno servido desde OTRO dominio no pasa
-  // por aquí (ver el `return` de arriba) y por tanto no queda disponible sin red.
   if (url.pathname.endsWith(".pmtiles")) {
-    event.respondWith(servirTeselas(req).catch(() => Response.error()));
+    event.respondWith(serveTiles(req).catch(() => Response.error()));
     return;
   }
 
-  // Navegación: si no hay red, se sirve el armazón cacheado.
   if (req.mode === "navigate") {
     event.respondWith(
-      redPrimeroConRespaldo(req, CACHE_APP).catch(async () => {
+      networkFirstWithFallback(req, CACHE_APP).catch(async () => {
         const c = await caches.open(CACHE_APP);
         return (await c.match("/")) ?? Response.error();
       }),
@@ -241,45 +192,39 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icono") ||
-    url.pathname.startsWith("/fuentes/") ||
-    url.pathname.startsWith("/mapa/fuentes/") ||
-    url.pathname === "/mapa/maplibre-worker.mjs") {
-    event.respondWith(cachePrimero(req, CACHE_APP).catch(() => Response.error()));
+    url.pathname.startsWith("/icon") ||
+    url.pathname.startsWith("/fonts/") ||
+    url.pathname.startsWith("/map/fonts/") ||
+    url.pathname === "/map/maplibre-worker.mjs") {
+    event.respondWith(cacheFirst(req, CACHE_APP).catch(() => Response.error()));
   }
 });
 
-/* ------------------------------------------------------------------ */
-/* Avisos "el desfile está cerca"                                      */
-/* ------------------------------------------------------------------ */
-
 self.addEventListener("push", (event) => {
-  let datos = {};
+  let data = {};
   try {
-    datos = event.data ? event.data.json() : {};
+    data = event.data ? event.data.json() : {};
   } catch {
-    // Un push sin cuerpo legible igual tiene que mostrar algo: el navegador lo exige.
   }
   event.waitUntil(
-    self.registration.showNotification(datos.titulo || "Sigue el Desfile", {
-      body: datos.cuerpo || "El desfile se está acercando a donde estás.",
-      icon: ICONO_AVISO,
-      badge: ICONO_AVISO,
-      tag: "desfile-cerca",
+    self.registration.showNotification(data.title || "Sigue el Desfile", {
+      body: data.body || "El desfile se está acercando a donde estás.",
+      icon: NOTIFICATION_ICON,
+      badge: NOTIFICATION_ICON,
+      tag: "parade-near",
       vibrate: [200, 100, 200],
-      data: { url: datos.url || "/" },
+      data: { url: data.url || "/" },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const destino = (event.notification.data && event.notification.data.url) || "/";
+  const target = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
-      // Si la app ya está abierta se trae al frente, en vez de abrir otra.
-      for (const v of ventanas) if ("focus" in v) return v.focus();
-      return self.clients.openWindow(destino);
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const v of windows) if ("focus" in v) return v.focus();
+      return self.clients.openWindow(target);
     }),
   );
 });

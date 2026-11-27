@@ -1,7 +1,7 @@
 """The shapes of the live state, as they travel in JSON.
 
-They mirror the web's types in `apps/web/src/lib/types.ts`; each one notes which, so
-the web's `api` adapter can map them.
+They are the web's types in `apps/web/src/lib/types.ts`, with the same names; each
+one notes which. The web parses them as they are (`apps/web/src/lib/api/`).
 """
 
 from typing import Literal, Self
@@ -15,7 +15,7 @@ Post = Literal["head", "middle", "tail"]
 
 
 class PositionInput(Schema):
-    """What a reporter (or the simulator) sends. Web: `EntradaPosicion`.
+    """What a reporter (or the simulator) sends. Web: `PositionInput`.
 
     Either `lat` and `lng`, or `waypointId` when there is no GPS: the reporter
     says which waypoint they are at.
@@ -40,7 +40,7 @@ class PositionInput(Schema):
 
 
 class Position(Schema):
-    """A position already projected onto the course. Web: `Posicion`."""
+    """A position already projected onto the course. Web: `Position`."""
 
     post: Post
     lat: float
@@ -53,14 +53,14 @@ class Position(Schema):
 
 
 class HistorySample(Schema):
-    """Web: `MuestraHistorial`."""
+    """Web: `HistorySample`."""
 
     metres: float
     ts: int
 
 
 class Announcement(Schema):
-    """A message from the team to everyone. Web: `Aviso`."""
+    """A message from the team to everyone. Web: `Announcement`."""
 
     id: str
     text: str
@@ -71,7 +71,7 @@ class Announcement(Schema):
 
 
 class ParadeStateOut(Schema):
-    """The full snapshot the UI consumes. Web: `EstadoDesfile`."""
+    """The full snapshot the UI consumes. Web: `ParadeState`."""
 
     parade_id: str
     name: str
@@ -100,7 +100,7 @@ class PositionsResult(Schema):
 
 
 class WaypointPass(Schema):
-    """Web: `PasoPorHito`."""
+    """Web: `WaypointPass`."""
 
     waypoint_id: str
     name: str

@@ -1,22 +1,20 @@
-# Backend glossary
+# Glossary
 
-The web app (`apps/web/src/`) is written in Spanish; the backend is written in English. This is the
-agreed translation of the domain terms, so the same thing always gets the same name in
-code, tables, routes and JSON.
+People talk about the Carnival in Spanish; the code (web and backend) is written in English.
+This is the agreed name of each domain term, so the same thing always gets the same name in
+code, tables, routes, JSON, CSS and storage keys, on both sides.
 
 ## Language rules
 
-- **English:** code, comments, tests, tables and columns, environment variables, HTTP
-  routes, JSON keys, enum-like values (roles, permissions, posts, states), docs, commits,
-  PRs and issues.
-- **Spanish:** only human-readable text inside values, such as the message in
-  `{"error": "No existe."}`.
-- When porting something from `apps/web/src/`, the TypeScript code is still the specification for
-  behaviour. Its names are translated with this table.
+- **English:** code, tests, tables and columns, environment variables, HTTP routes, page
+  routes, JSON keys, enum-like values (roles, permissions, posts, states), CSS tokens, docs,
+  commits, PRs and issues.
+- **Spanish:** only the texts people read inside the app, and human-readable messages
+  inside values, such as the message in `{"error": "No existe."}`.
 
 ## Domain terms
 
-| Spanish (web) | English (backend) | Notes |
+| Spanish | English (code) | Notes |
 |---|---|---|
 | desfile | parade | |
 | senda | course | Not `route`: that word is taken by HTTP routes |
@@ -48,11 +46,10 @@ code, tables, routes and JSON.
 
 ## Values
 
-| Kind | Spanish (web) | English (backend) |
+| Kind | Spanish | English (code) |
 |---|---|---|
 | Reporter post | `cabeza`, `mitad`, `cola` | `head`, `middle`, `tail` |
 | Roles | `admin`, `coordinador`, `editor`, `moderador`, `reportero`, `ingesta` | `admin`, `coordinator`, `editor`, `moderator`, `reporter`, `ingest` |
-
 | Waypoint kind | `iglesia`, `comercial`, `colegio`, `universidad`, `plaza`, `parque`, `estadio`, `hospital` | `church`, `mall`, `school`, `university`, `square`, `park`, `stadium`, `hospital` |
 | Crowd level | `tranquilo`, `con_gente`, `lleno` | `calm`, `busy`, `full` |
 | Announcement level | `info`, `alerta` | `info`, `alert` |

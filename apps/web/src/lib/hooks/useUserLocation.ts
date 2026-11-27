@@ -25,7 +25,7 @@ interface Result {
   clearManual: () => void;
 }
 
-const MANUAL_KEY = "sed:ubicacion-manual";
+const MANUAL_KEY = "sed:manual-location";
 
 export function useUserLocation(): Result {
   const [location, setLocation] = useState<UserLocation | null>(null);
