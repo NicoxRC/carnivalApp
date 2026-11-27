@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { parsePositionsResult, parseSession, parseSessionUser } from "@/lib/api/auth";
-import { parseBusinesses } from "@/lib/api/businesses";
+import { slugId } from "@/components/admin/common";
+import { parseTeam, parseTeamUser } from "@/lib/api/admin";
+import { parseAdminBusinesses, parseBusinesses } from "@/lib/api/businesses";
 import { DEV_API, apiUrl, resolveApiBase } from "@/lib/api/client";
 import { parseDensity } from "@/lib/api/density";
 import { parsePhotos, parsePushStatus, parseUploadGrant } from "@/lib/api/photos";
@@ -296,5 +298,54 @@ describe("the team's session from the API", () => {
     const answer = { saved: 0, discarded: 2, waiting: true, serverTs: 1234 };
     assert.deepEqual(parsePositionsResult(answer), answer);
     assert.throws(() => parsePositionsResult({ ...answer, waiting: undefined }), /waiting/);
+  });
+});
+
+const TEAM_USER_API = {
+  id: "0b6f6b1e-0000-4000-8000-000000000003",
+  email: "ana@example.com",
+  name: "Ana",
+  roles: ["coordinator", "reporter"],
+  post: "tail",
+  active: true,
+  lastSignalAt: null,
+  createdAt: 1000,
+};
+
+describe("the admin panel's data from the API", () => {
+  it("reads a team member with roles and post", () => {
+    assert.deepEqual(parseTeam([TEAM_USER_API]), [TEAM_USER_API]);
+    assert.equal(parseTeamUser({ ...TEAM_USER_API, roles: ["editor"], post: null }).post, null);
+  });
+
+  it("fails with an unknown role or post", () => {
+    assert.throws(() => parseTeamUser({ ...TEAM_USER_API, roles: ["boss"] }), /role/);
+    assert.throws(() => parseTeamUser({ ...TEAM_USER_API, post: "side" }), /post/);
+  });
+
+  it("reads the admin businesses, hidden ones and their counters included", () => {
+    const hidden = { ...BUSINESS_API, id: "closed", visible: false };
+    const parsed = parseAdminBusinesses({
+      businesses: [BUSINESS_API, hidden],
+      metrics: { "cafe-1": { card: 12, whatsapp: 3 } },
+    });
+    assert.deepEqual(
+      parsed.businesses.map((b) => [b.id, b.visible]),
+      [
+        ["cafe-1", true],
+        ["closed", false],
+      ],
+    );
+    assert.deepEqual(parsed.metrics, { "cafe-1": { card: 12, whatsapp: 3 } });
+    assert.deepEqual(parseAdminBusinesses({ businesses: [] }).metrics, {});
+    assert.throws(() => parseAdminBusinesses({ businesses: [], metrics: { x: { card: "12" } } }), /card/);
+  });
+
+  it("builds ids from names the way the backend accepts them", () => {
+    assert.equal(slugId("Desfile Magno", []), "desfile-magno");
+    assert.equal(slugId("Café «La Ñapa»!", []), "cafe-la-napa");
+    assert.equal(slugId("Desfile Magno", ["desfile-magno", "desfile-magno-2"]), "desfile-magno-3");
+    assert.equal(slugId("¡¡!!", []), "item");
+    assert.match(slugId("x".repeat(80), []), /^[a-z0-9][a-z0-9-]{0,39}$/);
   });
 });

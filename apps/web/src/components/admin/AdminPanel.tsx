@@ -8,22 +8,22 @@ import { BusinessesAdmin } from "@/components/admin/Businesses";
 import { LiveAdmin } from "@/components/admin/Live";
 import { PhotosAdmin } from "@/components/admin/Photos";
 import { Schedule } from "@/components/admin/Schedule";
-import { ReportersAdmin } from "@/components/admin/Reporters";
+import { UsersAdmin } from "@/components/admin/Users";
 import { useSession } from "@/lib/hooks/useSession";
 
 const TABS_ADMIN = [
-  ["live", "En vivo"],
-  ["schedule", "Programación"],
-  ["reporters", "Reporteros"],
-  ["businesses", "Comercios"],
-  ["photos", "Fotos"],
+  ["live", "En vivo", ["parades:state", "announcements:manage", "positions:any"]],
+  ["schedule", "Programación", ["parades:edit", "schedule:edit"]],
+  ["users", "Usuarios", ["users:view"]],
+  ["businesses", "Comercios", ["businesses:edit"]],
+  ["photos", "Fotos", ["photos:moderate"]],
 ] as const;
 
 type Tab = (typeof TABS_ADMIN)[number][0];
 
 export function AdminPanel() {
   const { session, retry, loggedIn, logOut, expired } = useSession();
-  const [tab, setTab] = useState<Tab>("live");
+  const [chosen, setChosen] = useState<Tab | null>(null);
 
   if (session.state === "loading") return <p className="p-8 text-sm text-ink-3">Cargando…</p>;
   if (session.state === "offline") {
@@ -43,7 +43,11 @@ export function AdminPanel() {
       </Card>
     );
   }
-  if (!session.user.permissions.some((p) => !p.startsWith("positions:"))) {
+  const permissions = session.user.permissions;
+  const can = (permission: string) => permissions.includes(permission);
+  const tabs = TABS_ADMIN.filter(([, , needs]) => needs.some(can));
+  const tab = chosen !== null && tabs.some(([id]) => id === chosen) ? chosen : tabs[0]?.[0];
+  if (tab === undefined) {
     return (
       <Card>
         <p className="mt-3 text-sm text-ink-2">
@@ -70,11 +74,11 @@ export function AdminPanel() {
             Cerrar sesión
           </button>
           <nav className="-mb-px flex w-full gap-1 overflow-x-auto" aria-label="Secciones">
-            {TABS_ADMIN.map(([id, label]) => (
+            {tabs.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                onClick={() => setTab(id)}
+                onClick={() => setChosen(id)}
                 aria-current={tab === id ? "page" : undefined}
                 className={`shrink-0 border-b-[3px] px-3 py-2.5 text-[15px] font-bold ${
                   tab === id ? "border-head text-ink" : "border-transparent text-ink-3"
@@ -89,11 +93,11 @@ export function AdminPanel() {
 
       <main className="mx-auto max-w-5xl px-4 py-6 lg:px-6">
         {tab === "live" ? (
-          <LiveAdmin onExpired={expired} />
+          <LiveAdmin onExpired={expired} can={can} />
         ) : tab === "schedule" ? (
-          <Schedule onExpired={expired} />
-        ) : tab === "reporters" ? (
-          <ReportersAdmin onExpired={expired} />
+          <Schedule onExpired={expired} can={can} />
+        ) : tab === "users" ? (
+          <UsersAdmin onExpired={expired} can={can} />
         ) : tab === "businesses" ? (
           <BusinessesAdmin onExpired={expired} />
         ) : (

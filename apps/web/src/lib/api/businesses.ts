@@ -36,6 +36,25 @@ function business(v: unknown): Business {
   };
 }
 
+export type Metrics = Record<string, Record<string, number>>;
+
+function metrics(v: unknown): Metrics {
+  const result: Metrics = {};
+  for (const [id, counters] of Object.entries(obj(v, "metrics"))) {
+    const o = obj(counters, `metrics.${id}`);
+    result[id] = Object.fromEntries(Object.keys(o).map((type) => [type, num(o, type)]));
+  }
+  return result;
+}
+
+export function parseAdminBusinesses(json: unknown): { businesses: Business[]; metrics: Metrics } {
+  const o = obj(json, "the businesses");
+  return {
+    businesses: withoutInvalid(list(o.businesses, "businesses"), business, "a business"),
+    metrics: o.metrics === undefined ? {} : metrics(o.metrics),
+  };
+}
+
 export function parseBusinesses(json: unknown): Business[] {
   return withoutInvalid(list(obj(json, "the businesses").businesses, "businesses"), business, "a business");
 }

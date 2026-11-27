@@ -152,12 +152,17 @@ export interface Business {
   visible: boolean;
 }
 
-export interface Reporter {
+export const ROLES = ["admin", "coordinator", "editor", "moderator", "reporter", "ingest"] as const;
+export type Role = (typeof ROLES)[number];
+
+export interface TeamUser {
   id: string;
+  email: string;
   name: string;
-  post: Post;
+  roles: Role[];
+  post: Post | null;
   active: boolean;
-  lastSignalTs: number | null;
+  lastSignalAt: number | null;
   createdAt: number;
 }
 

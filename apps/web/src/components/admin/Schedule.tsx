@@ -3,7 +3,17 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
-import { api, PrimaryButton, SecondaryButton, Field, INPUT_CLASS, CARD_CLASS } from "@/components/admin/common";
+import {
+  api,
+  CARD_CLASS,
+  failureText,
+  Field,
+  INPUT_CLASS,
+  PrimaryButton,
+  SecondaryButton,
+  slugId,
+  type Can,
+} from "@/components/admin/common";
 import { dateParts } from "@/lib/dates";
 import { EVENT_CATEGORIES } from "@/lib/schedule";
 import type { EventCategory, Parade, ScheduleEvent } from "@/lib/types";
@@ -32,7 +42,9 @@ const EMPTY_EVENT: EventDraft = {
   sponsored: false,
 };
 
-export function Schedule({ onExpired }: { onExpired: () => void }) {
+export function Schedule({ onExpired, can }: { onExpired: () => void; can: Can }) {
+  const editParades = can("parades:edit");
+  const editEvents = can("schedule:edit");
   const [parades, setParades] = useState<Parade[] | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [events, setEvents] = useState<ScheduleEvent[] | null>(null);
@@ -41,20 +53,21 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
   const [event, setEvent] = useState<EventDraft | null>(null);
 
   const reload = useCallback(async () => {
+    const none = { ok: true as const, data: null };
     const [d, e] = await Promise.all([
-      api<{ parades: Parade[]; currentId: string | null }>("/api/admin/desfiles"),
-      api<{ events: ScheduleEvent[] }>("/api/admin/eventos"),
+      api<{ parades: Parade[]; currentId: string | null }>("/api/admin/parades"),
+      editEvents ? api<{ events: ScheduleEvent[] }>("/api/admin/events") : Promise.resolve(none),
     ]);
     if (!d.ok || !e.ok) {
       const failure = !d.ok ? d : (e as Exclude<typeof e, { ok: true }>);
       if (failure.status === 401) onExpired();
-      else setError(failure.error);
+      else setError(failureText(failure));
       return;
     }
     setParades([...d.data.parades].sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)));
     setCurrentId(d.data.currentId);
-    setEvents([...e.data.events].sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)));
-  }, [onExpired]);
+    if (e.data) setEvents([...e.data.events].sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)));
+  }, [onExpired, editEvents]);
 
   useEffect(() => {
     void reload();
@@ -64,7 +77,7 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
     const r = await api(url, { method, body: body ? JSON.stringify(body) : undefined });
     if (!r.ok) {
       if (r.status === 401) onExpired();
-      setError(r.error);
+      setError(failureText(r));
       return false;
     }
     setError(null);
@@ -75,20 +88,24 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
   const saveParade = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!parade) return;
-    const ok = await send(parade.id ? `/api/admin/desfiles/${parade.id}` : "/api/admin/desfiles", parade.id ? "PUT" : "POST", parade);
+    const id = parade.id ?? slugId(parade.name, (parades ?? []).map((d) => d.id));
+    const { id: _, ...body } = parade;
+    const ok = await send(`/api/admin/parades/${encodeURIComponent(id)}`, "PUT", body);
     if (ok) setParade(null);
   };
 
   const saveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
-    const ok = await send(event.id ? `/api/admin/eventos/${event.id}` : "/api/admin/eventos", event.id ? "PUT" : "POST", event);
+    const id = event.id ?? slugId(event.title, (events ?? []).map((x) => x.id));
+    const { id: _, ...body } = event;
+    const ok = await send(`/api/admin/events/${encodeURIComponent(id)}`, "PUT", body);
     if (ok) setEvent(null);
   };
 
   const action = async (d: Parade, a: "start" | "finish" | "restart") => {
     if (a === "restart" && !confirm(`¿Reiniciar «${d.name}»? Se borran todas sus posiciones.`)) return;
-    await send(`/api/admin/desfiles/${d.id}`, "PATCH", { action: a });
+    await send(`/api/admin/parades/${encodeURIComponent(d.id)}`, "PATCH", { action: a });
   };
 
   return (
@@ -98,9 +115,11 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="display-font text-[20px] text-ink">Desfiles</h2>
-          <SecondaryButton onClick={() => setParade({ id: null, name: "", date: "", startTime: "09:00" })}>
-            Agregar desfile
-          </SecondaryButton>
+          {editParades && (
+            <SecondaryButton onClick={() => setParade({ id: null, name: "", date: "", startTime: "09:00" })}>
+              Agregar desfile
+            </SecondaryButton>
+          )}
         </div>
         <p className="text-[13px] text-ink-3">
           La app sigue un desfile a la vez: el que está en curso; si no hay, el de hoy; si no, el
@@ -147,24 +166,29 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
                       {dateParts(d.date).shortDay} {dateParts(d.date).long} · {d.startTime} · {STATE_LABEL[d.state]}
                     </p>
                   </div>
-                  {d.state !== "in_progress" && <SecondaryButton onClick={() => void action(d, "start")}>Iniciar</SecondaryButton>}
-                  {d.state === "in_progress" && <SecondaryButton onClick={() => void action(d, "finish")}>Finalizar</SecondaryButton>}
-                  {d.state !== "scheduled" && (
+                  {can("parades:state") && d.state !== "in_progress" && <SecondaryButton onClick={() => void action(d, "start")}>Iniciar</SecondaryButton>}
+                  {can("parades:state") && d.state === "in_progress" && <SecondaryButton onClick={() => void action(d, "finish")}>Finalizar</SecondaryButton>}
+                  {can("parades:state") && d.state !== "scheduled" && (
                     <SecondaryButton danger onClick={() => void action(d, "restart")}>
                       Reiniciar
                     </SecondaryButton>
                   )}
-                  <SecondaryButton onClick={() => setParade({ id: d.id, name: d.name, date: d.date, startTime: d.startTime })}>
-                    Editar
-                  </SecondaryButton>
-                  <SecondaryButton
-                    danger
-                    onClick={() => {
-                      if (confirm(`¿Borrar «${d.name}» y todo su recorrido?`)) void send(`/api/admin/desfiles/${d.id}`, "DELETE");
-                    }}
-                  >
-                    Borrar
-                  </SecondaryButton>
+                  {editParades && (
+                    <>
+                      <SecondaryButton onClick={() => setParade({ id: d.id, name: d.name, date: d.date, startTime: d.startTime })}>
+                        Editar
+                      </SecondaryButton>
+                      <SecondaryButton
+                        danger
+                        onClick={() => {
+                          if (confirm(`¿Borrar «${d.name}» y todo su recorrido?`))
+                            void send(`/api/admin/parades/${encodeURIComponent(d.id)}`, "DELETE");
+                        }}
+                      >
+                        Borrar
+                      </SecondaryButton>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -172,6 +196,7 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
         </div>
       </section>
 
+{editEvents && (
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="display-font text-[20px] text-ink">Eventos</h2>
@@ -271,7 +296,7 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
                   <SecondaryButton
                     danger
                     onClick={() => {
-                      if (confirm(`¿Borrar «${e.title}»?`)) void send(`/api/admin/eventos/${e.id}`, "DELETE");
+                      if (confirm(`¿Borrar «${e.title}»?`)) void send(`/api/admin/events/${encodeURIComponent(e.id)}`, "DELETE");
                     }}
                   >
                     Borrar
@@ -282,6 +307,7 @@ export function Schedule({ onExpired }: { onExpired: () => void }) {
           )}
         </div>
       </section>
+      )}
     </div>
   );
 }
