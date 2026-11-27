@@ -6,7 +6,7 @@ import { Comercios } from "@/components/admin/Comercios";
 import { api } from "@/components/admin/comun";
 import { EnVivo } from "@/components/admin/EnVivo";
 import { Fotos } from "@/components/admin/Fotos";
-import { Programacion } from "@/components/admin/Programacion";
+import { Schedule } from "@/components/admin/Programacion";
 import { Reporteros } from "@/components/admin/Reporteros";
 
 /**
@@ -27,13 +27,13 @@ type Pestana = (typeof PESTANAS)[number][0];
 
 export function PanelAdmin() {
   const [sesion, setSesion] = useState<"cargando" | "fuera" | "dentro">("cargando");
-  const [configurado, setConfigurado] = useState(true);
+  const [configured, setConfigurado] = useState(true);
   const [pestana, setPestana] = useState<Pestana>("vivo");
 
   useEffect(() => {
-    void api<{ admin: boolean; configurado: boolean }>("/api/admin/sesion").then((r) => {
+    void api<{ admin: boolean; configured: boolean }>("/api/admin/sesion").then((r) => {
       if (r.ok) {
-        setConfigurado(r.datos.configurado);
+        setConfigurado(r.datos.configured);
         setSesion(r.datos.admin ? "dentro" : "fuera");
       } else setSesion("fuera");
     });
@@ -42,7 +42,7 @@ export function PanelAdmin() {
   const vencida = useCallback(() => setSesion("fuera"), []);
 
   if (sesion === "cargando") return <p className="p-8 text-sm text-tinta-3">Cargando…</p>;
-  if (sesion === "fuera") return <Entrar configurado={configurado} onEntrar={() => setSesion("dentro")} />;
+  if (sesion === "fuera") return <Entrar configured={configured} onEntrar={() => setSesion("dentro")} />;
 
   const salir = async () => {
     await api("/api/admin/sesion", { method: "DELETE" });
@@ -83,7 +83,7 @@ export function PanelAdmin() {
         {pestana === "vivo" ? (
           <EnVivo onVencida={vencida} />
         ) : pestana === "programacion" ? (
-          <Programacion onVencida={vencida} />
+          <Schedule onVencida={vencida} />
         ) : pestana === "reporteros" ? (
           <Reporteros onVencida={vencida} />
         ) : pestana === "comercios" ? (
@@ -98,15 +98,15 @@ export function PanelAdmin() {
 
 /* --------------------------------- Entrar -------------------------------- */
 
-function Entrar({ configurado, onEntrar }: { configurado: boolean; onEntrar: () => void }) {
-  const [clave, setClave] = useState("");
+function Entrar({ configured, onEntrar }: { configured: boolean; onEntrar: () => void }) {
+  const [key, setClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  const enviar = async (e: React.FormEvent) => {
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     setOcupado(true);
-    const r = await api("/api/admin/sesion", { method: "POST", body: JSON.stringify({ clave }) });
+    const r = await api("/api/admin/sesion", { method: "POST", body: JSON.stringify({ key }) });
     setOcupado(false);
     if (r.ok) onEntrar();
     else setError(r.error);
@@ -114,9 +114,9 @@ function Entrar({ configurado, onEntrar }: { configurado: boolean; onEntrar: () 
 
   return (
     <div className="grid min-h-dvh place-items-center bg-papel-3 px-4">
-      <form onSubmit={enviar} className="w-full max-w-sm rounded-3xl bg-blanco p-6 shadow-sm">
+      <form onSubmit={send} className="w-full max-w-sm rounded-3xl bg-blanco p-6 shadow-sm">
         <p className="fuente-display text-[22px] text-tinta">Administración</p>
-        {configurado ? (
+        {configured ? (
           <>
             <label htmlFor="clave" className="mt-5 block text-sm font-bold text-tinta">
               Contraseña
@@ -124,7 +124,7 @@ function Entrar({ configurado, onEntrar }: { configurado: boolean; onEntrar: () 
             <input
               id="clave"
               type="password"
-              value={clave}
+              value={key}
               onChange={(e) => setClave(e.target.value)}
               autoComplete="current-password"
               className="mt-1.5 w-full rounded-xl border border-borde-3 px-3 py-2.5 text-tinta focus:border-tinta focus:outline-none"
@@ -132,7 +132,7 @@ function Entrar({ configurado, onEntrar }: { configurado: boolean; onEntrar: () 
             {error ? <p className="mt-2 text-sm font-semibold text-alerta">{error}</p> : null}
             <button
               type="submit"
-              disabled={ocupado || !clave}
+              disabled={ocupado || !key}
               className="mt-5 w-full rounded-full bg-tinta py-3 font-bold text-papel disabled:opacity-40"
             >
               {ocupado ? "Entrando…" : "Entrar"}

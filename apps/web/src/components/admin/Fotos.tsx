@@ -3,19 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, BotonSec, TARJETA } from "@/components/admin/comun";
-import { hitoMasCercano } from "@/lib/senda";
-import type { Foto } from "@/lib/tipos";
+import { nearestWaypoint } from "@/lib/course";
+import type { Photo } from "@/lib/types";
 
 /**
  * Moderación. Nada de lo que sube el público sale en el muro sin pasar por
  * aquí. Primero las pendientes, que son las que esperan decisión.
  */
 export function Fotos({ onVencida }: { onVencida: () => void }) {
-  const [fotos, setFotos] = useState<Foto[] | null>(null);
+  const [fotos, setFotos] = useState<Photo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
-    const r = await api<{ fotos: Foto[] }>("/api/admin/fotos");
+    const r = await api<{ fotos: Photo[] }>("/api/admin/fotos");
     if (r.ok) setFotos(r.datos.fotos);
     else if (r.status === 401) onVencida();
     else setError(r.error);
@@ -27,31 +27,31 @@ export function Fotos({ onVencida }: { onVencida: () => void }) {
     return () => clearInterval(t);
   }, [recargar]);
 
-  const moderar = async (f: Foto, estado: Foto["estado"]) => {
-    const r = await api(`/api/admin/fotos/${f.id}`, { method: "PATCH", body: JSON.stringify({ estado }) });
+  const moderar = async (f: Photo, state: Photo["state"]) => {
+    const r = await api(`/api/admin/fotos/${f.id}`, { method: "PATCH", body: JSON.stringify({ state }) });
     if (!r.ok) setError(r.error);
     void recargar();
   };
 
-  const borrar = async (f: Foto) => {
+  const borrar = async (f: Photo) => {
     if (!confirm("¿Borrar esta foto para siempre?")) return;
     const r = await api(`/api/admin/fotos/${f.id}`, { method: "DELETE" });
     if (!r.ok) setError(r.error);
     void recargar();
   };
 
-  const grupo = (estado: Foto["estado"]) => (fotos ?? []).filter((f) => f.estado === estado);
+  const grupo = (state: Photo["state"]) => (fotos ?? []).filter((f) => f.state === state);
 
-  const Rejilla = ({ lista, acciones }: { lista: Foto[]; acciones: (f: Foto) => React.ReactNode }) => (
+  const Rejilla = ({ list, acciones }: { list: Photo[]; acciones: (f: Photo) => React.ReactNode }) => (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {lista.map((f) => (
+      {list.map((f) => (
         <figure key={f.id} className="overflow-hidden rounded-2xl border border-borde-2 bg-blanco">
           {/* eslint-disable-next-line @next/next/no-img-element -- imagen privada servida por la API */}
           <img src={f.url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
           <figcaption className="space-y-2 p-2.5">
             <p className="text-[12px] text-tinta-3">
-              {new Date(f.creadoEn).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "short" })}
-              {f.metros !== null ? ` · por ${hitoMasCercano(f.metros)?.corto ?? "la senda"}` : ""}
+              {new Date(f.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "short" })}
+              {f.metres !== null ? ` · por ${nearestWaypoint(f.metres)?.short ?? "la senda"}` : ""}
             </p>
             <div className="flex flex-wrap gap-1.5">{acciones(f)}</div>
           </figcaption>
@@ -67,18 +67,18 @@ export function Fotos({ onVencida }: { onVencida: () => void }) {
       {error ? <p className="text-sm font-semibold text-alerta">{error}</p> : null}
 
       <section className="space-y-3">
-        <h2 className="fuente-display text-[20px] text-tinta">Por revisar ({grupo("pendiente").length})</h2>
-        {grupo("pendiente").length === 0 ? (
+        <h2 className="fuente-display text-[20px] text-tinta">Por revisar ({grupo("pending").length})</h2>
+        {grupo("pending").length === 0 ? (
           <p className={`${TARJETA} text-sm text-tinta-3`}>No hay fotos esperando.</p>
         ) : (
           <Rejilla
-            lista={grupo("pendiente")}
+            list={grupo("pending")}
             acciones={(f) => (
               <>
-                <BotonSec activo onClick={() => void moderar(f, "aprobada")}>
+                <BotonSec active onClick={() => void moderar(f, "approved")}>
                   Aprobar
                 </BotonSec>
-                <BotonSec peligro onClick={() => void moderar(f, "rechazada")}>
+                <BotonSec peligro onClick={() => void moderar(f, "rejected")}>
                   Rechazar
                 </BotonSec>
               </>
@@ -87,24 +87,24 @@ export function Fotos({ onVencida }: { onVencida: () => void }) {
         )}
       </section>
 
-      {grupo("aprobada").length > 0 && (
+      {grupo("approved").length > 0 && (
         <section className="space-y-3">
-          <h2 className="fuente-display text-[20px] text-tinta">Publicadas ({grupo("aprobada").length})</h2>
+          <h2 className="fuente-display text-[20px] text-tinta">Publicadas ({grupo("approved").length})</h2>
           <Rejilla
-            lista={grupo("aprobada")}
-            acciones={(f) => <BotonSec onClick={() => void moderar(f, "rechazada")}>Quitar del muro</BotonSec>}
+            list={grupo("approved")}
+            acciones={(f) => <BotonSec onClick={() => void moderar(f, "rejected")}>Quitar del muro</BotonSec>}
           />
         </section>
       )}
 
-      {grupo("rechazada").length > 0 && (
+      {grupo("rejected").length > 0 && (
         <section className="space-y-3">
-          <h2 className="fuente-display text-[20px] text-tinta">Rechazadas ({grupo("rechazada").length})</h2>
+          <h2 className="fuente-display text-[20px] text-tinta">Rechazadas ({grupo("rejected").length})</h2>
           <Rejilla
-            lista={grupo("rechazada")}
+            list={grupo("rejected")}
             acciones={(f) => (
               <>
-                <BotonSec onClick={() => void moderar(f, "aprobada")}>Aprobar</BotonSec>
+                <BotonSec onClick={() => void moderar(f, "approved")}>Aprobar</BotonSec>
                 <BotonSec peligro onClick={() => void borrar(f)}>
                   Borrar
                 </BotonSec>

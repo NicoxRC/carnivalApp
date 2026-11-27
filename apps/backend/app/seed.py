@@ -1,4 +1,8 @@
-"""Loads the initial data from `apps/backend/seed/` (see apps/web/scripts/export-seed.ts).
+"""Loads the initial data from `apps/backend/seed/`.
+
+`course.json` and `projections.json` are generated from the web's course
+(apps/web/scripts/export-seed.ts); the parades, events and businesses are
+edited by hand.
 
 Idempotent: running it twice leaves the same result. The state of a parade
 that already exists is not touched, so seeding again on parade day does not

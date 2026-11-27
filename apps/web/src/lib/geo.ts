@@ -1,7 +1,6 @@
-const RADIO_TIERRA_M = 6_371_000;
+const EARTH_RADIUS_M = 6_371_000;
 
-/** Distancia en línea recta entre dos puntos, en metros. */
-export function distanciaHaversine(
+export function haversineDistance(
   aLat: number,
   aLng: number,
   bLat: number,
@@ -13,5 +12,5 @@ export function distanciaHaversine(
   const h =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * RADIO_TIERRA_M * Math.asin(Math.min(1, Math.sqrt(h)));
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }

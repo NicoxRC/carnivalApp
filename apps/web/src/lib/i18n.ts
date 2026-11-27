@@ -2,51 +2,39 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-import { traducir, type Idioma, type Traductor } from "@/lib/i18n-textos";
+import { translate, type Language, type Translator } from "@/lib/i18n-texts";
 
-export type { ClaveTexto, Idioma, Traductor } from "@/lib/i18n-textos";
+export type { TextKey, Language, Translator } from "@/lib/i18n-texts";
 
-/** El idioma elegido, compartido por toda la app. Los textos viven en `i18n-textos.ts`. */
+const KEY = "sed:idioma";
+const listeners = new Set<() => void>();
+let current: Language | null = null;
 
-const CLAVE = "sed:idioma";
-const oyentes = new Set<() => void>();
-let actual: Idioma | null = null;
-
-function leer(): Idioma {
-  if (actual) return actual;
+function read(): Language {
+  if (current) return current;
   try {
-    const guardado = localStorage.getItem(CLAVE);
-    if (guardado === "es" || guardado === "en") return (actual = guardado);
-  } catch {
-    // sin almacenamiento: se decide por el idioma del celular
-  }
-  // Solo se cambia a inglés si el celular NO está en español: un pastuso con
-  // el teléfono en español nunca debería ver la app en inglés por accidente.
-  return (actual = navigator.language?.toLowerCase().startsWith("es") ? "es" : "en");
+    const saved = localStorage.getItem(KEY);
+    if (saved === "es" || saved === "en") return (current = saved);
+  } catch {}
+  return (current = navigator.language?.toLowerCase().startsWith("es") ? "es" : "en");
 }
 
-function suscribir(cb: () => void) {
-  oyentes.add(cb);
-  return () => oyentes.delete(cb);
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
 }
 
-export function fijarIdioma(idioma: Idioma) {
-  actual = idioma;
+export function setLanguage(language: Language) {
+  current = language;
   try {
-    localStorage.setItem(CLAVE, idioma);
-  } catch {
-    // vale para esta sesión
-  }
-  document.documentElement.lang = idioma === "es" ? "es-CO" : "en";
-  for (const cb of oyentes) cb();
+    localStorage.setItem(KEY, language);
+  } catch {}
+  document.documentElement.lang = language === "es" ? "es-CO" : "en";
+  for (const cb of listeners) cb();
 }
 
-/**
- * En el servidor y en el primer render se usa español (lo que está en el HTML
- * prerenderizado); el idioma real se aplica al hidratar, sin desajuste.
- */
-export function useIdioma(): { idioma: Idioma; t: Traductor } {
-  const idioma = useSyncExternalStore<Idioma>(suscribir, leer, () => "es");
-  const t = useCallback<Traductor>((clave, vars) => traducir(idioma, clave, vars), [idioma]);
-  return { idioma, t };
+export function useLanguage(): { language: Language; t: Translator } {
+  const language = useSyncExternalStore<Language>(subscribe, read, () => "es");
+  const t = useCallback<Translator>((key, vars) => translate(language, key, vars), [language]);
+  return { language, t };
 }

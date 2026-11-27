@@ -22,7 +22,7 @@ from pyproj import Transformer
 from shapely.geometry import LineString, Point
 
 # How far from the course a user may be for "the parade arrives in X" to mean
-# anything. Same as DESVIO_MAX_USUARIO_M in apps/web/src/lib/senda.ts.
+# anything. Same as MAX_USER_OFFSET_M in apps/web/src/lib/course.ts.
 MAX_USER_OFFSET_M = 600
 
 # turf's earth radius, in metres.

@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { distanciaCorta, haceCuanto } from "@/lib/formato";
-import { useReloj } from "@/lib/hooks/useEstadoDesfile";
-import { INTERVALO_ENVIO_MS, PRECISION_ACEPTABLE_M, useReporte, type Reporte } from "@/lib/hooks/useReporte";
-import { metrosEnSenda, referenciaEnSenda, SENDA } from "@/lib/senda";
-import type { Reportero, Rol } from "@/lib/tipos";
+import { shortDistance, timeAgo } from "@/lib/format";
+import { useClock } from "@/lib/hooks/useParadeState";
+import { SEND_INTERVAL_MS, ACCEPTABLE_ACCURACY_M, useReporting, type Reporting } from "@/lib/hooks/useReporting";
+import { projectOnCourse, describePosition, COURSE } from "@/lib/course";
+import type { Reporter, Post } from "@/lib/types";
 
 /**
  * Panel de los reporteros: las tres personas que caminan con el desfile.
@@ -17,49 +17,49 @@ import type { Reportero, Rol } from "@/lib/tipos";
  * sepan que está funcionando sin tener que preguntar.
  */
 
-const ROL: Record<Rol, { nombre: string; color: string; ayuda: string }> = {
-  cabeza: { nombre: "Cabeza", color: "bg-cabeza", ayuda: "Caminá con la primera carroza o comparsa." },
-  mitad: { nombre: "Mitad", color: "bg-mitad", ayuda: "Caminá a la mitad del desfile." },
-  cola: { nombre: "Cola", color: "bg-cola", ayuda: "Caminá con lo último del desfile." },
+const ROL: Record<Post, { name: string; color: string; ayuda: string }> = {
+  head: { name: "Cabeza", color: "bg-cabeza", ayuda: "Caminá con la primera carroza o comparsa." },
+  middle: { name: "Mitad", color: "bg-mitad", ayuda: "Caminá a la mitad del desfile." },
+  tail: { name: "Cola", color: "bg-cola", ayuda: "Caminá con lo último del desfile." },
 };
 
 type Sesion =
-  | { estado: "cargando" }
-  | { estado: "fuera" }
-  | { estado: "dentro"; reportero: Reportero; desfile: string | null };
+  | { state: "cargando" }
+  | { state: "fuera" }
+  | { state: "dentro"; reportero: Reporter; parade: string | null };
 
 export function PanelReportero() {
-  const [sesion, setSesion] = useState<Sesion>({ estado: "cargando" });
+  const [sesion, setSesion] = useState<Sesion>({ state: "cargando" });
 
   useEffect(() => {
     fetch("/api/reportero/sesion", { cache: "no-store" })
       .then((r) =>
         r.ok
-          ? (r.json() as Promise<{ reportero: Reportero | null; desfile?: string | null }>)
-          : { reportero: null, desfile: null },
+          ? (r.json() as Promise<{ reportero: Reporter | null; parade?: string | null }>)
+          : { reportero: null, parade: null },
       )
       .then((d) =>
         setSesion(
-          d.reportero ? { estado: "dentro", reportero: d.reportero, desfile: d.desfile ?? null } : { estado: "fuera" },
+          d.reportero ? { state: "dentro", reportero: d.reportero, parade: d.parade ?? null } : { state: "fuera" },
         ),
       )
-      .catch(() => setSesion({ estado: "fuera" }));
+      .catch(() => setSesion({ state: "fuera" }));
   }, []);
 
-  const alVencer = useCallback(() => setSesion({ estado: "fuera" }), []);
+  const alVencer = useCallback(() => setSesion({ state: "fuera" }), []);
 
   return (
     <div className="pt-seguro pb-seguro min-h-dvh bg-tinta text-papel">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 py-6">
-        {sesion.estado === "cargando" ? (
+        {sesion.state === "cargando" ? (
           <p className="m-auto text-sm text-tinta-4">Cargando…</p>
-        ) : sesion.estado === "fuera" ? (
-          <Entrar onEntrar={(reportero, desfile) => setSesion({ estado: "dentro", reportero, desfile })} />
+        ) : sesion.state === "fuera" ? (
+          <Entrar onEntrar={(reportero, parade) => setSesion({ state: "dentro", reportero, parade })} />
         ) : (
           <Reportando
             reportero={sesion.reportero}
-            desfile={sesion.desfile}
-            onSalir={() => setSesion({ estado: "fuera" })}
+            parade={sesion.parade}
+            onSalir={() => setSesion({ state: "fuera" })}
             onVencida={alVencer}
           />
         )}
@@ -70,12 +70,12 @@ export function PanelReportero() {
 
 /* --------------------------------- Entrar -------------------------------- */
 
-function Entrar({ onEntrar }: { onEntrar: (r: Reportero, desfile: string | null) => void }) {
+function Entrar({ onEntrar }: { onEntrar: (r: Reporter, parade: string | null) => void }) {
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  const enviar = async (e: React.FormEvent) => {
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     setOcupado(true);
     setError(null);
@@ -85,9 +85,9 @@ function Entrar({ onEntrar }: { onEntrar: (r: Reportero, desfile: string | null)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo }),
       });
-      const d = (await r.json()) as { reportero?: Reportero; desfile?: string | null; error?: string };
+      const d = (await r.json()) as { reportero?: Reporter; parade?: string | null; error?: string };
       if (!r.ok || !d.reportero) setError(d.error ?? "No se pudo entrar.");
-      else onEntrar(d.reportero, d.desfile ?? null);
+      else onEntrar(d.reportero, d.parade ?? null);
     } catch {
       setError("Sin conexión. Intentá otra vez cuando tengas señal.");
     } finally {
@@ -96,7 +96,7 @@ function Entrar({ onEntrar }: { onEntrar: (r: Reportero, desfile: string | null)
   };
 
   return (
-    <form onSubmit={enviar} className="my-auto">
+    <form onSubmit={send} className="my-auto">
       <p className="fuente-display text-[28px] leading-tight">Panel de reporteros</p>
       <p className="mt-2 text-[15px] text-tinta-4">
         Escribí el código que te dio el coordinador. Solo hay que hacerlo una vez por día.
@@ -130,24 +130,24 @@ function Entrar({ onEntrar }: { onEntrar: (r: Reportero, desfile: string | null)
 
 function Reportando({
   reportero,
-  desfile,
+  parade,
   onSalir,
   onVencida,
 }: {
-  reportero: Reportero;
-  desfile: string | null;
+  reportero: Reporter;
+  parade: string | null;
   onSalir: () => void;
   onVencida: () => void;
 }) {
-  const r = useReporte(onVencida);
-  const ahora = useReloj(1000);
-  const rol = ROL[reportero.rol];
+  const r = useReporting(onVencida);
+  const now = useClock(1000);
+  const post = ROL[reportero.post];
   // El GPS, la pantalla encendida y la sesión solo funcionan en https (o localhost).
   const [seguro, setSeguro] = useState(true);
   useEffect(() => setSeguro(window.isSecureContext), []);
 
   const salir = async () => {
-    r.terminar();
+    r.stop();
     await fetch("/api/reportero/sesion", { method: "DELETE" }).catch(() => undefined);
     onSalir();
   };
@@ -155,15 +155,15 @@ function Reportando({
   return (
     <>
       <header className="flex items-center gap-3">
-        <span className={`size-4 shrink-0 rounded-full ${rol.color}`} aria-hidden />
+        <span className={`size-4 shrink-0 rounded-full ${post.color}`} aria-hidden />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-tinta-4">
-            {reportero.nombre}
-            {desfile ? ` · ${desfile}` : ""}
+            {reportero.name}
+            {parade ? ` · ${parade}` : ""}
           </p>
-          <p className="fuente-display text-[24px] leading-none">{rol.nombre}</p>
+          <p className="fuente-display text-[24px] leading-none">{post.name}</p>
         </div>
-        {r.activo ? null : (
+        {r.active ? null : (
           <button
             type="button"
             onClick={salir}
@@ -174,17 +174,17 @@ function Reportando({
         )}
       </header>
 
-      {r.activo ? (
-        <Activo r={r} ahora={ahora} />
+      {r.active ? (
+        <Activo r={r} now={now} />
       ) : (
         <div className="my-auto">
-          <p className="text-[17px] leading-snug text-papel">{rol.ayuda}</p>
+          <p className="text-[17px] leading-snug text-papel">{post.ayuda}</p>
           <ul className="mt-4 space-y-2 text-[15px] leading-snug text-tinta-4">
             <li>· Dejá esta pantalla abierta todo el recorrido. Tu ubicación sale sola.</li>
             <li>· Si el desfile se para o arranca, tocá «Estoy aquí».</li>
             <li>· Llevá batería externa: la pantalla va a estar encendida.</li>
           </ul>
-          {r.gps === "denegado" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
+          {r.gps === "denied" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
           {seguro ? null : (
             <p className="mt-4 rounded-2xl bg-[#3a1512] px-4 py-3 text-[14px] font-semibold text-[#ff8a7a]">
               Esta página no está abierta por una conexión segura (https), y así el celular no
@@ -193,7 +193,7 @@ function Reportando({
           )}
           <button
             type="button"
-            onClick={r.empezar}
+            onClick={r.start}
             className="mt-8 w-full rounded-full bg-ok py-5 text-xl font-extrabold text-blanco active:opacity-90"
           >
             Empezar a reportar
@@ -204,21 +204,21 @@ function Reportando({
   );
 }
 
-function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
-  const [aviso, setAviso] = useState<string | null>(null);
-  const [hito, setHito] = useState("");
+function Activo({ r, now }: { r: Reporting; now: number }) {
+  const [alert, setAlert] = useState<string | null>(null);
+  const [waypoint, setHito] = useState("");
 
   // Dónde cree la app que está: si dice algo raro, el reportero lo nota al instante.
-  const proy = r.fix ? metrosEnSenda(r.fix.lat, r.fix.lng) : null;
-  const referencia = proy ? referenciaEnSenda(proy.metros, "estas").frase : null;
-  const lejos = proy !== null && proy.desvioM > 150;
+  const projection = r.fix ? projectOnCourse(r.fix.lat, r.fix.lng) : null;
+  const referencia = projection ? describePosition(projection.metres, "you").phrase : null;
+  const lejos = projection !== null && projection.offsetM > 150;
 
-  const atrasado = r.ultimoEnvio !== null && ahora - r.ultimoEnvio > INTERVALO_ENVIO_MS * 3;
-  const impreciso = r.fix !== null && r.fix.precisionM > PRECISION_ACEPTABLE_M;
+  const atrasado = r.lastSentAt !== null && now - r.lastSentAt > SEND_INTERVAL_MS * 3;
+  const impreciso = r.fix !== null && r.fix.accuracyM > ACCEPTABLE_ACCURACY_M;
 
   const tocarEstoyAqui = () => {
-    setAviso(r.estoyAqui() ? "Listo, ya saben por dónde vas." : "Todavía no hay GPS. Usá la lista de abajo.");
-    setTimeout(() => setAviso(null), 4000);
+    setAlert(r.imHere() ? "Listo, ya saben por dónde vas." : "Todavía no hay GPS. Usá la lista de abajo.");
+    setTimeout(() => setAlert(null), 4000);
   };
 
   return (
@@ -228,20 +228,20 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
         <p className="flex items-center gap-2 text-sm font-bold">
           <span
             className={`size-2.5 rounded-full ${
-              r.red === "ok" && !atrasado ? "latido bg-ok" : "bg-mitad"
+              r.network === "ok" && !atrasado ? "latido bg-ok" : "bg-mitad"
             }`}
             aria-hidden
           />
-          {r.red === "sin_senal"
+          {r.network === "no_signal"
             ? "Sin señal: se guarda y se manda cuando vuelva"
-            : r.enEspera
+            : r.onHold
               ? "De respaldo: otro reportero lleva este rol"
               : atrasado
               ? "Hace rato no sale nada"
               : "Mandando tu ubicación"}
         </p>
         <p className="fuente-display mt-3 text-[30px] leading-none">
-          {r.ultimoEnvio ? haceCuanto(r.ultimoEnvio, ahora) : "—"}
+          {r.lastSentAt ? timeAgo(r.lastSentAt, now) : "—"}
         </p>
         <p className="mt-1 text-[13px] text-tinta-4">último envío</p>
 
@@ -250,27 +250,27 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
             <dt className="text-tinta-4">GPS</dt>
             <dd className="font-bold">
               {r.gps === "ok" && r.fix
-                ? `± ${Math.round(r.fix.precisionM)} m`
-                : r.gps === "buscando"
+                ? `± ${Math.round(r.fix.accuracyM)} m`
+                : r.gps === "searching"
                   ? "buscando…"
                   : "sin GPS"}
             </dd>
           </div>
           <div>
             <dt className="text-tinta-4">Por mandar</dt>
-            <dd className="font-bold">{r.pendientes === 0 ? "nada" : `${r.pendientes} puntos`}</dd>
+            <dd className="font-bold">{r.pending === 0 ? "nada" : `${r.pending} puntos`}</dd>
           </div>
         </dl>
         {referencia ? (
           <p className="mt-3 text-[15px] font-semibold">
-            {lejos ? `Estás a ${distanciaCorta(proy.desvioM)} de la senda` : referencia}
+            {lejos ? `Estás a ${shortDistance(projection.offsetM)} de la senda` : referencia}
           </p>
         ) : null}
       </section>
 
-      {r.gps === "denegado" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
+      {r.gps === "denied" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
 
-      {r.enEspera ? (
+      {r.onHold ? (
         <p className="rounded-2xl bg-[#1d2a3a] px-4 py-3 text-[14px] font-semibold text-[#9fd0f5]">
           Otra persona con tu mismo rol está mandando su ubicación, así que la tuya no se usa por
           ahora. Dejá el panel abierto: si la otra se queda sin señal un minuto, entrás vos solo.
@@ -279,17 +279,17 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
 
       {impreciso ? (
         <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
-          El GPS está muy impreciso (± {Math.round(r.fix!.precisionM)} m) y así no se manda. Salí a
+          El GPS está muy impreciso (± {Math.round(r.fix!.accuracyM)} m) y así no se manda. Salí a
           cielo abierto, o marcá por punto de referencia abajo.
         </p>
       ) : null}
 
-      {r.pantallaEncendida === false ? (
+      {r.screenOn === false ? (
         <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
           La pantalla se puede apagar sola y entonces deja de mandar. Tocá la pantalla de vez en
           cuando o subí el tiempo de bloqueo del celular.
         </p>
-      ) : r.pantallaEncendida === null ? (
+      ) : r.screenOn === null ? (
         <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
           Este navegador no deja mantener la pantalla encendida. Poné el bloqueo automático del
           celular en «Nunca» mientras reportas.
@@ -305,7 +305,7 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
         Estoy aquí
       </button>
       <p className="-mt-2 text-center text-[13px] text-tinta-4" aria-live="polite">
-        {aviso ?? "Tocalo cuando el desfile se pare o vuelva a arrancar."}
+        {alert ?? "Tocalo cuando el desfile se pare o vuelva a arrancar."}
       </p>
 
       {/* --- Sin GPS: por hito --- */}
@@ -313,26 +313,26 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
         <summary className="cursor-pointer text-[15px] font-bold">¿El GPS no funciona? Marcá por dónde vas</summary>
         <div className="mt-3 flex gap-2">
           <select
-            value={hito}
+            value={waypoint}
             onChange={(e) => setHito(e.target.value)}
             className="min-w-0 flex-1 rounded-xl bg-tinta px-3 py-3 text-[15px] text-papel"
             aria-label="Punto de referencia"
           >
             <option value="">Elegí el punto más cercano…</option>
-            {SENDA.hitos.map((h) => (
+            {COURSE.waypoints.map((h) => (
               <option key={h.id} value={h.id}>
-                {h.nombre}
+                {h.name}
               </option>
             ))}
           </select>
           <button
             type="button"
-            disabled={!hito}
+            disabled={!waypoint}
             onClick={() => {
-              r.marcarHito(hito);
-              setAviso("Listo, marcado por el punto de referencia.");
+              r.markWaypoint(waypoint);
+              setAlert("Listo, marcado por el punto de referencia.");
               setHito("");
-              setTimeout(() => setAviso(null), 4000);
+              setTimeout(() => setAlert(null), 4000);
             }}
             className="rounded-xl bg-papel px-4 font-extrabold text-tinta disabled:opacity-40"
           >
@@ -344,7 +344,7 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
       <button
         type="button"
         onClick={() => {
-          if (confirm("¿Terminar? Tu ubicación deja de mandarse.")) r.terminar();
+          if (confirm("¿Terminar? Tu ubicación deja de mandarse.")) r.stop();
         }}
         className="w-full rounded-full border border-tinta-2 py-3 text-[15px] font-bold text-tinta-4"
       >
@@ -354,10 +354,10 @@ function Activo({ r, ahora }: { r: Reporte; ahora: number }) {
   );
 }
 
-function AvisoGps({ gps }: { gps: "denegado" | "error" }) {
+function AvisoGps({ gps }: { gps: "denied" | "error" }) {
   return (
     <p className="mt-4 rounded-2xl bg-[#3a1512] px-4 py-3 text-[14px] font-semibold text-[#ff8a7a]">
-      {gps === "denegado"
+      {gps === "denied"
         ? "No diste permiso de ubicación. Activalo en los ajustes del navegador para este sitio, o marcá por punto de referencia."
         : "No se pudo leer el GPS. Revisá que la ubicación del celular esté prendida."}
     </p>

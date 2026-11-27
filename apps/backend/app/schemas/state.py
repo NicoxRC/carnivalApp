@@ -1,6 +1,6 @@
 """The shapes of the live state, as they travel in JSON.
 
-They mirror the web's types in `apps/web/src/lib/tipos.ts`; each one notes which, so
+They mirror the web's types in `apps/web/src/lib/types.ts`; each one notes which, so
 the web's `api` adapter can map them.
 """
 

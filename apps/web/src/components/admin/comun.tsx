@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { Reportero, Rol } from "@/lib/tipos";
+import type { Reporter, Post } from "@/lib/types";
 
 /** Piezas compartidas por las pestañas del panel de administración. */
 
-export const NOMBRE_ROL: Record<Rol, string> = { cabeza: "Cabeza", mitad: "Mitad", cola: "Cola" };
-export const COLOR_ROL: Record<Rol, string> = { cabeza: "bg-cabeza", mitad: "bg-mitad", cola: "bg-cola" };
+export const NOMBRE_ROL: Record<Post, string> = { head: "Cabeza", middle: "Mitad", tail: "Cola" };
+export const COLOR_ROL: Record<Post, string> = { head: "bg-cabeza", middle: "bg-mitad", tail: "bg-cola" };
 
 export const ENTRADA =
   "mt-1.5 w-full rounded-xl border border-borde-3 bg-blanco px-3 py-2.5 text-tinta focus:border-tinta focus:outline-none";
@@ -31,11 +31,11 @@ export async function api<T>(url: string, init?: RequestInit): Promise<Respuesta
 }
 
 export function useReporteros(onVencida: () => void, cadaMs?: number) {
-  const [reporteros, setReporteros] = useState<Reportero[] | null>(null);
+  const [reporteros, setReporteros] = useState<Reporter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
-    const r = await api<{ reporteros: Reportero[] }>("/api/admin/reporteros");
+    const r = await api<{ reporteros: Reporter[] }>("/api/admin/reporteros");
     if (r.ok) {
       setReporteros(r.datos.reporteros);
       setError(null);
@@ -67,20 +67,20 @@ export function BotonSec({
   children,
   onClick,
   peligro,
-  activo,
+  active,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   peligro?: boolean;
-  activo?: boolean;
+  active?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={activo}
+      aria-pressed={active}
       className={`rounded-full border px-3.5 py-1.5 text-[13px] font-bold ${
-        activo
+        active
           ? "border-tinta bg-tinta text-papel"
           : peligro
             ? "border-alerta/40 text-alerta"

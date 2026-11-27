@@ -8,19 +8,19 @@ import { BarraEta } from "@/components/BarraEta";
 import { Inicio } from "@/components/Inicio";
 import type { Encuadre, PuntoMapa } from "@/components/MapaDesfile";
 import { FichaPunto } from "@/components/FichaPunto";
-import { esServicio } from "@/lib/comercios";
-import { COLOR_NIVEL, BIN_M, MIN_USUARIOS_GLOBAL } from "@/lib/densidad";
-import { calcularEta } from "@/lib/eta";
-import { distanciaHaversine } from "@/lib/geo";
-import { useComercios } from "@/lib/hooks/useComercios";
-import { useEstadoDesfile, useReloj } from "@/lib/hooks/useEstadoDesfile";
-import { useDensidad } from "@/lib/hooks/useDensidad";
-import { useProgramacion } from "@/lib/hooks/useProgramacion";
-import { useUbicacion } from "@/lib/hooks/useUbicacion";
-import { useIdioma } from "@/lib/i18n";
-import { contarMetrica } from "@/lib/metricas";
-import { DESVIO_MAX_USUARIO_M, hitoMasCercano, metrosEnSenda, puntoEnMetro, referenciaEnSenda, SENDA } from "@/lib/senda";
-import type { Comercio, EstadoDesfile } from "@/lib/tipos";
+import { isService } from "@/lib/businesses";
+import { LEVEL_COLOR, BIN_M, MIN_USERS_GLOBAL } from "@/lib/density";
+import { computeEta } from "@/lib/eta";
+import { haversineDistance } from "@/lib/geo";
+import { useBusinesses } from "@/lib/hooks/useBusinesses";
+import { useParadeState, useClock } from "@/lib/hooks/useParadeState";
+import { useDensity } from "@/lib/hooks/useDensity";
+import { useSchedule } from "@/lib/hooks/useSchedule";
+import { useUserLocation } from "@/lib/hooks/useUserLocation";
+import { useLanguage } from "@/lib/i18n";
+import { countMetric } from "@/lib/metrics";
+import { MAX_USER_OFFSET_M, nearestWaypoint, projectOnCourse, pointAtMetre, describePosition, COURSE } from "@/lib/course";
+import type { Business, ParadeState } from "@/lib/types";
 
 // MapLibre toca `window` al importarse: fuera del render del servidor.
 const MapaDesfile = dynamic(() => import("@/components/MapaDesfile"), {
@@ -41,10 +41,10 @@ const MapaDesfile = dynamic(() => import("@/components/MapaDesfile"), {
  * buscar un baño es peor que no ofrecer el filtro.
  */
 const CAPAS = [
-  { id: "desfile", clave: "capa.desfile", color: "#ff6a1f" },
-  { id: "comercio", clave: "capa.comercios", color: "#2fa898" },
-  { id: "presentacion", clave: "capa.tarimas", color: "#a06bff" },
-  { id: "servicio", clave: "capa.servicios", color: "#1487cc" },
+  { id: "desfile", key: "layer.parade", color: "#ff6a1f" },
+  { id: "comercio", key: "layer.businesses", color: "#2fa898" },
+  { id: "stage", key: "layer.stages", color: "#a06bff" },
+  { id: "servicio", key: "layer.services", color: "#1487cc" },
 ] as const;
 
 type CapaId = (typeof CAPAS)[number]["id"];
@@ -57,25 +57,25 @@ const RADIO_OFERTA_M = 300;
  * ¿Se muestra ahora la oferta de este comercio? Con "antes"/"después" depende
  * de si el desfile ya pasó frente a él: «2x1 en hervidos cuando pase el desfile».
  */
-function promoVigente(c: Comercio, estado: EstadoDesfile | null): boolean {
-  if (!c.plan || !c.promo) return false;
-  if (c.promoMomento === "siempre") return true;
-  const frente = metrosEnSenda(c.lat, c.lng).metros;
-  const cabeza = estado?.posiciones.cabeza?.metros ?? null;
-  const cola = estado?.posiciones.cola?.metros ?? cabeza;
-  if (c.promoMomento === "antes") return cabeza === null || cabeza < frente;
-  return cola !== null && cola > frente;
+function promoVigente(c: Business, state: ParadeState | null): boolean {
+  if (!c.plan || !c.offer) return false;
+  if (c.offerTiming === "always") return true;
+  const frente = projectOnCourse(c.lat, c.lng).metres;
+  const head = state?.positions.head?.metres ?? null;
+  const tail = state?.positions.tail?.metres ?? head;
+  if (c.offerTiming === "before") return head === null || head < frente;
+  return tail !== null && tail > frente;
 }
 
 export function PantallaMapa() {
-  const { t } = useIdioma();
-  const { estado, conexion, desfaseMs } = useEstadoDesfile();
-  const { ubicacion, permiso, mensajeError, pedir, fijarManual, limpiarManual } = useUbicacion();
+  const { t } = useLanguage();
+  const { state, connection, clockOffsetMs } = useParadeState();
+  const { location, permission, errorMessage, request, setManual, clearManual } = useUserLocation();
   // Cada 5 s y no cada segundo: esta pantalla entera se redibuja con el reloj,
   // y un "hace 23 s" que salta de 5 en 5 se lee igual gastando menos batería.
-  const relojLocal = useReloj(5000);
+  const relojLocal = useClock(5000);
   const [marcando, setMarcando] = useState(false);
-  const [capas, setCapas] = useState<Set<CapaId>>(new Set<CapaId>(["desfile"]));
+  const [layers, setCapas] = useState<Set<CapaId>>(new Set<CapaId>(["desfile"]));
   const [encuadre, setEncuadre] = useState<Encuadre | null>(null);
   // null = todavía no sabemos si ya vio el inicio (localStorage solo existe tras montar).
   const [inicioVisto, setInicioVisto] = useState<boolean | null>(null);
@@ -84,8 +84,8 @@ export function PantallaMapa() {
   const [puntoSel, setPuntoSel] = useState<PuntoMapa | null>(null);
   const [encuentroM, setEncuentroM] = useState<number | null>(null);
   const [ofertaCerrada, setOfertaCerrada] = useState<string | null>(null);
-  const comercios = useComercios(true);
-  const programacion = useProgramacion();
+  const businesses = useBusinesses(true);
+  const programacion = useSchedule();
 
   useEffect(() => {
     try {
@@ -96,7 +96,7 @@ export function PantallaMapa() {
     }
     // «Estoy acá»: alguien compartió su punto de la senda.
     const m = Number(new URLSearchParams(window.location.search).get("encuentro"));
-    if (Number.isFinite(m) && m > 0 && m <= SENDA.longitudMetros) setEncuentroM(m);
+    if (Number.isFinite(m) && m > 0 && m <= COURSE.lengthMetres) setEncuentroM(m);
   }, []);
 
   const marcarInicioVisto = useCallback(() => {
@@ -110,87 +110,87 @@ export function PantallaMapa() {
 
   // El reloj del celular puede estar corrido. Los "hace X min" se calculan
   // contra el reloj del servidor para que no mientan.
-  const ahora = relojLocal + desfaseMs;
-  const metrosUsuario = ubicacion?.proyeccion.metros ?? null;
+  const now = relojLocal + clockOffsetMs;
+  const userMetres = location?.projection.metres ?? null;
 
   const eta = useMemo(() => {
-    if (!estado) return { tipo: "sin_datos", motivo: "sin_reporte" } as const;
-    return calcularEta({
-      estado,
-      metrosUsuario,
-      desvioUsuarioM: ubicacion?.proyeccion.desvioM ?? null,
-      desvioMaxM: DESVIO_MAX_USUARIO_M,
-      ahora,
+    if (!state) return { kind: "no_data", reason: "no_report" } as const;
+    return computeEta({
+      state,
+      userMetres,
+      userOffsetM: location?.projection.offsetM ?? null,
+      maxOffsetM: MAX_USER_OFFSET_M,
+      now,
     });
-  }, [estado, metrosUsuario, ubicacion, ahora]);
+  }, [state, userMetres, location, now]);
 
-  const hayServicios = comercios.some((c) => esServicio(c.categoria));
+  const hayServicios = businesses.some((c) => isService(c.category));
 
-  const puntos = useMemo<PuntoMapa[]>(() => {
-    const lista: PuntoMapa[] = [];
+  const points = useMemo<PuntoMapa[]>(() => {
+    const list: PuntoMapa[] = [];
 
-    if (capas.has("presentacion") && programacion) {
+    if (layers.has("stage") && programacion) {
       // Las tarimas del día del desfile que se está siguiendo.
-      const dia = estado?.fecha ?? programacion.hoy;
-      for (const e of programacion.eventos) {
-        if (e.categoria !== "presentacion" || e.fecha !== dia || e.lat === null || e.lng === null) continue;
-        lista.push({
+      const day = state?.date ?? programacion.today;
+      for (const e of programacion.events) {
+        if (e.category !== "stage" || e.date !== day || e.lat === null || e.lng === null) continue;
+        list.push({
           id: e.id,
-          nombre: e.titulo,
+          name: e.title,
           lat: e.lat,
           lng: e.lng,
-          categoria: e.categoria,
+          category: e.category,
           grupo: "tarima",
-          descripcion: e.descripcion,
-          direccion: e.lugarNombre,
-          horario: e.horaFin ? `${e.horaInicio} – ${e.horaFin}` : e.horaInicio,
+          description: e.description,
+          address: e.placeName,
+          hours: e.endTime ? `${e.startTime} – ${e.endTime}` : e.startTime,
         });
       }
     }
 
-    for (const c of comercios) {
-      const servicio = esServicio(c.categoria);
-      if (!capas.has(servicio ? "servicio" : "comercio")) continue;
-      lista.push({
+    for (const c of businesses) {
+      const servicio = isService(c.category);
+      if (!layers.has(servicio ? "servicio" : "comercio")) continue;
+      list.push({
         id: c.id,
-        nombre: c.nombre,
+        name: c.name,
         lat: c.lat,
         lng: c.lng,
-        categoria: c.categoria,
+        category: c.category,
         grupo: servicio ? "servicio" : "comercio",
-        descripcion: c.descripcion,
-        direccion: c.direccion,
-        horario: c.horario,
-        promo: promoVigente(c, estado) ? c.promo : null,
+        description: c.description,
+        address: c.address,
+        hours: c.hours,
+        offer: promoVigente(c, state) ? c.offer : null,
         plan: c.plan,
         menu: c.menu,
         whatsapp: c.whatsapp,
-        enlace: c.enlace,
+        link: c.link,
       });
     }
 
-    return lista;
-  }, [capas, comercios, programacion, estado]);
+    return list;
+  }, [layers, businesses, programacion, state]);
 
   // Si se apaga la capa del punto abierto, la ficha se cierra con ella.
   useEffect(() => {
-    if (puntoSel && !puntos.some((p) => p.id === puntoSel.id)) setPuntoSel(null);
-  }, [puntos, puntoSel]);
+    if (puntoSel && !points.some((p) => p.id === puntoSel.id)) setPuntoSel(null);
+  }, [points, puntoSel]);
 
   const distanciaAlPunto =
-    puntoSel && ubicacion
-      ? distanciaHaversine(ubicacion.lat, ubicacion.lng, puntoSel.lat, puntoSel.lng)
+    puntoSel && location
+      ? haversineDistance(location.lat, location.lng, puntoSel.lat, puntoSel.lng)
       : null;
 
   const alternarCapa = (id: CapaId) =>
     setCapas((previas) => {
-      const siguiente = new Set(previas);
-      if (siguiente.has(id)) siguiente.delete(id);
-      else siguiente.add(id);
-      return siguiente;
+      const next = new Set(previas);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
 
-  const { densidad, compartir, decidirCompartir } = useDensidad(verGentio, metrosUsuario);
+  const { density, share, decideShare } = useDensity(verGentio, userMetres);
 
   /**
    * «¿Dónde me hago?»: tramos con campo, más adelante del desfile, con cuánto
@@ -198,45 +198,45 @@ export function PantallaMapa() {
    * se SABE que están tranquilos: un tramo sin datos no se recomienda.
    */
   const sugerencias = useMemo(() => {
-    if (!verGentio || !densidad?.suficiente || !estado) return [];
-    const cabeza = estado.posiciones.cabeza?.metros ?? 0;
-    return densidad.bins
-      .filter((b) => b.nivel === "tranquilo" && b.desdeM > cabeza + 150)
+    if (!verGentio || !density?.enough || !state) return [];
+    const head = state.positions.head?.metres ?? 0;
+    return density.bins
+      .filter((b) => b.level === "calm" && b.fromM > head + 150)
       .map((b) => {
-        const centro = b.desdeM + BIN_M / 2;
-        const e = calcularEta({ estado, metrosUsuario: centro, desvioUsuarioM: 0, desvioMaxM: DESVIO_MAX_USUARIO_M, ahora });
+        const centro = b.fromM + BIN_M / 2;
+        const e = computeEta({ state, userMetres: centro, userOffsetM: 0, maxOffsetM: MAX_USER_OFFSET_M, now });
         return {
           centro,
-          lugar: hitoMasCercano(centro)?.nombre ?? "",
-          llega: e.tipo === "llegando" ? { a: e.minMin, b: e.maxMin } : null,
+          lugar: nearestWaypoint(centro)?.name ?? "",
+          llega: e.kind === "arriving" ? { a: e.minMin, b: e.maxMin } : null,
           // Lo más cerca de donde ya está; si no dio ubicación, lo más próximo al desfile.
-          orden: Math.abs(centro - (metrosUsuario ?? cabeza)),
+          sorted: Math.abs(centro - (userMetres ?? head)),
         };
       })
-      .sort((a, b) => a.orden - b.orden)
+      .sort((a, b) => a.sorted - b.sorted)
       .slice(0, 3);
-  }, [verGentio, densidad, estado, metrosUsuario, ahora]);
+  }, [verGentio, density, state, userMetres, now]);
 
   /** La oferta de un comercio destacado que queda a pocos pasos. Una a la vez, y se puede cerrar. */
   const ofertaCerca = useMemo(() => {
-    if (!ubicacion || puntoSel) return null;
-    let mejor: { c: Comercio; d: number } | null = null;
-    for (const c of comercios) {
-      if (c.plan !== "destacado" || c.id === ofertaCerrada || !promoVigente(c, estado)) continue;
-      const d = distanciaHaversine(ubicacion.lat, ubicacion.lng, c.lat, c.lng);
-      if (d <= RADIO_OFERTA_M && (!mejor || d < mejor.d)) mejor = { c, d };
+    if (!location || puntoSel) return null;
+    let best: { c: Business; d: number } | null = null;
+    for (const c of businesses) {
+      if (c.plan !== "featured" || c.id === ofertaCerrada || !promoVigente(c, state)) continue;
+      const d = haversineDistance(location.lat, location.lng, c.lat, c.lng);
+      if (d <= RADIO_OFERTA_M && (!best || d < best.d)) best = { c, d };
     }
-    return mejor;
-  }, [ubicacion, comercios, estado, ofertaCerrada, puntoSel]);
+    return best;
+  }, [location, businesses, state, ofertaCerrada, puntoSel]);
 
   // Una impresión por oferta mostrada: es lo que se le cuenta al anunciante.
   const idOferta = ofertaCerca?.c.id ?? null;
   useEffect(() => {
-    if (idOferta) contarMetrica(idOferta, "oferta");
+    if (idOferta) countMetric(idOferta, "offer");
   }, [idOferta]);
 
-  const reencuadrar = (modo: "todo" | "yo" | "cabeza") => setEncuadre({ modo, nonce: Date.now() });
-  const irA = (lat: number, lng: number) => setEncuadre({ modo: "punto", lat, lng, nonce: Date.now() });
+  const reencuadrar = (mode: "todo" | "yo" | "head") => setEncuadre({ mode, nonce: Date.now() });
+  const irA = (lat: number, lng: number) => setEncuadre({ mode: "punto", lat, lng, nonce: Date.now() });
 
   // Fondo de marca mientras se resuelve: evita que el mapa asome un frame
   // antes del inicio, y que el inicio asome para quien ya lo vio.
@@ -249,7 +249,7 @@ export function PantallaMapa() {
       <div className="fixed inset-0 z-50">
         <Inicio
           onSeguir={() => {
-            pedir();
+            request();
             marcarInicioVisto();
           }}
           onSaltar={marcarInicioVisto}
@@ -269,16 +269,16 @@ export function PantallaMapa() {
   return (
     <div className="absolute inset-0 flex flex-col">
       <MapaDesfile
-        estado={estado}
-        puntos={puntos}
-        densidad={verGentio ? densidad : null}
+        state={state}
+        points={points}
+        density={verGentio ? density : null}
         puntoSeleccionado={puntoSel?.id ?? null}
         onPuntoClick={setPuntoSel}
-        ubicacion={ubicacion}
-        ahora={ahora}
+        location={location}
+        now={now}
         modoMarcarPunto={marcando}
         onPuntoMarcado={(lat, lng) => {
-          fijarManual(lat, lng);
+          setManual(lat, lng);
           setMarcando(false);
         }}
         encuadre={encuadre}
@@ -295,22 +295,22 @@ export function PantallaMapa() {
             <span className="size-[9px] rounded-full bg-papel" />
           </span>
           <h1 className="fuente-display truncate text-[17px] text-tinta">
-            {estado?.nombre ?? "Sigue el Desfile"}
+            {state?.name ?? "Sigue el Desfile"}
           </h1>
-          {estado?.estado === "en_curso" && (
+          {state?.state === "in_progress" && (
             <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-extrabold text-ok">
               <span className="latido size-2 rounded-full bg-ok" aria-hidden />
-              {t("mapa.envivo")}
+              {t("map.live")}
             </span>
           )}
         </div>
       </header>
 
       {/* --- Mensajes del equipo: lo primero que hay que leer --- */}
-      {estado && estado.avisos.length > 0 && (
+      {state && state.announcements.length > 0 && (
         <div className="pointer-events-none relative z-10 mt-2 px-3.5">
           <div className="pointer-events-auto mx-auto max-w-lg lg:mx-0 lg:max-w-md">
-            <Avisos avisos={estado.avisos} />
+            <Avisos announcements={state.announcements} />
           </div>
         </div>
       )}
@@ -318,7 +318,7 @@ export function PantallaMapa() {
       {/* --- Capas del mapa --- */}
       <div className="pointer-events-none relative z-10 mt-2.5 flex gap-[7px] overflow-x-auto px-3 pb-1 lg:flex-wrap lg:overflow-visible lg:pl-3.5">
         {CAPAS.filter((c) => c.id !== "servicio" || hayServicios).map((c) => {
-          const activa = capas.has(c.id);
+          const activa = layers.has(c.id);
           return (
             <button
               key={c.id}
@@ -334,7 +334,7 @@ export function PantallaMapa() {
               ) : (
                 <span className="size-2 rounded-full" style={{ background: c.color }} aria-hidden />
               )}
-              {t(c.clave)}
+              {t(c.key)}
             </button>
           );
         })}
@@ -352,21 +352,21 @@ export function PantallaMapa() {
             <path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" />
             <path d="M16 14c2.5 0 5 1.6 5 5" />
           </svg>
-          {t("capa.gentio")}
+          {t("layer.crowd")}
         </button>
       </div>
 
-      {!SENDA.oficial && (
+      {!COURSE.official && (
         <p className="pointer-events-none relative z-10 mx-3 mt-1.5 self-start rounded-lg bg-blanco/90 px-2.5 py-1 text-[11px] font-semibold text-aviso-txt shadow-sm">
-          {t("mapa.provisional")}
+          {t("map.provisional")}
         </p>
       )}
 
       {encuentroM !== null && (
         <p className="pointer-events-auto relative z-10 mx-3 mt-1.5 self-start rounded-lg bg-tinta px-2.5 py-1.5 text-[12px] font-semibold text-papel shadow-sm">
-          {t("mapa.encuentro")}: {referenciaEnSenda(encuentroM, "estas", t).frase.replace(/^(estás|you're) /, "")}.{" "}
+          {t("map.meetingPoint")}: {describePosition(encuentroM, "you", t).phrase.replace(/^(estás|you're) /, "")}.{" "}
           <button type="button" onClick={() => setEncuentroM(null)} className="underline underline-offset-2">
-            {t("mapa.quitar")}
+            {t("map.remove")}
           </button>
         </p>
       )}
@@ -376,19 +376,19 @@ export function PantallaMapa() {
         <div className="flex flex-col items-start gap-2.5">
           <button
             type="button"
-            onClick={() => reencuadrar("cabeza")}
+            onClick={() => reencuadrar("head")}
             className="pointer-events-auto flex h-11 items-center gap-2 rounded-[22px] bg-tinta px-4 text-sm font-bold text-papel shadow-[0_6px_16px_-4px_rgba(0,0,0,0.4)] active:opacity-90"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--color-cabeza)" aria-hidden>
               <path d="M6 3l12 9-12 9z" />
             </svg>
-            {t("mapa.llevame")}
+            {t("map.takeMe")}
           </button>
 
           <button
             type="button"
-            onClick={() => (ubicacion ? reencuadrar("yo") : pedir())}
-            aria-label={ubicacion ? t("mapa.centrar") : t("mapa.usarUbicacion")}
+            onClick={() => (location ? reencuadrar("yo") : request())}
+            aria-label={location ? t("map.center") : t("map.useLocation")}
             className="pointer-events-auto grid size-11 place-items-center rounded-full border-[1.5px] border-borde-2 bg-blanco shadow-[0_6px_16px_-6px_rgba(0,0,0,0.3)] active:bg-papel-2"
           >
             <svg
@@ -413,61 +413,61 @@ export function PantallaMapa() {
       </div>
 
       {/* --- Gentío: consentimiento y estado de la muestra --- */}
-      {verGentio && compartir === "sin_decidir" && (
+      {verGentio && share === "undecided" && (
         <div className="pointer-events-none relative z-10 px-3.5 pb-2">
           <div className={`${tarjeta} rounded-2xl border border-borde-2 bg-blanco p-3.5 shadow-lg`}>
-            <p className="text-sm font-bold text-tinta">{t("gentio.pregunta")}</p>
-            <p className="mt-1 text-[13px] leading-snug text-tinta-3">{t("gentio.explica")}</p>
+            <p className="text-sm font-bold text-tinta">{t("crowd.question")}</p>
+            <p className="mt-1 text-[13px] leading-snug text-tinta-3">{t("crowd.explain")}</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                onClick={() => decidirCompartir("si")}
+                onClick={() => decideShare("yes")}
                 className="flex-1 rounded-full bg-tinta px-3 py-2.5 text-[13px] font-bold text-papel"
               >
-                {t("gentio.si")}
+                {t("crowd.yes")}
               </button>
               <button
                 type="button"
-                onClick={() => decidirCompartir("no")}
+                onClick={() => decideShare("no")}
                 className="flex-1 rounded-full border border-borde-2 px-3 py-2.5 text-[13px] font-bold text-tinta"
               >
-                {t("gentio.no")}
+                {t("crowd.no")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {verGentio && compartir !== "sin_decidir" && (
+      {verGentio && share !== "undecided" && (
         <div className="pointer-events-none relative z-10 px-3.5 pb-2">
           <div className={`${tarjeta} rounded-xl bg-blanco/95 px-3 py-2 shadow-md`}>
-            {densidad?.suficiente ? (
+            {density?.enough ? (
               <>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-semibold text-tinta-3">
-                  {(["tranquilo", "con_gente", "lleno"] as const).map((n) => (
+                  {(["calm", "busy", "full"] as const).map((n) => (
                     <span key={n} className="inline-flex items-center gap-1.5">
-                      <span className="size-2.5 rounded-full" style={{ background: COLOR_NIVEL[n] }} aria-hidden />
-                      {t(`gentio.${n}`)}
+                      <span className="size-2.5 rounded-full" style={{ background: LEVEL_COLOR[n] }} aria-hidden />
+                      {t(`crowd.${n}`)}
                     </span>
                   ))}
-                  <span className="text-tinta-4">· {t("gentio.personas", { n: densidad.total })}</span>
+                  <span className="text-tinta-4">· {t("crowd.people", { n: density.total })}</span>
                   <button
                     type="button"
                     aria-expanded={verSugerencias}
                     onClick={() => setVerSugerencias((v) => !v)}
                     className="ml-auto rounded-full bg-tinta px-3 py-1 text-[12px] font-bold text-papel"
                   >
-                    {t("gentio.donde")}
+                    {t("crowd.where")}
                   </button>
                 </div>
                 {verSugerencias && (
                   <div className="mt-2 border-t border-borde pt-2">
                     {sugerencias.length === 0 ? (
-                      <p className="text-[12px] font-semibold text-tinta-3">{t("gentio.sinSugerencias")}</p>
+                      <p className="text-[12px] font-semibold text-tinta-3">{t("crowd.noSuggestions")}</p>
                     ) : (
                       <ul className="space-y-1">
                         {sugerencias.map((s) => {
-                          const p = puntoEnMetro(s.centro);
+                          const p = pointAtMetre(s.centro);
                           return (
                             <li key={s.centro}>
                               <button
@@ -475,9 +475,9 @@ export function PantallaMapa() {
                                 onClick={() => irA(p.lat, p.lng)}
                                 className="w-full rounded-lg px-1 py-1 text-left text-[13px] text-tinta active:bg-papel-2"
                               >
-                                <b>{t("gentio.sugerencia", { lugar: s.lugar })}</b>
+                                <b>{t("crowd.suggestion", { place: s.lugar })}</b>
                                 {s.llega && (
-                                  <span className="text-tinta-3"> · {t("gentio.llegaEn", s.llega)}</span>
+                                  <span className="text-tinta-3"> · {t("crowd.arrivesIn", s.llega)}</span>
                                 )}
                               </button>
                             </li>
@@ -486,7 +486,7 @@ export function PantallaMapa() {
                       </ul>
                     )}
                     {/* Mandar gente a un punto tiene un riesgo que decir "allá está lleno" no tiene. */}
-                    <p className="mt-1.5 text-[11px] leading-snug text-tinta-4">{t("gentio.aviso")}</p>
+                    <p className="mt-1.5 text-[11px] leading-snug text-tinta-4">{t("crowd.notice")}</p>
                   </div>
                 )}
               </>
@@ -494,9 +494,9 @@ export function PantallaMapa() {
               /* Nunca pintar la senda "vacía" con cuatro usuarios: eso mandaría
                  gente a un sitio del que no se sabe nada. */
               <p className="text-[12px] leading-snug font-semibold text-tinta-3">
-                {t("gentio.insuficiente", {
-                  min: MIN_USUARIOS_GLOBAL,
-                  actual: densidad ? t("gentio.actual", { n: densidad.total }) : "",
+                {t("crowd.notEnough", {
+                  min: MIN_USERS_GLOBAL,
+                  current: density ? t("crowd.current", { n: density.total }) : "",
                 })}
               </p>
             )}
@@ -515,22 +515,22 @@ export function PantallaMapa() {
                 setCapas((c) => new Set(c).add("comercio"));
                 const c = ofertaCerca.c;
                 setPuntoSel({
-                  id: c.id, nombre: c.nombre, lat: c.lat, lng: c.lng, categoria: c.categoria, grupo: "comercio",
-                  descripcion: c.descripcion, direccion: c.direccion, horario: c.horario, promo: c.promo,
-                  plan: c.plan, menu: c.menu, whatsapp: c.whatsapp, enlace: c.enlace,
+                  id: c.id, name: c.name, lat: c.lat, lng: c.lng, category: c.category, grupo: "comercio",
+                  description: c.description, address: c.address, hours: c.hours, offer: c.offer,
+                  plan: c.plan, menu: c.menu, whatsapp: c.whatsapp, link: c.link,
                 });
                 irA(c.lat, c.lng);
               }}
             >
               <span className="text-[10px] font-extrabold tracking-[1.2px] text-[#8a7020]">
-                {t("ficha.pauta")} · {t("oferta.cerca")}
+                {t("card.ad")} · {t("offer.nearby")}
               </span>
-              <span className="block truncate text-[14px] font-extrabold text-tinta">{ofertaCerca.c.promo}</span>
-              <span className="block truncate text-[12px] text-tinta-3">{ofertaCerca.c.nombre}</span>
+              <span className="block truncate text-[14px] font-extrabold text-tinta">{ofertaCerca.c.offer}</span>
+              <span className="block truncate text-[12px] text-tinta-3">{ofertaCerca.c.name}</span>
             </button>
             <button
               type="button"
-              aria-label={t("ficha.cerrar")}
+              aria-label={t("card.close")}
               onClick={() => setOfertaCerrada(ofertaCerca.c.id)}
               className="grid size-8 shrink-0 place-items-center rounded-full text-tinta-3 active:bg-papel-2"
             >
@@ -546,35 +546,35 @@ export function PantallaMapa() {
       {marcando && (
         <div className="pointer-events-none relative z-10 px-3.5 pb-2">
           <p className={`${tarjeta} rounded-xl border border-usuario/40 bg-blanco px-3 py-2.5 text-center text-[13px] text-tinta shadow-md`}>
-            {t("mapa.tocaDonde")}{" "}
+            {t("map.tapWhere")}{" "}
             <button
               type="button"
               onClick={() => setMarcando(false)}
               className="font-bold underline underline-offset-2"
             >
-              {t("mapa.cancelar")}
+              {t("map.cancel")}
             </button>
           </p>
         </div>
       )}
 
-      {!marcando && mensajeError && permiso !== "concedido" && (
+      {!marcando && errorMessage && permission !== "granted" && (
         <div className="pointer-events-none relative z-10 px-3.5 pb-2">
           <p className="mx-auto max-w-lg rounded-xl bg-blanco px-3 py-2 text-center text-[12px] text-tinta-2 shadow-md lg:mx-0 lg:max-w-[420px]">
-            {mensajeError}
+            {errorMessage}
           </p>
         </div>
       )}
 
-      {!marcando && ubicacion?.manual && (
+      {!marcando && location?.manual && (
         <div className="pointer-events-none relative z-10 px-3.5 pb-1.5">
           <p className={`${tarjeta} text-center text-[12px] font-semibold text-tinta-3`}>
             {/* Confirmarle dónde cree la app que está, con una referencia que
                 reconozca: es la única forma de que detecte si se equivocó. */}
-            {referenciaEnSenda(ubicacion.proyeccion.metros, "estas", t).frase || t("mapa.puntoManual")}
+            {describePosition(location.projection.metres, "you", t).phrase || t("map.manualSpot")}
             .{" "}
-            <button type="button" onClick={limpiarManual} className="underline underline-offset-2">
-              {t("mapa.usarGps")}
+            <button type="button" onClick={clearManual} className="underline underline-offset-2">
+              {t("map.useGps")}
             </button>
           </p>
         </div>
@@ -588,20 +588,20 @@ export function PantallaMapa() {
         {puntoSel ? (
           <FichaPunto
             punto={puntoSel}
-            distanciaM={distanciaAlPunto}
+            distanceM={distanciaAlPunto}
             onCerrar={() => setPuntoSel(null)}
             onLlevame={() => irA(puntoSel.lat, puntoSel.lng)}
           />
         ) : (
           <BarraEta
             eta={eta}
-            estado={estado}
-            conexion={conexion}
-            ahora={ahora}
-            metrosUsuario={
-              ubicacion && ubicacion.proyeccion.desvioM <= DESVIO_MAX_USUARIO_M ? metrosUsuario : null
+            state={state}
+            connection={connection}
+            now={now}
+            userMetres={
+              location && location.projection.offsetM <= MAX_USER_OFFSET_M ? userMetres : null
             }
-            onPedirUbicacion={pedir}
+            onPedirUbicacion={request}
             onMarcarPunto={() => setMarcando(true)}
           />
         )}

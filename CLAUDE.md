@@ -57,7 +57,7 @@ npm run dev          # http://localhost:3000
 npm run typecheck    # types
 npm test             # tests (node:test + tsx): src/**/*.test.ts. No lint yet.
 npm run simular      # moves a fake parade on the backend (as simulator@local, see just seed)
-npm run mapa:estilo  # regenerates src/data/estilo-mapa.json (base map colours)
+npm run mapa:estilo  # regenerates src/data/map-style.json (base map colours)
 npm run push:llaves  # generates the VAPID keys for push notifications
 npm run iconos       # exports the PNGs from public/icono.svg
 ```
@@ -110,7 +110,7 @@ and update this table in the same PR.
 ## Things that are not obvious
 
 - **The course is 1D.** Every point is projected onto the route and reduced to "metres
-  from the start" (`apps/web/src/lib/senda.ts`). The ETA is arithmetic on that number
+  from the start" (`apps/web/src/lib/course.ts`). The ETA is arithmetic on that number
   (`apps/web/src/lib/eta.ts`). If something starts reasoning in 2D, it is probably badly framed.
 - **The data is sample data.** The course, the waypoints, the businesses and the schedule
   are not real. Do not present them as official.
@@ -127,17 +127,16 @@ and update this table in the same PR.
 - **There is no "the" parade: there is the CURRENT parade**, which the backend resolves. The
   client never sends a parade id. An id that does not exist gives 404; one is never
   created by asking for it.
-- **"Today" and "now" go through `apps/web/src/lib/fecha.ts`** (Pasto time). No
+- **"Today" and "now" go through `apps/web/src/lib/dates.ts`** (Pasto time). No
   `toISOString().slice(0, 10)` and no `getHours()`.
 - **A value the service worker served from the cache (`X-Desde-Cache`) is not a new
-  value.** `useEstadoDesfile` tells them apart; do not break that.
-- **Every text the public sees goes in `apps/web/src/lib/i18n-textos.ts`**, in Spanish and English.
+  value.** `useParadeState` tells them apart; do not break that.
+- **Every text the public sees goes in `apps/web/src/lib/i18n-texts.ts`**, in Spanish and English.
   The Spanish keeps the Pasto *voseo* of the design. The team's panels are Spanish only.
 - **If the code starts storing a new piece of data about people, `/privacidad` changes in
   the same PR.**
-- **If you change logic in `eta.ts`, `senda.ts` or `fecha.ts`, add or adjust its test.**
+- **If you change logic in `eta.ts`, `course.ts` or `dates.ts`, add or adjust its test.**
 - **The base map is a file of our own** (`apps/web/public/mapa/pasto.pmtiles`). If it changes,
   `VERSION` in `apps/web/public/sw.js` has to be bumped.
-- **The backend's HTTP contract is English** while the web's own routes and types are
-  Spanish. They are mapped in one place of the web (`apps/web/src/lib/api/`), not by
-  renaming one side to match the other in passing.
+- **The web uses the backend's HTTP contract as it is**: the same field names and values.
+  `apps/web/src/lib/api/` only checks the shape of what arrives; it does not rename anything.

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { BASE_API } from "@/lib/api/cliente";
+import { API_BASE } from "@/lib/api/client";
 
 /**
  * El service worker es lo que hace que la app abra el 31 de diciembre
@@ -17,7 +17,7 @@ export function RegistrarSW() {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
     const t = setTimeout(() => {
-      const api = BASE_API ? `?api=${encodeURIComponent(new URL(BASE_API).origin)}` : "";
+      const api = API_BASE ? `?api=${encodeURIComponent(new URL(API_BASE).origin)}` : "";
       navigator.serviceWorker.register(`/sw.js${api}`).catch(() => {
         // Sin SW la app funciona igual, solo pierde el modo offline.
       });

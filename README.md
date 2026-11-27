@@ -60,7 +60,7 @@ Run them before opening a PR: the web has no CI yet (the backend's is in
 
 The course is a known fixed route. Any point (the head, the tail, the user) is projected
 onto that line and reduced to **a single number: metres from the start**
-(`apps/web/src/lib/senda.ts`). The ETA is arithmetic on that number (`apps/web/src/lib/eta.ts`).
+(`apps/web/src/lib/course.ts`). The ETA is arithmetic on that number (`apps/web/src/lib/eta.ts`).
 
 Nothing in the app reasons in two dimensions. If something starts needing to, it is almost
 certainly badly framed.
@@ -83,7 +83,7 @@ the «Connect the web to the backend» milestone on GitHub. The backend's decisi
 Pasto, drawn by hand to be able to develop. The streets the waypoints name are indicative,
 not verified. The app warns about it on screen while that is so.
 
-To replace it, edit `apps/web/src/data/senda-carnaval.ts`:
+To replace it, edit `apps/web/src/data/carnival-course.ts`:
 
 - `geojson.geometry.coordinates`: the official route as `[lng, lat]` (in that order!),
   from the starting point to the finish.
@@ -179,7 +179,7 @@ convincing, here is the why:
   minute. Two phones blocks apart made the head jump.
 - **A GPS fix worse than ±150 m is discarded** on the server (and worse than ±100 m is
   not even sent).
-- **"Today" is Pasto's date**, not the phone's and not UTC (`apps/web/src/lib/fecha.ts`).
+- **"Today" is Pasto's date**, not the phone's and not UTC (`apps/web/src/lib/dates.ts`).
 - **The brake on guessing passwords is a wait, not a block.** Each failure makes the next
   answer take longer (up to 5 s). With a block, six attempts by anyone locked the
   administrator out.
@@ -197,7 +197,7 @@ mass-market app.
   visit and cuts from the cache the pieces the viewer asks for. Tested: with the network
   cut the map draws completely.
 - **The style** (paper colours, without the base map's points of interest) is generated
-  with `npm run mapa:estilo` and versioned in `apps/web/src/data/estilo-mapa.json`, so the style
+  with `npm run mapa:estilo` and versioned in `apps/web/src/data/map-style.json`, so the style
   library is not sent to the phone.
 - **MapLibre's worker** is copied from `node_modules` to `apps/web/public/mapa/` before every `dev`
   and `build` (`npm run mapa:worker`): since version 6 it is not embedded.
@@ -293,7 +293,7 @@ places**, not street crossings, and the app speaks in those terms:
 - The user gets confirmation of where the app thinks they are ("estás por Unicentro"),
   which is the only way they can notice if the point is wrong.
 
-Waypoints are edited in `apps/web/src/data/senda-carnaval.ts`: name, short name, type and
+Waypoints are edited in `apps/web/src/data/carnival-course.ts`: name, short name, type and
 coordinate. Each one is projected onto the course on its own.
 
 ⚠️ **The waypoints that ship are a template.** The names are of places that exist in
@@ -380,8 +380,8 @@ toilet on a map someone uses to find a toilet is worse than not offering the lay
   twice; anyone could inflate them with a script, so they are good for showing interest,
   not for billing per click.
 
-Businesses are managed from `/admin`. `apps/web/src/data/comercios-ejemplo.json` is the
-source of the backend's sample seed (`npm run seed:export`). ⚠️ The ten in the JSON are **made up**: no real business has signed up
+Businesses are managed from `/admin`. The sample ones live in `apps/backend/seed/businesses.json`
+(edited by hand, loaded with `just seed`). ⚠️ The ten in the JSON are **made up**: no real business has signed up
 for anything.
 
 ## Notifications, sharing and photos
@@ -402,7 +402,7 @@ for anything.
   someone on the team approves it. Maximum 8 per device per hour.
 - **Where it went.** In «Desfiles», each parade that has already gone out shows at what
   time the head passed each reference point.
-- **English.** The interface is in Spanish and English (`apps/web/src/lib/i18n-textos.ts`); it is
+- **English.** The interface is in Spanish and English (`apps/web/src/lib/i18n-texts.ts`); it is
   chosen automatically from the phone's language and can be changed. Content loaded by the
   team is not translated.
 
@@ -495,10 +495,10 @@ apps/
         PanelReportero.tsx    the reporters' panel
         admin/                the admin panel, one tab per file
       lib/
-        senda.ts              1D projection (Turf)
+        course.ts             1D projection (Turf)
         eta.ts                speed, ranges, stops, no signal
-        fecha.ts              dates in Pasto time
-        i18n-textos.ts        Spanish and English
+        dates.ts              dates in Pasto time
+        i18n-texts.ts         Spanish and English
         hooks/                live state, schedule, businesses, crowd map, GPS
         *.test.ts             tests (npm test)
       data/                   sample data and map style

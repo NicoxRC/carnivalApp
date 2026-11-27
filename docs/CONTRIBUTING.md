@@ -113,7 +113,7 @@ app are in Spanish).
 
 | Scope | What it covers |
 |---|---|
-| `course` | The course and the 1D projection (`apps/web/src/lib/senda.ts`, `apps/web/src/data/senda-carnaval.ts`) |
+| `course` | The course and the 1D projection (`apps/web/src/lib/course.ts`, `apps/web/src/data/carnival-course.ts`) |
 | `eta` | The ETA calculation and its states (`apps/web/src/lib/eta.ts`, `BarraEta`) |
 | `map` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
 | `density` | The crowd map |
@@ -254,8 +254,8 @@ Rules:
   only for a specific business rule or boundary the issue asks for. Endpoints are tested
   with `TestClient` and the in-memory fake repositories (`app.dependency_overrides`).
   Migrations are checked with `just db-test`, not unit-tested.
-- **Web:** `node:test` + `tsx` (`src/**/*.test.ts`). Pure logic (`eta.ts`, `senda.ts`,
-  `fecha.ts`, the API mapping) gets a test when it changes.
+- **Web:** `node:test` + `tsx` (`src/**/*.test.ts`). Pure logic (`eta.ts`, `course.ts`,
+  `dates.ts`, the API mapping) gets a test when it changes.
 
 ---
 
