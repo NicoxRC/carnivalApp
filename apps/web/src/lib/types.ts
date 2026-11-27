@@ -161,11 +161,14 @@ export interface Reporter {
   createdAt: number;
 }
 
+export const PHOTO_STATES = ["pending", "approved", "rejected"] as const;
+export type PhotoState = (typeof PHOTO_STATES)[number];
+
 export interface Photo {
   id: string;
   paradeId: string | null;
   metres: number | null;
-  state: "pending" | "approved" | "rejected";
+  state: PhotoState;
   createdAt: number;
   url: string;
 }

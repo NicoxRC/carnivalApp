@@ -7,14 +7,16 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const apiBase = resolveApiBase(process.env.NEXT_PUBLIC_API_URL, isDev);
 const apiOrigin = apiBase ? new URL(apiBase).origin : "";
+const photosOrigin = process.env.NEXT_PUBLIC_PHOTOS_ORIGIN?.trim() || "https://*.r2.cloudflarestorage.com";
+const photoSources = [apiOrigin, photosOrigin].filter(Boolean).join(" ");
 
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${photoSources}`,
   "font-src 'self'",
-  `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""}${isDev ? " ws:" : ""}`,
+  `connect-src 'self' ${photoSources}${isDev ? " ws:" : ""}`,
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "frame-ancestors 'none'",

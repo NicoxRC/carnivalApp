@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getDevice, forgetDevice } from "@/lib/device";
+import { ApiError, requestApi } from "@/lib/api/client";
+import { parsePhotos, parseUploadGrant } from "@/lib/api/photos";
+import { forgetDevice, getDevice } from "@/lib/device";
 import { useUserLocation } from "@/lib/hooks/useUserLocation";
 import { useLanguage } from "@/lib/i18n";
 import { shrinkPhoto } from "@/lib/image";
@@ -11,17 +13,34 @@ import type { Photo } from "@/lib/types";
 
 type Upload = "none" | "uploading" | "sent" | "error";
 
+async function uploadFile(jpeg: Blob, device: string, metres: number | null): Promise<void> {
+  const started = await requestApi("/api/photos/uploads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ device, size: jpeg.size }),
+  });
+  const grant = parseUploadGrant(await started.json());
+  const put = await fetch(grant.uploadUrl, { method: "PUT", headers: { "Content-Type": grant.contentType }, body: jpeg });
+  if (!put.ok) throw new ApiError(put.status, "");
+  await requestApi(`/api/photos/uploads/${encodeURIComponent(grant.id)}/done`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: grant.token, metres }),
+  });
+}
+
 export function PhotosScreen() {
   const { t } = useLanguage();
   const { location } = useUserLocation();
   const [photos, setPhotos] = useState<Photo[] | null>(null);
   const [upload, setUpload] = useState<Upload>("none");
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   const read = useCallback(() => {
-    fetch("/api/fotos")
-      .then((r) => (r.ok ? (r.json() as Promise<{ photos: Photo[] }>) : null))
-      .then((d) => d && setPhotos(d.photos))
+    requestApi("/api/photos")
+      .then((r) => r.json())
+      .then((json) => setPhotos(parsePhotos(json)))
       .catch(() => setPhotos((f) => f ?? []));
   }, []);
 
@@ -29,19 +48,18 @@ export function PhotosScreen() {
 
   const uploadPhoto = async (file: File) => {
     setUpload("uploading");
+    setUploadError(null);
     try {
       const [jpeg, device] = await Promise.all([shrinkPhoto(file), getDevice()]);
       if (!device) throw new Error("no device");
-      const form = new FormData();
-      form.set("photo", jpeg, "foto.jpg");
-      form.set("device", device);
-      if (location && location.projection.offsetM <= MAX_USER_OFFSET_M) {
-        form.set("metres", String(Math.round(location.projection.metres)));
+      const onCourse = location !== null && location.projection.offsetM <= MAX_USER_OFFSET_M;
+      await uploadFile(jpeg, device, onCourse ? Math.round(location.projection.metres) : null);
+      setUpload("sent");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) forgetDevice();
+        if (error.message && !error.message.startsWith("Error ")) setUploadError(error.message);
       }
-      const r = await fetch("/api/fotos", { method: "POST", body: form });
-      if (r.status === 401) forgetDevice();
-      setUpload(r.ok ? "sent" : "error");
-    } catch {
       setUpload("error");
     }
   };
@@ -89,7 +107,7 @@ export function PhotosScreen() {
                   : "bg-paper text-warn-text"
             }`}
           >
-            {upload === "sent" ? t("photos.sent") : upload === "error" ? t("photos.error") : t("photos.rules")}
+            {upload === "sent" ? t("photos.sent") : upload === "error" ? (uploadError ?? t("photos.error")) : t("photos.rules")}
           </p>
         </div>
 
@@ -105,7 +123,7 @@ export function PhotosScreen() {
                   key={f.id}
                   className="mb-3 overflow-hidden rounded-2xl border border-[#e9e6dd] bg-white shadow-[0_6px_16px_-12px_rgba(0,0,0,0.4)] [break-inside:avoid]"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- ya viene reducida; el optimizador de Next no aporta y abre superficie */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- already shrunk; the Next optimizer adds nothing and widens the attack surface */}
                   <img src={f.url} alt="" loading="lazy" className="block w-full" />
                   {place && (
                     <figcaption className="px-3 py-2 text-[12px] font-semibold text-ink-3">
