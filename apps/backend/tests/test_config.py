@@ -25,3 +25,21 @@ def test_config_fails(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings()
 
     assert "database_url" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        "postgres://u:p@db.railway.internal:5432/railway",
+        "postgresql://u:p@db.railway.internal:5432/railway",
+        "postgresql+asyncpg://u:p@db.railway.internal:5432/railway",
+    ],
+)
+def test_database_url_always_uses_the_async_driver(
+    monkeypatch: pytest.MonkeyPatch, given: str
+) -> None:
+    # What Railway's Postgres hands out works as it is.
+    monkeypatch.setenv("DATABASE_URL", given)
+    monkeypatch.setenv("JWT_SECRET", "x" * 32)
+
+    assert Settings().database_url == "postgresql+asyncpg://u:p@db.railway.internal:5432/railway"

@@ -7,8 +7,8 @@ working contract: follow it.
 
 **Sigue el Desfile**: an app to follow live the parades of the Carnaval de Negros y Blancos
 in Pasto. Today it is a PWA in Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
-with its backend in **FastAPI + PostgreSQL in `apps/backend/`**, to be deployed on Railway
-with Terraform, and later an Expo app for the App Store and Play Store. The web has no
+with its backend in **FastAPI + PostgreSQL in `apps/backend/`**. The backend deploys on Railway
+and the web on Cloudflare, on every push to `trunk`; later comes an Expo app for the App Store and Play Store. The web has no
 backend of its own any more (removed in #88): everything comes from `apps/backend/`.
 
 **Plans live in milestones and issues, not in the repo.** Each issue is self-contained
@@ -56,6 +56,7 @@ npm install
 npm run dev          # http://localhost:3000
 npm run typecheck    # types
 npm run lint         # ESLint (Next's rules), no warnings allowed
+npm run preview      # serves the static build (out/) the way Cloudflare does, after npm run build
 npm test             # tests (Vitest + Testing Library, jsdom): src/**/*.test.{ts,tsx}
 npm run simulate     # moves a fake parade on the backend (as simulator@local, see just seed)
 npm run map:style    # regenerates src/data/map-style.json (base map colours)
