@@ -349,10 +349,10 @@ export default function ParadeMap({
       el.setAttribute("aria-label", h.name);
       el.title = h.name;
       el.innerHTML =
-        `<span class="hito__icono"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" ` +
+        `<span class="waypoint__icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" ` +
         `stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ` +
         `aria-hidden="true">${WAYPOINT_ICON[h.kind]}</svg></span>` +
-        `<span class="hito__nombre">${h.short}</span>`;
+        `<span class="waypoint__name">${h.short}</span>`;
 
       waypointMarkers.current.set(
         h.id,

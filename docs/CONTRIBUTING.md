@@ -14,8 +14,7 @@ mandatory: read it in full before creating a branch or making a commit.
 - **English:** code, comments, docs, commit messages, PR titles and descriptions, issues.
 - **Spanish:** text shown to people (interface texts, error messages) and the conversation
   between the maintainer and the agent.
-- The web app (`apps/web/src/`) is still written in Spanish and keeps its names until it is renamed
-  in its own effort; new backend code follows `docs/backend/GLOSSARY.md`.
+- The web and the backend use the same English names, from `docs/backend/GLOSSARY.md`.
 
 ---
 
@@ -119,15 +118,16 @@ app are in Spanish).
 | `density` | The crowd map |
 | `businesses` | The businesses layer and its cards |
 | `data` | How the web reads and writes the backend's data |
-| `simulation` | The simulation engine and the `simular` script |
+| `simulation` | The simulation engine and the `simulate` script |
 | `reporter` | The reporters' panel (`/reporter`, `useReporting`) |
 | `admin` | The admin panel (`/admin`) |
-| `schedule` | Parades and events: the current parade, "Hoy", "Desfiles" |
+| `schedule` | Parades and events: the current parade, `/today`, `/parades` |
 | `photos` | The photo wall and its moderation |
 | `notifications` | Proximity push notifications and team messages to everyone |
 | `i18n` | Texts in Spanish and English |
 | `security` | Sessions, rate limits, headers, input validation |
 | `ui` | Screens and components that do not fit another scope |
+| `web` | Changes across the whole web app (`apps/web/`) |
 | `pwa` | Service worker, manifest, icons |
 | `deps` | Dependencies |
 | `ci` | Continuous integration |

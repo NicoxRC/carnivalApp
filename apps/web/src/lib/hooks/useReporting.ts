@@ -6,7 +6,7 @@ export const SEND_INTERVAL_MS = 20_000;
 const STALE_FIX_MS = 60_000;
 const MAX_QUEUE = 200;
 export const ACCEPTABLE_ACCURACY_M = 100;
-const QUEUE_KEY = "sed:reportero:cola";
+const QUEUE_KEY = "sed:reporter:queue";
 
 export interface Fix {
   lat: number;

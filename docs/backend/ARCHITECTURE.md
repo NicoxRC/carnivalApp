@@ -1,8 +1,8 @@
 # Backend architecture
 
 The decisions behind `apps/backend/`, already made. If something does not convince you,
-open it as a discussion in a PR; do not change it silently. Domain terms between the web
-(Spanish) and the backend (English) are in `GLOSSARY.md`.
+open it as a discussion in a PR; do not change it silently. The English name of each domain
+term, shared by the web and the backend, is in `GLOSSARY.md`.
 
 Stack: **FastAPI + PostgreSQL**, environment with **Nix**, dependencies with **uv**, secrets
 with **sops + age**, **pre-commit**, **unit tests with pytest**, **CI/CD on GitHub Actions**
@@ -73,7 +73,7 @@ and enum-like values. The web keeps its Spanish types and maps the names in one 
 | `GET/POST/DELETE /api/push-subscriptions` | public |
 | ~~web's former `/api/admin/sesion`, `/api/reportero/sesion`~~ | replaced by `/api/auth` |
 | ~~web's former `/api/admin/reporteros`~~ | replaced by `/api/admin/users` |
-| ~~web's former `POST /api/simulacion`~~ | **not ported**: the simulator is `npm run simular` with an `ingest` user |
+| ~~web's former `POST /api/simulacion`~~ | **not ported**: the simulator is `npm run simulate` with an `ingest` user |
 
 - Errors: always `{"error": "<message in Spanish>"}` with the right HTTP status. Validation
   errors answer **400**, as the web's API did, not FastAPI's 422.
@@ -131,7 +131,7 @@ and enum-like values. The web keeps its Spanish types and maps the names in one 
 - Parity with the web: a fixture exported with turf (`apps/backend/seed/projections.json`)
   guarantees Python and TypeScript give the same number (±2 m).
 - **The ETA the user sees is still computed on the client** (`apps/web/src/lib/eta.ts`). The backend
-  only ports `estimarVelocidad` because it needs it for push notifications.
+  only ports `estimateSpeed` because it needs it for push notifications.
 
 ## Database
 
@@ -170,7 +170,7 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
   development) and S3-compatible (`boto3`; a Railway bucket or Cloudflare R2 in production).
   Images are served through the API (`GET /api/photos/{id}`), not with a public bucket URL:
   that way a pending photo is never reachable.
-- **Push:** `pywebpush` with VAPID keys (the same ones `npm run push:llaves` generates).
+- **Push:** `pywebpush` with VAPID keys (the same ones `npm run push:keys` generates).
   Without keys, the feature turns itself off.
 
 ## Secrets

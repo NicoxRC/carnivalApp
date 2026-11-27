@@ -8,15 +8,15 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "simular": "tsx scripts/simulate-parade.ts",
+    "simulate": "tsx scripts/simulate-parade.ts",
     "seed:export": "tsx scripts/export-seed.ts",
-    "mapa:estilo": "tsx scripts/generate-map-style.ts",
+    "map:style": "tsx scripts/generate-map-style.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
-    "push:llaves": "tsx scripts/generate-push-keys.ts",
-    "iconos": "tsx scripts/generate-icons.ts",
-    "mapa:worker": "node scripts/copy-map-worker.mjs",
-    "predev": "npm run -s mapa:worker",
-    "prebuild": "npm run -s mapa:worker"
+    "push:keys": "tsx scripts/generate-push-keys.ts",
+    "icons": "tsx scripts/generate-icons.ts",
+    "map:worker": "node scripts/copy-map-worker.mjs",
+    "predev": "npm run -s map:worker",
+    "prebuild": "npm run -s map:worker"
   },
   "dependencies": {
     "@turf/along": "^7.2.0",

@@ -10,8 +10,8 @@ build/
 next-env.d.ts
 .DS_Store
 
-# Se copia desde node_modules en cada dev/build (apps/web/scripts/copiar-worker-mapa.mjs)
-apps/web/public/mapa/maplibre-worker.mjs
+# Copied from node_modules on every dev/build (apps/web/scripts/copy-map-worker.mjs)
+apps/web/public/map/maplibre-worker.mjs
 
 # direnv (Nix environment)
 .direnv/

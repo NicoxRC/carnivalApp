@@ -56,7 +56,7 @@ export function useParadeState(): Result {
   const refresh = useCallback(async () => {
     try {
       const r = await requestApi("/api/state", { cache: "no-store" });
-      apply(parseParadeState(await r.json()), r.headers.get("X-Desde-Cache") === "1");
+      apply(parseParadeState(await r.json()), r.headers.get("X-From-Cache") === "1");
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
         setConnection("live");

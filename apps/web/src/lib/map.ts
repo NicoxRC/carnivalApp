@@ -4,7 +4,7 @@ import { Protocol } from "pmtiles";
 
 import baseLayers from "@/data/map-style.json";
 
-export const TILES_URL = process.env.NEXT_PUBLIC_MAPA_PMTILES || "/mapa/pasto.pmtiles";
+export const TILES_URL = process.env.NEXT_PUBLIC_MAP_PMTILES || "/map/pasto.pmtiles";
 
 export const TILES_BOUNDS: LngLatBoundsLike = [
   [-77.33, 1.16],
@@ -19,14 +19,14 @@ let protocolRegistered = false;
 export function mapStyle(): maplibregl.StyleSpecification {
   if (!protocolRegistered) {
     maplibregl.addProtocol("pmtiles", new Protocol().tile);
-    maplibregl.setWorkerUrl(`${window.location.origin}/mapa/maplibre-worker.mjs`);
+    maplibregl.setWorkerUrl(`${window.location.origin}/map/maplibre-worker.mjs`);
     protocolRegistered = true;
   }
   const origin = window.location.origin;
   const tiles = new URL(TILES_URL, origin).href;
   return {
     version: 8,
-    glyphs: `${origin}/mapa/fuentes/{fontstack}/{range}.pbf`,
+    glyphs: `${origin}/map/fonts/{fontstack}/{range}.pbf`,
     sources: {
       protomaps: {
         type: "vector",

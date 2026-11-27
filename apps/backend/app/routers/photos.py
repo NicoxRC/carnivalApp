@@ -36,7 +36,7 @@ NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa foto.")
 
 
 class PhotoOut(Schema):
-    """Web: `Foto`."""
+    """Web: `Photo`."""
 
     id: uuid.UUID
     parade_id: str | None

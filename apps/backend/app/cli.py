@@ -7,7 +7,7 @@
 `seed` loads the sample data of `apps/backend/seed/` (course, parades, events and
 businesses); it can be run again at any time. With `--dev`, and only with
 `ENVIRONMENT=dev`, it also leaves ready the simulator's service account
-(`SIMULATOR_EMAIL`), so `npm run simular` works locally without flags.
+(`SIMULATOR_EMAIL`), so `npm run simulate` works locally without flags.
 
 To create users you need to be an admin, and at the beginning there is none:
 this command creates the first one. The password is asked for without showing
@@ -33,7 +33,7 @@ from app.seed import SeedError, seed
 
 # The simulator's service account in development. The password is not a
 # secret: the account only exists on a local database with ENVIRONMENT=dev, and
-# `npm run simular` uses these same values by default against localhost.
+# `npm run simulate` uses these same values by default against localhost.
 SIMULATOR_EMAIL = "simulator@local"
 SIMULATOR_PASSWORD = "simulator-dev-only"
 
@@ -104,7 +104,7 @@ async def ensure_simulator(repo: UsersRepo, *, environment: str) -> int:
     else:
         await repo.update(user.id, {"password_hash": password_hash, "active": True})
         await repo.set_roles(user.id, [Role.INGEST])
-    print(f"Simulador listo: {SIMULATOR_EMAIL} (rol ingest). `npm run simular` ya puede entrar.")
+    print(f"Simulador listo: {SIMULATOR_EMAIL} (rol ingest). `npm run simulate` ya puede entrar.")
     return 0
 
 

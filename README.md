@@ -31,7 +31,7 @@ The parade moves with positions sent to the backend: from the reporters' panel o
 simulator. In another terminal, from `apps/web/`:
 
 ```bash
-npm run simular -- --velocidad=1.5
+npm run simulate -- --speed=1.5
 ```
 
 It logs in as `simulator@local`, the `ingest` user `just seed` creates in development, and
@@ -40,7 +40,7 @@ as a reporter's phone: **there is no "pretend" path parallel to the real one**. 
 `--velocidad` (km/h, 1.5), `--intervalo` (seconds, 12), `--separacion` (metres between
 posts, 550), `--paradas=false` (never stops), `--inicio` (starting metres), `--url`
 (`http://localhost:8000`). Against another server it needs a real `ingest` account:
-`--email=… --password=…` (or `SIMULADOR_EMAIL` / `SIMULADOR_PASSWORD`).
+`--email=… --password=…` (or `SIMULATOR_EMAIL` / `SIMULATOR_PASSWORD`).
 
 ---
 
@@ -91,7 +91,7 @@ To replace it, edit `apps/web/src/data/carnival-course.ts`:
 - `oficial: true` when it really is: that turns off the yellow warning.
 
 The length and the metres of each waypoint are computed on load. It is TypeScript and not
-JSON because the `npm run simular` script runs outside the bundler.
+JSON because the `npm run simulate` script runs outside the bundler.
 
 ---
 
@@ -188,8 +188,8 @@ convincing, here is the why:
 
 ## The base map
 
-The tiles are our own: `apps/web/public/mapa/pasto.pmtiles` (≈2.4 MB, all of Pasto up to z15,
-derived from OpenStreetMap by Protomaps) and the label fonts in `apps/web/public/mapa/fuentes/`.
+The tiles are our own: `apps/web/public/map/pasto.pmtiles` (≈2.4 MB, all of Pasto up to z15,
+derived from OpenStreetMap by Protomaps) and the label fonts in `apps/web/public/map/fonts/`.
 There is no dependency on `tile.openstreetmap.org`, whose usage policy does not allow a
 mass-market app.
 
@@ -197,20 +197,20 @@ mass-market app.
   visit and cuts from the cache the pieces the viewer asks for. Tested: with the network
   cut the map draws completely.
 - **The style** (paper colours, without the base map's points of interest) is generated
-  with `npm run mapa:estilo` and versioned in `apps/web/src/data/map-style.json`, so the style
+  with `npm run map:style` and versioned in `apps/web/src/data/map-style.json`, so the style
   library is not sent to the phone.
-- **MapLibre's worker** is copied from `node_modules` to `apps/web/public/mapa/` before every `dev`
-  and `build` (`npm run mapa:worker`): since version 6 it is not embedded.
+- **MapLibre's worker** is copied from `node_modules` to `apps/web/public/map/` before every `dev`
+  and `build` (`npm run map:worker`): since version 6 it is not embedded.
 - **Updating the tiles** (once a year is enough):
 
   ```bash
   go install github.com/protomaps/go-pmtiles@latest
-  pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles apps/web/public/mapa/pasto.pmtiles \
+  pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles apps/web/public/map/pasto.pmtiles \
     --bbox=-77.33,1.16,-77.23,1.26 --maxzoom=15
   ```
 
   And bump `VERSION` in `apps/web/public/sw.js`, or phones keep the old file.
-  `NEXT_PUBLIC_MAPA_PMTILES` lets you point to another path **on the same domain**. If the
+  `NEXT_PUBLIC_MAP_PMTILES` lets you point to another path **on the same domain**. If the
   file is served from another domain (R2, S3), the map works with a network but the
   service worker does not store it: the map is lost without signal.
 
@@ -337,7 +337,7 @@ server secrets: they all live in the backend.
 ### What you need to know before showing it to someone
 
 - **To move the parade on a deployment** the simulator is run against the backend with a
-  real `ingest` account: `npm run simular -- --url=https://… --email=… --password=…`.
+  real `ingest` account: `npm run simulate -- --url=https://… --email=… --password=…`.
 - **It is still untested with a bad network**, which is the project's number one risk.
 - The course, the waypoints, the businesses and the schedule are still **sample data**.
 
@@ -387,7 +387,7 @@ for anything.
 ## Notifications, sharing and photos
 
 - **«Avisame cuando esté cerca».** In the ETA bar. With VAPID keys on the backend
-  (`npm run push:llaves`) the notification arrives even with the app closed: every time a
+  (`npm run push:keys`) the notification arrives even with the app closed: every time a
   position of the head comes in, it is checked who has 10 min or less left, they are
   notified and their subscription is deleted. Without keys, or if the browser does not
   support push, the app itself watches the ETA and notifies, but only while it is open,
@@ -504,7 +504,7 @@ apps/
       data/                   sample data and map style
     scripts/                simulate, generate style/icons/keys, copy worker; backend helpers
     public/sw.js            service worker: offline, map and push notifications
-    public/mapa/            Pasto tiles and label fonts
+    public/map/            Pasto tiles and label fonts
   backend/                the FastAPI backend (see docs/backend/ARCHITECTURE.md)
   mobile/                 the Expo app (not started yet)
 docs/backend/             backend architecture and glossary
