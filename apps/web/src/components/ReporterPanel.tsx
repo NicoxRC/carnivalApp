@@ -8,59 +8,50 @@ import { SEND_INTERVAL_MS, ACCEPTABLE_ACCURACY_M, useReporting, type Reporting }
 import { projectOnCourse, describePosition, COURSE } from "@/lib/course";
 import type { Reporter, Post } from "@/lib/types";
 
-/**
- * Panel de los reporteros: las tres personas que caminan con el desfile.
- *
- * Pantalla oscura y mínima: la llevan cuatro horas encendida, con una mano, a
- * pleno sol y empujados. Lo único que tienen que hacer es abrirla y darle a
- * «Empezar»; desde ahí el GPS sale solo. Lo demás en pantalla es para que
- * sepan que está funcionando sin tener que preguntar.
- */
-
-const ROL: Record<Post, { name: string; color: string; ayuda: string }> = {
-  head: { name: "Cabeza", color: "bg-cabeza", ayuda: "Caminá con la primera carroza o comparsa." },
-  middle: { name: "Mitad", color: "bg-mitad", ayuda: "Caminá a la mitad del desfile." },
-  tail: { name: "Cola", color: "bg-cola", ayuda: "Caminá con lo último del desfile." },
+const POST_LABEL: Record<Post, { name: string; color: string; help: string }> = {
+  head: { name: "Cabeza", color: "bg-head", help: "Caminá con la primera carroza o comparsa." },
+  middle: { name: "Mitad", color: "bg-middle", help: "Caminá a la mitad del desfile." },
+  tail: { name: "Cola", color: "bg-tail", help: "Caminá con lo último del desfile." },
 };
 
-type Sesion =
-  | { state: "cargando" }
-  | { state: "fuera" }
-  | { state: "dentro"; reportero: Reporter; parade: string | null };
+type Session =
+  | { state: "loading" }
+  | { state: "out" }
+  | { state: "in"; reporter: Reporter; parade: string | null };
 
-export function PanelReportero() {
-  const [sesion, setSesion] = useState<Sesion>({ state: "cargando" });
+export function ReporterPanel() {
+  const [session, setSession] = useState<Session>({ state: "loading" });
 
   useEffect(() => {
     fetch("/api/reportero/sesion", { cache: "no-store" })
       .then((r) =>
         r.ok
-          ? (r.json() as Promise<{ reportero: Reporter | null; parade?: string | null }>)
-          : { reportero: null, parade: null },
+          ? (r.json() as Promise<{ reporter: Reporter | null; parade?: string | null }>)
+          : { reporter: null, parade: null },
       )
       .then((d) =>
-        setSesion(
-          d.reportero ? { state: "dentro", reportero: d.reportero, parade: d.parade ?? null } : { state: "fuera" },
+        setSession(
+          d.reporter ? { state: "in", reporter: d.reporter, parade: d.parade ?? null } : { state: "out" },
         ),
       )
-      .catch(() => setSesion({ state: "fuera" }));
+      .catch(() => setSession({ state: "out" }));
   }, []);
 
-  const alVencer = useCallback(() => setSesion({ state: "fuera" }), []);
+  const onExpired = useCallback(() => setSession({ state: "out" }), []);
 
   return (
-    <div className="pt-seguro pb-seguro min-h-dvh bg-tinta text-papel">
+    <div className="pt-safe pb-safe min-h-dvh bg-ink text-paper">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 py-6">
-        {sesion.state === "cargando" ? (
-          <p className="m-auto text-sm text-tinta-4">Cargando…</p>
-        ) : sesion.state === "fuera" ? (
-          <Entrar onEntrar={(reportero, parade) => setSesion({ state: "dentro", reportero, parade })} />
+        {session.state === "loading" ? (
+          <p className="m-auto text-sm text-ink-4">Cargando…</p>
+        ) : session.state === "out" ? (
+          <LogIn onLogIn={(reporter, parade) => setSession({ state: "in", reporter, parade })} />
         ) : (
-          <Reportando
-            reportero={sesion.reportero}
-            parade={sesion.parade}
-            onSalir={() => setSesion({ state: "fuera" })}
-            onVencida={alVencer}
+          <ReportingView
+            reporter={session.reporter}
+            parade={session.parade}
+            onLogOut={() => setSession({ state: "out" })}
+            onExpired={onExpired}
           />
         )}
       </div>
@@ -68,88 +59,83 @@ export function PanelReportero() {
   );
 }
 
-/* --------------------------------- Entrar -------------------------------- */
-
-function Entrar({ onEntrar }: { onEntrar: (r: Reporter, parade: string | null) => void }) {
-  const [codigo, setCodigo] = useState("");
+function LogIn({ onLogIn }: { onLogIn: (r: Reporter, parade: string | null) => void }) {
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOcupado(true);
+    setBusy(true);
     setError(null);
     try {
       const r = await fetch("/api/reportero/sesion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo }),
+        body: JSON.stringify({ code }),
       });
-      const d = (await r.json()) as { reportero?: Reporter; parade?: string | null; error?: string };
-      if (!r.ok || !d.reportero) setError(d.error ?? "No se pudo entrar.");
-      else onEntrar(d.reportero, d.parade ?? null);
+      const d = (await r.json()) as { reporter?: Reporter; parade?: string | null; error?: string };
+      if (!r.ok || !d.reporter) setError(d.error ?? "No se pudo entrar.");
+      else onLogIn(d.reporter, d.parade ?? null);
     } catch {
       setError("Sin conexión. Intentá otra vez cuando tengas señal.");
     } finally {
-      setOcupado(false);
+      setBusy(false);
     }
   };
 
   return (
     <form onSubmit={send} className="my-auto">
-      <p className="fuente-display text-[28px] leading-tight">Panel de reporteros</p>
-      <p className="mt-2 text-[15px] text-tinta-4">
+      <p className="display-font text-[28px] leading-tight">Panel de reporteros</p>
+      <p className="mt-2 text-[15px] text-ink-4">
         Escribí el código que te dio el coordinador. Solo hay que hacerlo una vez por día.
       </p>
-      <label className="mt-8 block text-sm font-bold" htmlFor="codigo">
+      <label className="mt-8 block text-sm font-bold" htmlFor="code">
         Tu código
       </label>
       <input
-        id="codigo"
-        value={codigo}
-        onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+        id="code"
+        value={code}
+        onChange={(e) => setCode(e.target.value.toUpperCase())}
         autoComplete="one-time-code"
         autoCapitalize="characters"
         spellCheck={false}
         placeholder="ABCD-2345"
-        className="mt-2 w-full rounded-2xl border-2 border-tinta-2 bg-[#202024] px-4 py-4 text-center font-mono text-2xl tracking-[0.2em] text-papel placeholder:text-tinta-3 focus:border-papel focus:outline-none"
+        className="mt-2 w-full rounded-2xl border-2 border-ink-2 bg-[#202024] px-4 py-4 text-center font-mono text-2xl tracking-[0.2em] text-paper placeholder:text-ink-3 focus:border-paper focus:outline-none"
       />
       {error ? <p className="mt-3 text-sm font-semibold text-[#ff8a7a]">{error}</p> : null}
       <button
         type="submit"
-        disabled={ocupado || codigo.replace(/[^A-Z0-9]/g, "").length < 8}
-        className="mt-6 w-full rounded-full bg-papel py-4 text-lg font-extrabold text-tinta disabled:opacity-40"
+        disabled={busy || code.replace(/[^A-Z0-9]/g, "").length < 8}
+        className="mt-6 w-full rounded-full bg-paper py-4 text-lg font-extrabold text-ink disabled:opacity-40"
       >
-        {ocupado ? "Entrando…" : "Entrar"}
+        {busy ? "Entrando…" : "Entrar"}
       </button>
     </form>
   );
 }
 
-/* ------------------------------- Reportando ------------------------------ */
-
-function Reportando({
-  reportero,
+function ReportingView({
+  reporter,
   parade,
-  onSalir,
-  onVencida,
+  onLogOut,
+  onExpired,
 }: {
-  reportero: Reporter;
+  reporter: Reporter;
   parade: string | null;
-  onSalir: () => void;
-  onVencida: () => void;
+  onLogOut: () => void;
+  onExpired: () => void;
 }) {
-  const r = useReporting(onVencida);
+  const r = useReporting(onExpired);
   const now = useClock(1000);
-  const post = ROL[reportero.post];
-  // El GPS, la pantalla encendida y la sesión solo funcionan en https (o localhost).
-  const [seguro, setSeguro] = useState(true);
-  useEffect(() => setSeguro(window.isSecureContext), []);
+  const post = POST_LABEL[reporter.post];
+  const [safe, setSafe] = useState(true);
+  useEffect(() => setSafe(window.isSecureContext), []);
 
-  const salir = async () => {
+  const logOut = async () => {
     r.stop();
     await fetch("/api/reportero/sesion", { method: "DELETE" }).catch(() => undefined);
-    onSalir();
+    onLogOut();
   };
 
   return (
@@ -157,17 +143,17 @@ function Reportando({
       <header className="flex items-center gap-3">
         <span className={`size-4 shrink-0 rounded-full ${post.color}`} aria-hidden />
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-tinta-4">
-            {reportero.name}
+          <p className="truncate text-[13px] font-semibold text-ink-4">
+            {reporter.name}
             {parade ? ` · ${parade}` : ""}
           </p>
-          <p className="fuente-display text-[24px] leading-none">{post.name}</p>
+          <p className="display-font text-[24px] leading-none">{post.name}</p>
         </div>
         {r.active ? null : (
           <button
             type="button"
-            onClick={salir}
-            className="ml-auto rounded-full border border-tinta-2 px-3 py-1.5 text-[13px] font-bold text-tinta-4"
+            onClick={logOut}
+            className="ml-auto rounded-full border border-ink-2 px-3 py-1.5 text-[13px] font-bold text-ink-4"
           >
             Salir
           </button>
@@ -175,17 +161,17 @@ function Reportando({
       </header>
 
       {r.active ? (
-        <Activo r={r} now={now} />
+        <ActiveReporting r={r} now={now} />
       ) : (
         <div className="my-auto">
-          <p className="text-[17px] leading-snug text-papel">{post.ayuda}</p>
-          <ul className="mt-4 space-y-2 text-[15px] leading-snug text-tinta-4">
+          <p className="text-[17px] leading-snug text-paper">{post.help}</p>
+          <ul className="mt-4 space-y-2 text-[15px] leading-snug text-ink-4">
             <li>· Dejá esta pantalla abierta todo el recorrido. Tu ubicación sale sola.</li>
             <li>· Si el desfile se para o arranca, tocá «Estoy aquí».</li>
             <li>· Llevá batería externa: la pantalla va a estar encendida.</li>
           </ul>
-          {r.gps === "denied" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
-          {seguro ? null : (
+          {r.gps === "denied" || r.gps === "error" ? <GpsNotice gps={r.gps} /> : null}
+          {safe ? null : (
             <p className="mt-4 rounded-2xl bg-[#3a1512] px-4 py-3 text-[14px] font-semibold text-[#ff8a7a]">
               Esta página no está abierta por una conexión segura (https), y así el celular no
               entrega el GPS. Abrila desde la dirección oficial de la app.
@@ -194,7 +180,7 @@ function Reportando({
           <button
             type="button"
             onClick={r.start}
-            className="mt-8 w-full rounded-full bg-ok py-5 text-xl font-extrabold text-blanco active:opacity-90"
+            className="mt-8 w-full rounded-full bg-ok py-5 text-xl font-extrabold text-white active:opacity-90"
           >
             Empezar a reportar
           </button>
@@ -204,31 +190,29 @@ function Reportando({
   );
 }
 
-function Activo({ r, now }: { r: Reporting; now: number }) {
+function ActiveReporting({ r, now }: { r: Reporting; now: number }) {
   const [alert, setAlert] = useState<string | null>(null);
-  const [waypoint, setHito] = useState("");
+  const [waypoint, setWaypoint] = useState("");
 
-  // Dónde cree la app que está: si dice algo raro, el reportero lo nota al instante.
   const projection = r.fix ? projectOnCourse(r.fix.lat, r.fix.lng) : null;
-  const referencia = projection ? describePosition(projection.metres, "you").phrase : null;
-  const lejos = projection !== null && projection.offsetM > 150;
+  const reference = projection ? describePosition(projection.metres, "you").phrase : null;
+  const far = projection !== null && projection.offsetM > 150;
 
-  const atrasado = r.lastSentAt !== null && now - r.lastSentAt > SEND_INTERVAL_MS * 3;
-  const impreciso = r.fix !== null && r.fix.accuracyM > ACCEPTABLE_ACCURACY_M;
+  const late = r.lastSentAt !== null && now - r.lastSentAt > SEND_INTERVAL_MS * 3;
+  const imprecise = r.fix !== null && r.fix.accuracyM > ACCEPTABLE_ACCURACY_M;
 
-  const tocarEstoyAqui = () => {
+  const tapImHere = () => {
     setAlert(r.imHere() ? "Listo, ya saben por dónde vas." : "Todavía no hay GPS. Usá la lista de abajo.");
     setTimeout(() => setAlert(null), 4000);
   };
 
   return (
     <div className="mt-6 flex flex-1 flex-col gap-4">
-      {/* --- ¿Está funcionando? --- */}
       <section className="rounded-3xl bg-[#202024] p-5">
         <p className="flex items-center gap-2 text-sm font-bold">
           <span
             className={`size-2.5 rounded-full ${
-              r.network === "ok" && !atrasado ? "latido bg-ok" : "bg-mitad"
+              r.network === "ok" && !late ? "heartbeat bg-ok" : "bg-middle"
             }`}
             aria-hidden
           />
@@ -236,18 +220,18 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
             ? "Sin señal: se guarda y se manda cuando vuelva"
             : r.onHold
               ? "De respaldo: otro reportero lleva este rol"
-              : atrasado
+              : late
               ? "Hace rato no sale nada"
               : "Mandando tu ubicación"}
         </p>
-        <p className="fuente-display mt-3 text-[30px] leading-none">
+        <p className="display-font mt-3 text-[30px] leading-none">
           {r.lastSentAt ? timeAgo(r.lastSentAt, now) : "—"}
         </p>
-        <p className="mt-1 text-[13px] text-tinta-4">último envío</p>
+        <p className="mt-1 text-[13px] text-ink-4">último envío</p>
 
         <dl className="mt-4 grid grid-cols-2 gap-3 text-[13px]">
           <div>
-            <dt className="text-tinta-4">GPS</dt>
+            <dt className="text-ink-4">GPS</dt>
             <dd className="font-bold">
               {r.gps === "ok" && r.fix
                 ? `± ${Math.round(r.fix.accuracyM)} m`
@@ -257,18 +241,18 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
             </dd>
           </div>
           <div>
-            <dt className="text-tinta-4">Por mandar</dt>
-            <dd className="font-bold">{r.pending === 0 ? "nada" : `${r.pending} puntos`}</dd>
+            <dt className="text-ink-4">Por mandar</dt>
+            <dd className="font-bold">{r.pending === 0 ? "none" : `${r.pending} puntos`}</dd>
           </div>
         </dl>
-        {referencia ? (
+        {reference ? (
           <p className="mt-3 text-[15px] font-semibold">
-            {lejos ? `Estás a ${shortDistance(projection.offsetM)} de la senda` : referencia}
+            {far ? `Estás a ${shortDistance(projection.offsetM)} de la senda` : reference}
           </p>
         ) : null}
       </section>
 
-      {r.gps === "denied" || r.gps === "error" ? <AvisoGps gps={r.gps} /> : null}
+      {r.gps === "denied" || r.gps === "error" ? <GpsNotice gps={r.gps} /> : null}
 
       {r.onHold ? (
         <p className="rounded-2xl bg-[#1d2a3a] px-4 py-3 text-[14px] font-semibold text-[#9fd0f5]">
@@ -277,45 +261,43 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
         </p>
       ) : null}
 
-      {impreciso ? (
-        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
+      {imprecise ? (
+        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-middle">
           El GPS está muy impreciso (± {Math.round(r.fix!.accuracyM)} m) y así no se manda. Salí a
           cielo abierto, o marcá por punto de referencia abajo.
         </p>
       ) : null}
 
       {r.screenOn === false ? (
-        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
+        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-middle">
           La pantalla se puede apagar sola y entonces deja de mandar. Tocá la pantalla de vez en
           cuando o subí el tiempo de bloqueo del celular.
         </p>
       ) : r.screenOn === null ? (
-        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-mitad">
+        <p className="rounded-2xl bg-[#3a2a10] px-4 py-3 text-[14px] font-semibold text-middle">
           Este navegador no deja mantener la pantalla encendida. Poné el bloqueo automático del
           celular en «Nunca» mientras reportas.
         </p>
       ) : null}
 
-      {/* --- La acción principal --- */}
       <button
         type="button"
-        onClick={tocarEstoyAqui}
-        className="mt-auto w-full rounded-[28px] bg-cabeza py-7 text-[26px] font-extrabold text-blanco shadow-[0_10px_30px_-10px_rgba(255,106,31,0.6)] active:scale-[0.99]"
+        onClick={tapImHere}
+        className="mt-auto w-full rounded-[28px] bg-head py-7 text-[26px] font-extrabold text-white shadow-[0_10px_30px_-10px_rgba(255,106,31,0.6)] active:scale-[0.99]"
       >
         Estoy aquí
       </button>
-      <p className="-mt-2 text-center text-[13px] text-tinta-4" aria-live="polite">
+      <p className="-mt-2 text-center text-[13px] text-ink-4" aria-live="polite">
         {alert ?? "Tocalo cuando el desfile se pare o vuelva a arrancar."}
       </p>
 
-      {/* --- Sin GPS: por hito --- */}
       <details className="rounded-2xl bg-[#202024] px-4 py-3">
         <summary className="cursor-pointer text-[15px] font-bold">¿El GPS no funciona? Marcá por dónde vas</summary>
         <div className="mt-3 flex gap-2">
           <select
             value={waypoint}
-            onChange={(e) => setHito(e.target.value)}
-            className="min-w-0 flex-1 rounded-xl bg-tinta px-3 py-3 text-[15px] text-papel"
+            onChange={(e) => setWaypoint(e.target.value)}
+            className="min-w-0 flex-1 rounded-xl bg-ink px-3 py-3 text-[15px] text-paper"
             aria-label="Punto de referencia"
           >
             <option value="">Elegí el punto más cercano…</option>
@@ -331,10 +313,10 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
             onClick={() => {
               r.markWaypoint(waypoint);
               setAlert("Listo, marcado por el punto de referencia.");
-              setHito("");
+              setWaypoint("");
               setTimeout(() => setAlert(null), 4000);
             }}
-            className="rounded-xl bg-papel px-4 font-extrabold text-tinta disabled:opacity-40"
+            className="rounded-xl bg-paper px-4 font-extrabold text-ink disabled:opacity-40"
           >
             Marcar
           </button>
@@ -346,7 +328,7 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
         onClick={() => {
           if (confirm("¿Terminar? Tu ubicación deja de mandarse.")) r.stop();
         }}
-        className="w-full rounded-full border border-tinta-2 py-3 text-[15px] font-bold text-tinta-4"
+        className="w-full rounded-full border border-ink-2 py-3 text-[15px] font-bold text-ink-4"
       >
         Terminar el recorrido
       </button>
@@ -354,7 +336,7 @@ function Activo({ r, now }: { r: Reporting; now: number }) {
   );
 }
 
-function AvisoGps({ gps }: { gps: "denied" | "error" }) {
+function GpsNotice({ gps }: { gps: "denied" | "error" }) {
   return (
     <p className="mt-4 rounded-2xl bg-[#3a1512] px-4 py-3 text-[14px] font-semibold text-[#ff8a7a]">
       {gps === "denied"

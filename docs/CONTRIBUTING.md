@@ -114,13 +114,13 @@ app are in Spanish).
 | Scope | What it covers |
 |---|---|
 | `course` | The course and the 1D projection (`apps/web/src/lib/course.ts`, `apps/web/src/data/carnival-course.ts`) |
-| `eta` | The ETA calculation and its states (`apps/web/src/lib/eta.ts`, `BarraEta`) |
-| `map` | MapLibre, layers, markers (`MapaDesfile`, `PantallaMapa`) |
+| `eta` | The ETA calculation and its states (`apps/web/src/lib/eta.ts`, `EtaBar`) |
+| `map` | MapLibre, layers, markers (`ParadeMap`, `MapScreen`) |
 | `density` | The crowd map |
 | `businesses` | The businesses layer and its cards |
 | `data` | How the web reads and writes the backend's data |
 | `simulation` | The simulation engine and the `simular` script |
-| `reporter` | The reporters' panel (`/reportero`, `useReporte`) |
+| `reporter` | The reporters' panel (`/reporter`, `useReporting`) |
 | `admin` | The admin panel (`/admin`) |
 | `schedule` | Parades and events: the current parade, "Hoy", "Desfiles" |
 | `photos` | The photo wall and its moderation |
@@ -280,7 +280,7 @@ git pull origin trunk
 git switch -c feature/12-stages-layer
 
 # Work and commit (add files by name, not everything blindly)
-git add apps/web/src/components/MapaDesfile.tsx apps/web/src/data/tarimas.json
+git add apps/web/src/components/ParadeMap.tsx apps/web/src/data/tarimas.json
 git commit -m "feat(map): #12 add the stages layer" -m "- Stages are where most people stop to watch the parade."
 
 # Push and open the PR

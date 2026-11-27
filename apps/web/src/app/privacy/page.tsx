@@ -2,22 +2,14 @@ import Link from "next/link";
 
 export const metadata = { title: "Qué datos usa la app · Sigue el Desfile" };
 
-/**
- * ⚠️ BORRADOR. Describe con exactitud lo que hace el código hoy, pero NO es una
- * política de tratamiento de datos revisada por un abogado. Antes de publicar
- * la app hay que: (1) nombrar al responsable del tratamiento con su NIT y un
- * canal de contacto real, (2) hacerla revisar frente a la Ley 1581 de 2012 y
- * su reglamentación, y (3) mantenerla al día: si el código empieza a guardar
- * algo más, esta página cambia en el mismo PR.
- */
-export default function Privacidad() {
-  const h2 = "fuente-display mt-7 text-[20px] text-tinta";
-  const p = "mt-2 text-[15px] leading-relaxed text-tinta-2";
+export default function Privacy() {
+  const h2 = "display-font mt-7 text-[20px] text-ink";
+  const p = "mt-2 text-[15px] leading-relaxed text-ink-2";
   return (
-    <div className="flex-1 bg-papel-3">
-      <article className="pt-seguro mx-auto w-full max-w-2xl px-5 pb-12 lg:px-6 lg:pt-8">
-        <h1 className="fuente-display text-[34px] leading-none text-tinta">Qué datos usa la app</h1>
-        <p className="mt-3 rounded-xl bg-papel px-3 py-2 text-[12px] leading-snug font-semibold text-aviso-txt">
+    <div className="flex-1 bg-paper-3">
+      <article className="pt-safe mx-auto w-full max-w-2xl px-5 pb-12 lg:px-6 lg:pt-8">
+        <h1 className="display-font text-[34px] leading-none text-ink">Qué datos usa la app</h1>
+        <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-[12px] leading-snug font-semibold text-warn-text">
           Borrador. Falta el nombre y el contacto del responsable, y la revisión legal. No es todavía
           la política oficial.
         </p>
@@ -76,7 +68,7 @@ export default function Privacidad() {
         </p>
 
         <p className="mt-8">
-          <Link href="/" className="font-bold text-tinta underline underline-offset-4">
+          <Link href="/" className="font-bold text-ink underline underline-offset-4">
             Volver al mapa
           </Link>
         </p>

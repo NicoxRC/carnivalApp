@@ -4,24 +4,16 @@ import Link from "next/link";
 
 import { setLanguage, useLanguage } from "@/lib/i18n";
 
-/**
- * Primera pantalla: explica qué es la app antes de pedirle la ubicación a nadie.
- *
- * El usuario primerizo es el caso normal aquí — la app se usa 6 días al año y
- * nadie recuerda cómo funcionaba. Pedir el permiso de GPS a bocajarro, sin haber
- * dicho para qué, es la forma más rápida de que lo nieguen.
- */
-export function Inicio({
-  onSeguir,
-  onSaltar,
+export function Home({
+  onFollow,
+  onSkip,
 }: {
-  onSeguir: () => void;
-  onSaltar: () => void;
+  onFollow: () => void;
+  onSkip: () => void;
 }) {
   const { language, t } = useLanguage();
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-marca">
-      {/* Serpentinas */}
+    <div className="relative flex h-full flex-col overflow-hidden bg-brand">
       <svg
         className="pointer-events-none absolute -top-10 -left-8 opacity-90"
         width="375"
@@ -39,12 +31,12 @@ export function Inicio({
         </g>
       </svg>
 
-      <div className="pt-seguro relative flex flex-1 flex-col overflow-y-auto px-7 pb-8">
+      <div className="pt-safe relative flex flex-1 flex-col overflow-y-auto px-7 pb-8">
         <p className="mt-12 text-xs font-extrabold tracking-[2.4px] text-[#bfe0f2] uppercase">
           {t("home.about")}
         </p>
 
-        <h1 className="fuente-display mt-3.5 text-[52px] leading-[0.98] text-papel">
+        <h1 className="display-font mt-3.5 text-[52px] leading-[0.98] text-paper">
           {t("home.title1")}
           <br />
           {t("home.title2")}
@@ -56,13 +48,13 @@ export function Inicio({
 
         <div className="mt-6 flex flex-col gap-4 rounded-[20px] border border-white/20 bg-white/10 p-4">
           <div className="flex items-center gap-3.5">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-papel" aria-hidden>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-paper" aria-hidden>
               <svg
                 width="21"
                 height="21"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--color-marca)"
+                stroke="var(--color-brand)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -70,19 +62,19 @@ export function Inicio({
                 <path d="M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4l-5.5 2m0 12V6m0 0L9 4" />
               </svg>
             </span>
-            <p className="text-[15px] leading-tight text-papel">
+            <p className="text-[15px] leading-tight text-paper">
               <b className="text-base">{t("nav.map")}</b> — {t("home.map")}
             </p>
           </div>
 
           <div className="flex items-center gap-3.5">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-papel" aria-hidden>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-paper" aria-hidden>
               <svg
                 width="21"
                 height="21"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--color-cabeza)"
+                stroke="var(--color-head)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -91,7 +83,7 @@ export function Inicio({
                 <circle cx="12" cy="13" r="3.2" />
               </svg>
             </span>
-            <p className="text-[15px] leading-tight text-papel">
+            <p className="text-[15px] leading-tight text-paper">
               <b className="text-base">{t("home.rest.title")}</b> — {t("home.rest")}
             </p>
           </div>
@@ -100,8 +92,8 @@ export function Inicio({
         <div className="mt-auto pt-8">
           <button
             type="button"
-            onClick={onSeguir}
-            className="flex h-[60px] w-full items-center justify-center gap-2.5 rounded-2xl bg-cabeza text-[19px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(234,90,18,0.7)] active:opacity-90"
+            onClick={onFollow}
+            className="flex h-[60px] w-full items-center justify-center gap-2.5 rounded-2xl bg-head text-[19px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(234,90,18,0.7)] active:opacity-90"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden>
               <path d="M6 3l12 9-12 9z" />
@@ -111,14 +103,14 @@ export function Inicio({
 
           <button
             type="button"
-            onClick={onSaltar}
+            onClick={onSkip}
             className="mt-3.5 w-full text-center text-sm text-[#cfe6f4] underline-offset-4 active:underline"
           >
             {t("home.skip")}
           </button>
 
           <p className="mt-5 flex items-center justify-center gap-4 text-[13px] text-[#cfe6f4]">
-            <Link href="/privacidad" className="underline underline-offset-4">
+            <Link href="/privacy" className="underline underline-offset-4">
               {t("home.privacy")}
             </Link>
             <button

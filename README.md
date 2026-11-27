@@ -119,7 +119,7 @@ screen (iOS 16.4+). Without that there is the local notification, which only sou
 the app open. It has to be tested on a real iPhone, and a decision made on whether to ask
 people to install it.
 
-**5. The privacy policy.** `/privacidad` describes exactly what the code does, but it is a
+**5. The privacy policy.** `/privacy` describes exactly what the code does, but it is a
 **draft**: the data controller, a real contact and a lawyer's review against Colombia's Ley
 1581 de 2012 are missing.
 
@@ -237,7 +237,7 @@ Everything that writes goes through the backend, with users, roles and permissio
 
 ## Reporters' panel
 
-`/reportero`. A dark, minimal screen, designed for four hours in the hand in full sun.
+`/reporter`. A dark, minimal screen, designed for four hours in the hand in full sun.
 
 1. The reporter logs in (once a day) and taps **Empezar a reportar**.
 2. From there **GPS goes out on its own every 20 s**. Nothing has to be touched.
@@ -484,15 +484,15 @@ apps/
     src/
       app/
         page.tsx              live map
-        hoy/ desfiles/ fotos/ the other three tabs
-        privacidad/           which data the app uses (draft)
-        reportero/ admin/     the team's panels
+        today/ parades/ photos/ the other three tabs
+        privacy/              which data the app uses (draft)
+        reporter/ admin/      the team's panels
         error.tsx not-found.tsx robots.ts manifest.ts
       components/
-        MapaDesfile.tsx       MapLibre: course in 3 stretches, markers, points of interest
-        BarraEta.tsx          the white sheet: the ETA states, notification and sharing
-        Pantalla*.tsx         one per tab
-        PanelReportero.tsx    the reporters' panel
+        ParadeMap.tsx         MapLibre: course in 3 stretches, markers, points of interest
+        EtaBar.tsx            the white sheet: the ETA states, notification and sharing
+        *Screen.tsx           one per tab
+        ReporterPanel.tsx     the reporters' panel
         admin/                the admin panel, one tab per file
       lib/
         course.ts             1D projection (Turf)

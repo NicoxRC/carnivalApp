@@ -1,18 +1,6 @@
 @import "tailwindcss";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
-/*
-  Tema claro de alto contraste, según el diseño.
-  El cambio de fondo oscuro a papel cálido no es estético: los desfiles son de
-  día y al aire libre, y el modo oscuro rinde peor bajo luz directa.
-*/
-
-/*
-  Alfa Slab One, servida desde nuestro dominio y no desde Google Fonts.
-  Solo el subconjunto `latin` (19 KB): cubre todo el español —tildes, ñ, ¿, ¡—
-  y la raya del ETA (–). Los subconjuntos latin-ext y vietnamita venían en el
-  diseño y se descartaron: 27 KB que nadie iba a usar el 31 de diciembre.
-*/
 @font-face {
   font-family: "Alfa Slab One";
   font-style: normal;
@@ -25,44 +13,31 @@
 }
 
 @theme {
-  /* Superficies */
-  --color-papel: #f4efe0; /* crema cálido: héroe y superficies de marca */
-  --color-papel-2: #eceae2; /* fondo del mapa */
-  --color-papel-3: #f6f4ee; /* fondo de listas */
-  --color-blanco: #ffffff; /* tarjetas y hojas */
+  --color-paper: #f4efe0;
+  --color-paper-2: #eceae2;
+  --color-paper-3: #f6f4ee;
+  --color-white: #ffffff;
 
-  /* Tinta */
-  --color-tinta: #141414; /* texto principal */
-  --color-tinta-2: #3f3f47; /* secundario */
-  --color-tinta-3: #5c5c66; /* metadatos */
-  --color-tinta-4: #9a9aa4; /* inactivo */
+  --color-ink: #141414;
+  --color-ink-2: #3f3f47;
+  --color-ink-3: #5c5c66;
+  --color-ink-4: #9a9aa4;
 
-  /* Bordes */
-  --color-borde: #eeece4;
-  --color-borde-2: #e0ded5;
-  --color-borde-3: #cbc9c0;
+  --color-line: #eeece4;
+  --color-line-2: #e0ded5;
+  --color-line-3: #cbc9c0;
 
-  /* Semánticos del desfile */
-  --color-cabeza: #ff6a1f;
-  --color-mitad: #ffc61a;
-  --color-cola: #a06bff;
-  --color-usuario: #2f9bff;
-  --color-marca: #1487cc;
+  --color-head: #ff6a1f;
+  --color-middle: #ffc61a;
+  --color-tail: #a06bff;
+  --color-user: #2f9bff;
+  --color-brand: #1487cc;
   --color-ok: #0f8f5f;
 
-  /*
-    Variantes legibles sobre blanco. El naranja y el amarillo de los marcadores
-    tienen contraste de sobra como relleno, pero como TEXTO no pasan de 3:1.
-    Estos son sus equivalentes oscuros; el diseño ya traía --color-cabeza-txt.
-  */
-  --color-cabeza-txt: #c2470a;
-  --color-aviso-txt: #8a5a00;
+  --color-head-text: #c2470a;
+  --color-warn-text: #8a5a00;
 
-  /*
-    El diseño solo resolvió el estado feliz del ETA. Este rojo es añadido:
-    hace falta para "el desfile está detenido" y "sin conexión".
-  */
-  --color-alerta: #c0271b;
+  --color-alert: #c0271b;
 
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -75,53 +50,49 @@ body {
 }
 
 body {
-  background: var(--color-papel-2);
-  color: var(--color-tinta);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
   font-family: var(--font-sans);
-  /* La hoja del ETA vive pegada abajo: nada de rebote elástico tapándola. */
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;
 }
 
-.fuente-display {
+.display-font {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.3px;
 }
 
-/* Respeta el notch y la barra de gestos en iOS. */
-.pb-seguro {
+.pb-safe {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
-.pt-seguro {
+.pt-safe {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
-/* --- MapLibre: el chrome no debe competir con el mapa --- */
 .maplibregl-ctrl-attrib {
   font-size: 10px !important;
   background: rgba(255, 255, 255, 0.78) !important;
-  color: var(--color-tinta-3) !important;
+  color: var(--color-ink-3) !important;
 }
 .maplibregl-ctrl-attrib a {
-  color: var(--color-tinta-2) !important;
+  color: var(--color-ink-2) !important;
 }
 .maplibregl-ctrl-group {
-  background: var(--color-blanco) !important;
-  border: 1px solid var(--color-borde-2) !important;
+  background: var(--color-white) !important;
+  border: 1px solid var(--color-line-2) !important;
 }
 .maplibregl-ctrl-group button + button {
-  border-top: 1px solid var(--color-borde) !important;
+  border-top: 1px solid var(--color-line) !important;
 }
 
-/* --- Marcadores del desfile --- */
-.marcador-desfile {
+.parade-marker {
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.marcador {
+.marker {
   display: grid;
   place-items: center;
   border-radius: 9999px;
@@ -130,32 +101,30 @@ body {
   cursor: default;
   transition: opacity 150ms ease;
 }
-.marcador--cabeza {
+.marker--head {
   width: 38px;
   height: 38px;
-  background: var(--color-cabeza);
+  background: var(--color-head);
   box-shadow: 0 4px 12px rgba(234, 90, 18, 0.45);
 }
-.marcador--mitad {
+.marker--middle {
   width: 26px;
   height: 26px;
-  background: var(--color-mitad);
+  background: var(--color-middle);
   box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22);
 }
-.marcador--cola {
+.marker--tail {
   width: 26px;
   height: 26px;
-  background: var(--color-cola);
+  background: var(--color-tail);
   box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22);
 }
-/* Un reportero sin señal no se borra: se apaga. Su último dato sigue valiendo. */
-.marcador--apagado {
+.marker--off {
   opacity: 0.45;
   filter: grayscale(0.85);
 }
 
-/* --- Comercios y tarimas: son botones, no adornos --- */
-.punto-mapa {
+.map-point {
   display: grid;
   place-items: center;
   width: 30px;
@@ -170,27 +139,22 @@ body {
     transform 120ms ease,
     box-shadow 120ms ease;
 }
-.punto-mapa:hover,
-.punto-mapa:focus-visible {
+.map-point:hover,
+.map-point:focus-visible {
   transform: scale(1.12);
 }
-.punto-mapa:focus-visible {
-  outline: 2px solid var(--color-tinta);
+.map-point:focus-visible {
+  outline: 2px solid var(--color-ink);
   outline-offset: 2px;
 }
-/* El que tiene la ficha abierta: crece y se le marca el anillo. */
-.punto-mapa--activo {
+.map-point--active {
   transform: scale(1.2);
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--color-punto, #2fa898) 28%, transparent),
     0 4px 12px rgba(0, 0, 0, 0.26);
 }
 
-/* --- Puntos de referencia ---
-   Deliberadamente más callados que los marcadores del desfile: orientan, no
-   compiten. El halo blanco del nombre es lo que los hace legibles sobre el mapa. */
-.hito {
-  /* Orientan, pero jamás tapan al desfile: ese es el dato principal. */
+.waypoint {
   z-index: 1;
   display: flex;
   align-items: center;
@@ -198,7 +162,7 @@ body {
   cursor: default;
   pointer-events: none;
 }
-.hito__icono {
+.waypoint__icon {
   display: grid;
   place-items: center;
   width: 22px;
@@ -206,14 +170,14 @@ body {
   flex: none;
   border-radius: 50%;
   background: #fff;
-  color: var(--color-tinta-2);
-  border: 1.5px solid var(--color-borde-2);
+  color: var(--color-ink-2);
+  border: 1.5px solid var(--color-line-2);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.16);
 }
-.hito__nombre {
+.waypoint__name {
   font-size: 11px;
   font-weight: 800;
-  color: var(--color-tinta);
+  color: var(--color-ink);
   white-space: nowrap;
   letter-spacing: -0.1px;
   text-shadow:
@@ -221,41 +185,40 @@ body {
     0 0 3px #f4efe0,
     0 0 6px #f4efe0;
 }
-.hito--sin-nombre .hito__nombre {
+.waypoint--unnamed .waypoint__name {
   display: none;
 }
 
-/* Etiqueta bajo la cabeza: "Va por acá · 23 s" */
-.globo-cabeza {
+.head-bubble {
   margin-top: 5px;
   background: #fff;
   border-radius: 8px;
   padding: 3px 8px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--color-cabeza-txt);
+  color: var(--color-head-text);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
 }
 
-.marcador-usuario {
+.user-marker {
   position: relative;
   width: 20px;
   height: 20px;
 }
-.marcador-usuario span {
+.user-marker span {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: var(--color-usuario);
+  background: var(--color-user);
 }
-.marcador-usuario span:last-child {
+.user-marker span:last-child {
   border: 3px solid #fff;
   background: transparent;
   box-sizing: border-box;
   box-shadow: 0 2px 8px rgba(47, 155, 255, 0.5);
 }
-.marcador-usuario .halo {
+.user-marker .halo {
   animation: halo 2.4s ease-out infinite;
 }
 
@@ -270,7 +233,7 @@ body {
   }
 }
 
-@keyframes latido {
+@keyframes heartbeat {
   0%,
   100% {
     opacity: 1;
@@ -279,8 +242,8 @@ body {
     opacity: 0.35;
   }
 }
-.latido {
-  animation: latido 1.6s ease-in-out infinite;
+.heartbeat {
+  animation: heartbeat 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -290,7 +253,6 @@ body {
   }
 }
 
-/* Punto de encuentro que alguien compartió: un pin, distinto de los círculos del desfile. */
-.marcador-encuentro {
+.meeting-marker {
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
 }
