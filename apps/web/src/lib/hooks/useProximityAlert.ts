@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { requestApi } from "@/lib/api/client";
+import { parsePushStatus } from "@/lib/api/photos";
 import type { Eta } from "@/lib/eta";
 
 export type AlertState =
@@ -23,7 +25,7 @@ function base64ToUint8(base64: string): Uint8Array<ArrayBuffer> {
 async function subscribePush(metres: number, thresholdMin: number): Promise<boolean> {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   try {
-    const config = (await (await fetch("/api/avisos-push")).json()) as { configured: boolean; key: string | null };
+    const config = parsePushStatus(await (await requestApi("/api/push-subscriptions")).json());
     if (!config.configured || !config.key) return false;
     const reg = await Promise.race([
       navigator.serviceWorker.ready,
@@ -33,12 +35,12 @@ async function subscribePush(metres: number, thresholdMin: number): Promise<bool
     const subscription =
       (await reg.pushManager.getSubscription()) ??
       (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64ToUint8(config.key) }));
-    const r = await fetch("/api/avisos-push", {
+    await requestApi("/api/push-subscriptions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subscription: subscription.toJSON(), metres, thresholdMin }),
     });
-    return r.ok;
+    return true;
   } catch {
     return false;
   }
@@ -81,7 +83,7 @@ export function useProximityAlert(eta: Eta, title: string, body: (min: number) =
       const reg = await navigator.serviceWorker?.getRegistration();
       const subscription = await reg?.pushManager?.getSubscription();
       if (subscription) {
-        await fetch("/api/avisos-push", {
+        await requestApi("/api/push-subscriptions", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),

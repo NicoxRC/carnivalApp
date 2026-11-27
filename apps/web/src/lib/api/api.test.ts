@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { parseBusinesses } from "@/lib/api/businesses";
 import { DEV_API, apiUrl, resolveApiBase } from "@/lib/api/client";
 import { parseDensity } from "@/lib/api/density";
+import { parsePhotos, parsePushStatus, parseUploadGrant } from "@/lib/api/photos";
 import { positionForApi } from "@/lib/api/positions";
 import { parseProgress, parseSchedule } from "@/lib/api/schedule";
 import { parseParadeState } from "@/lib/api/state";
@@ -219,5 +220,50 @@ describe("the crowd map from the API", () => {
     );
     const { total: _, ...noTotal } = DENSITY_API;
     assert.throws(() => parseDensity(noTotal), /total/);
+  });
+});
+
+const PHOTO_API = {
+  id: "0b6f6b1e-0000-4000-8000-000000000001",
+  paradeId: "d31-1",
+  metres: 500,
+  state: "approved",
+  createdAt: 1000,
+  url: "/api/photos/0b6f6b1e-0000-4000-8000-000000000001",
+};
+
+describe("photos and push from the API", () => {
+  const base = "https://api.example.co";
+
+  it("reads the wall, making API paths absolute and leaving bucket URLs alone", () => {
+    const signed = "https://acc.r2.cloudflarestorage.com/b/photos/x.jpg?X-Amz-Signature=abc";
+    const [fromApi, fromBucket] = parsePhotos({ photos: [PHOTO_API, { ...PHOTO_API, metres: null, url: signed }] }, base);
+    assert.equal(fromApi.url, `${base}${PHOTO_API.url}`);
+    assert.equal(fromBucket.url, signed);
+    assert.equal(fromBucket.metres, null);
+  });
+
+  it("drops only the photo with an unknown state", () => {
+    const photos = quietly(() => parsePhotos({ photos: [{ ...PHOTO_API, state: "maybe" }, PHOTO_API] }, base));
+    assert.equal(photos.length, 1);
+  });
+
+  it("reads the upload permission and fails without its token", () => {
+    const grant = {
+      id: PHOTO_API.id,
+      uploadUrl: `/api/photos/uploads/${PHOTO_API.id}?token=t`,
+      contentType: "image/jpeg",
+      token: "t",
+      expiresAt: 5000,
+    };
+    assert.equal(parseUploadGrant(grant, base).uploadUrl, `${base}${grant.uploadUrl}`);
+    const { token: _, ...noToken } = grant;
+    assert.throws(() => parseUploadGrant(noToken, base), /token/);
+  });
+
+  it("reads the push status with and without keys", () => {
+    assert.deepEqual(parsePushStatus({ configured: true, key: "BPub" }), { configured: true, key: "BPub" });
+    assert.deepEqual(parsePushStatus({ configured: false, key: null }), { configured: false, key: null });
+    assert.throws(() => parsePushStatus({ configured: "yes", key: null }), /configured/);
   });
 });
