@@ -245,15 +245,14 @@ export default function ParadeMap({
     });
 
     map.current = m;
+    const markerMaps = [markers.current, pointMarkers.current, waypointMarkers.current];
 
     return () => {
       m.remove();
       map.current = null;
       ready.current = false;
       setMapReady(false);
-      markers.current.clear();
-      pointMarkers.current.clear();
-      waypointMarkers.current.clear();
+      for (const markerMap of markerMaps) markerMap.clear();
       userMarker.current = null;
       meetingMarker.current = null;
     };

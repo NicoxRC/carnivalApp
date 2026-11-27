@@ -171,9 +171,9 @@ fix(eta): #21 discard speeds above 6 km/h
 ### Before opening the PR
 
 - [ ] The branch is up to date with `trunk` (`git fetch origin && git rebase origin/trunk`)
-- [ ] The project's checks pass locally. Web (from `apps/web/`): `npm run typecheck` and `npm test` (and
-      `npm run lint` once it exists). Backend: `just check` and `just test`, plus
-      `just db-test` if a migration changed
+- [ ] The project's checks pass locally. Web (from `apps/web/`): `npm run typecheck`, `npm run lint`
+      and `npm test`. Backend: `just check` and `just test`, plus `just db-test` if a migration
+      changed. CI runs them again on the PR (`web-ci.yml`, `backend-ci.yml`)
 - [ ] You tried the change by hand (for the UI: you opened the app and saw it work)
 - [ ] No secrets in the diff: no `.env`, no keys, no tokens
 - [ ] No debug `console.log` or commented-out code left behind

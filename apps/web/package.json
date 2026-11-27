@@ -11,12 +11,13 @@
     "simulate": "tsx scripts/simulate-parade.ts",
     "seed:export": "tsx scripts/export-seed.ts",
     "map:style": "tsx scripts/generate-map-style.ts",
-    "test": "tsx --test \"src/**/*.test.ts\"",
     "push:keys": "tsx scripts/generate-push-keys.ts",
     "icons": "tsx scripts/generate-icons.ts",
     "map:worker": "node scripts/copy-map-worker.mjs",
     "predev": "npm run -s map:worker",
-    "prebuild": "npm run -s map:worker"
+    "prebuild": "npm run -s map:worker",
+    "lint": "eslint . --max-warnings=0",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@turf/along": "^7.2.0",
@@ -28,10 +29,10 @@
     "next": "^15.5.29",
     "pmtiles": "^4.5.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "web-push": "^4.0.0"
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@protomaps/basemaps": "^5.7.2",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/geojson": "^7946.0.14",
@@ -39,9 +40,12 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/web-push": "^3.6.4",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.29",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "web-push": "^4.0.0"
   }
 }
