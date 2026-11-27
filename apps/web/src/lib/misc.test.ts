@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 
 import { todayInPasto, minuteOfDayInPasto, normalizeTime, dateParts } from "@/lib/dates";
 import { timeAgo, timeOfDay } from "@/lib/format";

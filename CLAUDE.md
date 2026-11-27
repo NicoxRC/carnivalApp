@@ -56,7 +56,7 @@ npm install
 npm run dev          # http://localhost:3000
 npm run typecheck    # types
 npm run lint         # ESLint (Next's rules), no warnings allowed
-npm test             # tests (node:test + tsx): src/**/*.test.ts
+npm test             # tests (Vitest + Testing Library, jsdom): src/**/*.test.{ts,tsx}
 npm run simulate     # moves a fake parade on the backend (as simulator@local, see just seed)
 npm run map:style    # regenerates src/data/map-style.json (base map colours)
 npm run push:keys    # generates the VAPID keys for push notifications

@@ -254,8 +254,11 @@ Rules:
   only for a specific business rule or boundary the issue asks for. Endpoints are tested
   with `TestClient` and the in-memory fake repositories (`app.dependency_overrides`).
   Migrations are checked with `just db-test`, not unit-tested.
-- **Web:** `node:test` + `tsx` (`src/**/*.test.ts`). Pure logic (`eta.ts`, `course.ts`,
-  `dates.ts`, the API mapping) gets a test when it changes.
+- **Web:** Vitest with Testing Library and jsdom (`src/**/*.test.{ts,tsx}`, next to what
+  they test). Pure logic (`eta.ts`, `course.ts`, `dates.ts`, the API's checks) gets a test
+  when it changes, and so does a hook or component whose behaviour changes. The backend is
+  never called: `fetch` and `EventSource` are replaced (`src/test/api.ts`), and components
+  are found the way a person sees them (role, label, text), not by CSS class.
 
 ---
 
