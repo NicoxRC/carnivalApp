@@ -28,3 +28,6 @@ apps/backend/.pgdata/
 
 # Photos uploaded in development (apps/backend/app/storage.py)
 apps/backend/.photos/
+
+# Wrangler local state (apps/web)
+.wrangler/

@@ -204,10 +204,20 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
 
 ## Deployment and dependencies
 
-- Railway, provider `terraform-community-providers/railway`, a single environment
-  (`production`), one replica.
-- Image built in CI with the `Dockerfile` in `apps/backend/`, published to GHCR with the commit
-  SHA. Migrations in the pre-deploy step (`alembic upgrade head`).
+- **Each push to `trunk` deploys on its own**, from configuration kept in the repo; each app
+  redeploys only when its folder changes. Terraform (#33, #36) is paused.
+- **Backend on Railway** (`apps/backend/railway.json`): built from `apps/backend/Dockerfile`,
+  `alembic upgrade head` as the pre-deploy step (a failing migration cancels the deploy and
+  the previous version keeps running), `/api/health` as the healthcheck, one replica because
+  the rate limits live in memory. Railway's Postgres hands out a `postgresql://` URL; the
+  settings switch it to the async driver.
+- **Web on Cloudflare** (`apps/web/wrangler.jsonc`): a static export (`output: "export"`;
+  every route is static) served with Workers Static Assets. `headers()` does not run on a
+  static site, so the build writes `out/_headers` with the same security headers
+  (`apps/web/security-headers.ts`, the CSP built with the API's origin). A small Worker
+  (`apps/web/cloudflare/worker.ts`) answers byte ranges for `/map/*` only: the map viewer asks
+  for pieces of `pasto.pmtiles` before the service worker takes over, and the static assets
+  answered the whole file. `NEXT_PUBLIC_API_URL` is a build variable.
 
 | Use | Python 3.12 packages |
 |---|---|

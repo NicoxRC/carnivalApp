@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     # Cloudflare R2 takes "auto"; AWS wants the bucket's region.
     s3_region: str = "auto"
 
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, value: str) -> str:
+        # Railway's Postgres hands out postgres:// or postgresql://; the app
+        # talks to it through asyncpg.
+        for scheme in ("postgres://", "postgresql://"):
+            if value.startswith(scheme):
+                return "postgresql+asyncpg://" + value.removeprefix(scheme)
+        return value
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_on_commas(cls, value: object) -> object:

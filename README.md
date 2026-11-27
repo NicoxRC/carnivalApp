@@ -96,8 +96,8 @@ JSON because the `npm run simulate` script runs outside the bundler.
 
 Ordered by what hurts most if ignored.
 
-**1. Deploy with HTTPS, with the keys.** Neither the backend (issues #33 and #36) nor the web
-is deployed. Photos need the R2 bucket and push needs the VAPID keys, both in the backend's
+**1. Deploy with HTTPS, with the keys.** The configuration is in the repo (the backend on
+Railway, the web on Cloudflare); the projects still have to be created and connected. Photos need the R2 bucket and push needs the VAPID keys, both in the backend's
 secrets. And without HTTPS the reporters' panel cannot be tested on a phone: the browser
 does not hand over GPS or keep the screen on over `http://` (except on `localhost`).
 
