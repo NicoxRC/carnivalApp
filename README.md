@@ -3,13 +3,11 @@
 Web app (PWA) to follow live the parades of the Carnaval de Negros y Blancos in Pasto,
 Colombia.
 
-**Status: the web is being connected to the backend.** The backend (FastAPI +
-PostgreSQL, in `apps/backend/`) has every module working and tested. The web's embedded
-backend and its in-memory mode were removed in #88, so until the «Connect the web to the backend» milestone on GitHub is done the
-web's screens open **without data**. What is missing
-before going public is in "What is missing before this is really useful".
- The web app is written in Spanish
-(file names, identifiers and interface texts); the backend and all the docs are in English.
+**Status: the web runs on the backend** (FastAPI + PostgreSQL, in `apps/backend/`): the live
+parade, the schedule, businesses, crowd map, photos, push and both panels. Neither is
+deployed yet. What is missing before going public is in "What is missing before this is
+really useful". The code is in English; only the texts people read inside the app are in
+Spanish.
 
 ---
 
@@ -21,11 +19,9 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The map follows the current parade live from the backend at
-`NEXT_PUBLIC_API_URL` (in development, `http://localhost:8000` if it is not set): run it
-with `just dev` and load the sample data with `just seed` (see `CLAUDE.md`). The schedule,
-businesses, crowd map, photos and panels come back part by part in the «Connect the web to
-the backend» milestone.
+Open <http://localhost:3000>. Everything comes from the backend at `NEXT_PUBLIC_API_URL` (in
+development, `http://localhost:8000` if it is not set): run it with `just dev` and load the
+sample data with `just seed` (see `CLAUDE.md`).
 
 The parade moves with positions sent to the backend: from the reporters' panel or with the
 simulator. In another terminal, from `apps/web/`:
@@ -37,9 +33,8 @@ npm run simulate -- --speed=1.5
 It logs in as `simulator@local`, the `ingest` user `just seed` creates in development, and
 sends head, middle and tail of the current parade to `POST /api/positions`, the same door
 as a reporter's phone: **there is no "pretend" path parallel to the real one**. Options:
-`--velocidad` (km/h, 1.5), `--intervalo` (seconds, 12), `--separacion` (metres between
-posts, 550), `--paradas=false` (never stops), `--inicio` (starting metres), `--url`
-(`http://localhost:8000`). Against another server it needs a real `ingest` account:
+`--speed` (km/h, 1.5), `--interval` (seconds, 12), `--gap` (metres between posts, 550),
+`--stops=false` (never stops), `--start` (starting metres), `--url` (`http://localhost:8000`). Against another server it needs a real `ingest` account:
 `--email=… --password=…` (or `SIMULATOR_EMAIL` / `SIMULATOR_PASSWORD`).
 
 ---
@@ -72,8 +67,8 @@ certainly badly framed.
 From the backend in `apps/backend/`, and only from there. The web keeps the client logic
 (projection onto the course, ETA, dates in Pasto time, texts) and the screens; everything
 that is stored, validated or computed for everyone (the current parade, positions, crowd
-map, photos, push, users) lives in the backend. The connection is built in
-the «Connect the web to the backend» milestone on GitHub. The backend's decisions are in `docs/backend/ARCHITECTURE.md`.
+map, photos, push, users) lives in the backend, and the web uses its names and values as
+they are. The backend's decisions are in `docs/backend/ARCHITECTURE.md`.
 
 ---
 
@@ -87,8 +82,10 @@ To replace it, edit `apps/web/src/data/carnival-course.ts`:
 
 - `geojson.geometry.coordinates`: the official route as `[lng, lat]` (in that order!),
   from the starting point to the finish.
-- `hitos`: reference names, each pointing to an index of the coordinates array.
-- `oficial: true` when it really is: that turns off the yellow warning.
+- `waypoints`: reference names with their coordinate.
+- `official: true` when it really is: that turns off the yellow warning.
+
+Then `npm run seed:export` writes the backend's `course.json` from it.
 
 The length and the metres of each waypoint are computed on load. It is TypeScript and not
 JSON because the `npm run simulate` script runs outside the bundler.
@@ -99,10 +96,10 @@ JSON because the `npm run simulate` script runs outside the bundler.
 
 Ordered by what hurts most if ignored.
 
-**1. Connect the web to the backend and deploy with HTTPS.** The backend is not deployed
-yet (issues #33 and #36) and the web does not read from it yet. And
-without HTTPS the reporters' panel cannot be tested on a phone: the browser does not
-hand over GPS or keep the screen on over `http://` (except on `localhost`).
+**1. Deploy with HTTPS, with the keys.** Neither the backend (issues #33 and #36) nor the web
+is deployed. Photos need the R2 bucket and push needs the VAPID keys, both in the backend's
+secrets. And without HTTPS the reporters' panel cannot be tested on a phone: the browser
+does not hand over GPS or keep the screen on over `http://` (except on `localhost`).
 
 **2. Test the reporters' panel while walking.** On iPhone and on Android, with the screen
 on for four hours, an external battery and bad signal. On the web GPS stops when the screen
@@ -223,8 +220,8 @@ Everything that writes goes through the backend, with users, roles and permissio
 | Role | What they can do |
 |---|---|
 | `admin` | Everything, including managing users |
-| `coordinator` | The parade's state and positions of any role |
-| `editor` | Parades, schedule, businesses and announcements |
+| `coordinator` | The parade's state, messages to everyone, positions of any post, seeing the team |
+| `editor` | Parades, schedule, businesses and their numbers |
 | `moderator` | Photo moderation |
 | `reporter` | Send positions of the current parade, always with their own post |
 | `ingest` | Send positions of any post (the simulator and tools) |
@@ -322,27 +319,6 @@ space, which is the only thing that really gains from a big screen.
 `maximum-scale=1` was also removed from the viewport: blocking zoom shuts out whoever
 needs to enlarge the text, and MapLibre already captures its own gestures inside the map.
 
-## Going to production
-
-Steps, in order:
-
-**1. Deploy the backend** on Railway with Terraform, with continuous deployment on merge
-(issues #33 and #36).
-
-**2. Point the web at the backend** (`NEXT_PUBLIC_API_URL`) and move the panels' login to
-the backend's users (issues #37 and #55).
-
-**3. Vercel (the maintainer's account).** Import the repo into Vercel with **Root
-Directory `apps/web`** and set the web's environment variables. The web no longer has
-server secrets: they all live in the backend.
-
-### What you need to know before showing it to someone
-
-- **To move the parade on a deployment** the simulator is run against the backend with a
-  real `ingest` account: `npm run simulate -- --url=https://… --email=… --password=…`.
-- **It is still untested with a bad network**, which is the project's number one risk.
-- The course, the waypoints, the businesses and the schedule are still **sample data**.
-
 ## Businesses on the map
 
 The **Comercios** layer brings together restaurants, *tascas*, cafés, shops and
@@ -394,14 +370,15 @@ for anything.
   notified and their subscription is deleted. Without keys, or if the browser does not
   support push, the app itself watches the ETA and notifies, but only while it is open,
   and it says so.
-- **«Compartir mi punto».** It builds a link `/?encuentro=<metres>` with the text «estoy
+- **«Compartir mi punto».** It builds a link `/?meet=<metres>` with the text «estoy
   por Cristo Rey, llega en 20–35 min». Whoever opens it sees a pin at that point of the
   course. Only the course metre travels, not the exact position.
 - **Termina de pasar en…** With the tail reporting, the ETA also says how long until the
   parade finishes passing where the user is.
 - **Photos.** Anyone uploads; the photo is reduced on the phone (which also wipes its
-  metadata, coordinates included), stays **pending** and only reaches the wall when
-  someone on the team approves it. Maximum 8 per device per hour.
+  metadata, coordinates included) and goes straight to a private bucket with a URL the
+  backend signs. It stays **pending** and only reaches the wall when someone on the team
+  approves it; only then does it get a (signed, expiring) URL. Maximum 8 per device per hour.
 - **Where it went.** In «Desfiles», each parade that has already gone out shows at what
   time the head passed each reference point.
 - **English.** The interface is in Spanish and English (`apps/web/src/lib/i18n-texts.ts`); it is
@@ -501,12 +478,13 @@ apps/
         eta.ts                speed, ranges, stops, no signal
         dates.ts              dates in Pasto time
         i18n-texts.ts         Spanish and English
-        hooks/                live state, schedule, businesses, crowd map, GPS
+        api/                  the backend's contract: client and response checks
+        hooks/                live state, schedule, businesses, crowd map, GPS, session
         *.test.ts             tests (npm test)
-      data/                   sample data and map style
+      data/                   the course and the map style
     scripts/                simulate, generate style/icons/keys, copy worker; backend helpers
     public/sw.js            service worker: offline, map and push notifications
-    public/map/            Pasto tiles and label fonts
+    public/map/             Pasto tiles and label fonts
   backend/                the FastAPI backend (see docs/backend/ARCHITECTURE.md)
   mobile/                 the Expo app (not started yet)
 docs/backend/             backend architecture and glossary

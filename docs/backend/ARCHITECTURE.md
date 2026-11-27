@@ -47,14 +47,14 @@ infra/                     Terraform (Railway)
 
 The backend exposes the resources the web's former embedded API (`src/app/api/`, removed
 in #88) had, **with the same behaviour, named in English**: routes, JSON keys (camelCase)
-and enum-like values. The web keeps its Spanish types and maps the names in one place
-(`apps/web/src/lib/api/`); screens do not change because of the contract.
+and enum-like values. The web uses those names and values as they are; `apps/web/src/lib/api/`
+only checks the shape of what arrives.
 
 | Route | Access |
 |---|---|
 | `GET /api/health` | public |
 | `POST /api/auth/login`, `GET /api/auth/me` | public / session |
-| `GET/POST/PATCH/DELETE /api/admin/users` | `users:manage` |
+| `GET /api/admin/users`, `POST/PATCH/DELETE /api/admin/users` | `users:view` / `users:manage` |
 | `GET /api/course` | public |
 | `GET /api/schedule` | public |
 | `GET/PUT/PATCH/DELETE /api/admin/parades` | `parades:*` |
@@ -72,8 +72,6 @@ and enum-like values. The web keeps its Spanish types and maps the names in one 
 | `POST /api/photos/uploads`, `PUT /api/photos/uploads/{id}` (only without a bucket), `POST /api/photos/uploads/{id}/done` | device |
 | `GET/PATCH/DELETE /api/admin/photos` | `photos:moderate` |
 | `GET/POST/DELETE /api/push-subscriptions` | public |
-| ~~web's former `/api/admin/sesion`, `/api/reportero/sesion`~~ | replaced by `/api/auth` |
-| ~~web's former `/api/admin/reporteros`~~ | replaced by `/api/admin/users` |
 | ~~web's former `POST /api/simulacion`~~ | **not ported**: the simulator is `npm run simulate` with an `ingest` user |
 
 - Errors: always `{"error": "<message in Spanish>"}` with the right HTTP status. Validation
@@ -184,6 +182,10 @@ header Railway sets (`X-Real-IP` / last hop of `X-Forwarded-For`), never from th
   photos get one in public, and only a moderator gets one for a pending photo (the admin list
   is behind a login). `GET /api/photos/{id}` keeps those checks and redirects to a signed URL,
   or serves the file when there is no bucket.
+- **What the bucket needs** (one per environment): private, with no public access or custom
+  domain; CORS allowing `PUT` and `GET` with the `content-type` header from the web's
+  origins; a lifecycle rule deleting `incoming/` after one day; an API token limited to that
+  bucket with read and write. Its values go into the secrets as `S3_*`.
 - **Push:** `pywebpush` with VAPID keys (the same ones `npm run push:keys` generates).
   Without keys, the feature turns itself off.
 

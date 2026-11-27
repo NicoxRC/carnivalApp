@@ -102,8 +102,6 @@ export interface Announcement {
   expiresAt: number | null;
 }
 
-export const MAX_ACCURACY_M = 150;
-
 export const NO_SIGNAL_MS = 5 * 60 * 1000;
 
 export const SPEED_WINDOW_MS = 10 * 60 * 1000;

@@ -9,8 +9,7 @@ working contract: follow it.
 in Pasto. Today it is a PWA in Next.js 15 + React 19 + TypeScript + Tailwind 4 + MapLibre,
 with its backend in **FastAPI + PostgreSQL in `apps/backend/`**, to be deployed on Railway
 with Terraform, and later an Expo app for the App Store and Play Store. The web has no
-backend of its own any more (removed in #88) and is being connected to `apps/backend/`:
-the plan and its order are in the «Connect the web to the backend» milestone on GitHub, one issue per part.
+backend of its own any more (removed in #88): everything comes from `apps/backend/`.
 
 **Plans live in milestones and issues, not in the repo.** Each issue is self-contained
 (what, why, dependencies, acceptance). Before working one, follow "Working an issue with an
