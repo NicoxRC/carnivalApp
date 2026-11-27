@@ -103,10 +103,4 @@ export function describePosition(
   return { phrase: "", waypoint: null };
 }
 
-export function nextWaypoint(metres: number): { waypoint: Waypoint; remainingM: number } | null {
-  const next = COURSE.waypoints.find((h) => h.metres > metres + WAYPOINT_RADIUS_M);
-  if (!next) return null;
-  return { waypoint: next, remainingM: next.metres - metres };
-}
-
 export const MAX_USER_OFFSET_M = 600;

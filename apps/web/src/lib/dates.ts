@@ -40,9 +40,6 @@ export function dateParts(date: string): { shortDay: string; dayNumber: string; 
   return { shortDay: DAYS[day], dayNumber: String(d), long: `${d} de ${MONTHS[m - 1]}` };
 }
 
-export const IS_DATE = /^\d{4}-\d{2}-\d{2}$/;
-export const IS_TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
-
 export function normalizeTime(hhmm: string): string {
   const [h, m] = hhmm.split(":");
   return `${h.padStart(2, "0")}:${m}`;
