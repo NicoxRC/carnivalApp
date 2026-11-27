@@ -1,144 +1,101 @@
 import {
-  AVANCE_MINIMO_M,
-  DETENIDO_MS,
-  MS_SIN_SENAL,
-  MS_VENTANA_VELOCIDAD,
-  SIN_AVANZAR_AVISO_MS,
-  type EstadoDesfile,
-  type MuestraHistorial,
-} from "@/lib/tipos";
+  MIN_ADVANCE_M,
+  STOPPED_MS,
+  NO_SIGNAL_MS,
+  SPEED_WINDOW_MS,
+  NOT_MOVING_NOTICE_MS,
+  type ParadeState,
+  type HistorySample,
+} from "@/lib/types";
 
-/**
- * Regla del producto: nunca mostrar un minuto exacto.
- * "Llega en 20–35 min" es honesto y defendible. "Llega en 27 min" se equivoca
- * y quema la credibilidad justo el único día del año en que importa.
- */
+export const MIN_SPEED_MS = 0.3 / 3.6;
 
-/** Los desfiles se detienen mucho. Sin este piso, el ETA se dispara al infinito. */
-export const VELOCIDAD_MINIMA_MS = 0.3 / 3.6; // 0.3 km/h en m/s
+export const NOMINAL_SPEED_MS = 1.2 / 3.6;
 
-/**
- * Velocidad típica de un desfile. Se usa mientras no haya historial suficiente
- * para medir: con 30 segundos de datos, el ruido del GPS domina la señal y la
- * "velocidad medida" sale en cualquier cosa. Es mejor una constante honesta
- * que un número medido que no mide nada.
- */
-export const VELOCIDAD_NOMINAL_MS = 1.2 / 3.6; // 1,2 km/h
+const MIN_RELIABLE_WINDOW_S = 90;
 
-/** Debajo de esta ventana no se confía en la velocidad medida. */
-const VENTANA_MINIMA_CONFIABLE_S = 90;
+const MAX_SPEED_MS = 6 / 3.6;
 
-/**
- * Techo de credibilidad. Un desfile no supera esto: la gente camina al lado.
- * Por encima es un salto del GPS o un reportero que reapareció en otro punto,
- * no un desfile veloz. Se descarta la medición en vez de mostrar un ETA absurdo.
- */
-const VELOCIDAD_MAXIMA_MS = 6 / 3.6; // 6 km/h
+const HERE_RADIUS_M = 120;
 
-/** Dentro de este radio, el desfile está encima del usuario. */
-const RADIO_AQUI_M = 120;
-
-/** Rango de minutos, ya redondeado. */
-export interface RangoMin {
+export interface MinuteRange {
   minMin: number;
   maxMin: number;
 }
 
 export type Eta =
-  | { tipo: "sin_datos"; motivo: "sin_reporte" | "sin_ubicacion" | "fuera_de_senda" }
-  /**
-   * La cabeza lleva más de MS_SIN_SENAL sin reportar. No se da un tiempo: sería
-   * un cálculo sobre dónde ESTABA el desfile, presentado como dónde está.
-   */
-  | { tipo: "sin_senal"; distanciaM: number; haceMin: number }
+  | { kind: "no_data"; reason: "no_report" | "no_location" | "off_course" }
+  | { kind: "no_signal"; distanceM: number; agoMin: number }
   | {
-      tipo: "llegando";
+      kind: "arriving";
       minMin: number;
       maxMin: number;
-      distanciaM: number;
-      velocidadKmh: number;
-      /** false = velocidad nominal, todavía no medida. La UI debe decirlo. */
-      velocidadMedida: boolean;
-      /** Minutos sin avanzar, si ya pasó el umbral suave. null si viene fluido. */
-      sinAvanzarMin: number | null;
-      /** En cuánto termina de pasar (la cola llega a donde está el usuario). */
-      colaEn: RangoMin | null;
+      distanceM: number;
+      speedKmh: number;
+      speedMeasured: boolean;
+      notMovingMin: number | null;
+      tailIn: MinuteRange | null;
     }
-  | { tipo: "detenido"; distanciaM: number; detenidoHaceMin: number }
+  | { kind: "stopped"; distanceM: number; stoppedForMin: number }
   | {
-      tipo: "ya_paso";
-      distanciaCabezaM: number;
-      distanciaColaM: number | null;
-      colaYaPaso: boolean;
-      colaEn: RangoMin | null;
+      kind: "passed";
+      headDistanceM: number;
+      tailDistanceM: number | null;
+      tailPassed: boolean;
+      tailIn: MinuteRange | null;
     }
-  | { tipo: "aqui"; distanciaM: number; colaEn: RangoMin | null };
+  | { kind: "here"; distanceM: number; tailIn: MinuteRange | null };
 
-export interface VelocidadEstimada {
-  /** m/s, ya con el piso mínimo aplicado. */
+export interface SpeedEstimate {
   ms: number;
   kmh: number;
-  /** Avance real medido, sin piso. */
-  avanceRealM: number;
-  ventanaS: number;
-  /** false = todavía no hay historial suficiente y se está usando la nominal. */
-  medida: boolean;
-  /** Hace cuánto que la cabeza no avanza de forma apreciable, en ms. */
-  sinAvanzarMs: number;
-  /** true solo cuando se pasó el umbral duro. */
-  detenido: boolean;
+  actualAdvanceM: number;
+  windowS: number;
+  measured: boolean;
+  notMovingMs: number;
+  stopped: boolean;
 }
 
-/**
- * Velocidad de la cabeza: promedio simple sobre los últimos 10 minutos.
- * Simple a propósito — con 3 reporteros y GPS de celular, un modelo más fino
- * solo daría precisión falsa.
- */
-export function estimarVelocidad(
-  historial: MuestraHistorial[],
-  ahora: number,
-): VelocidadEstimada {
-  const orden = [...historial].sort((a, b) => a.ts - b.ts);
-  const sinMedir: VelocidadEstimada = {
-    ms: VELOCIDAD_NOMINAL_MS,
-    kmh: VELOCIDAD_NOMINAL_MS * 3.6,
-    avanceRealM: 0,
-    ventanaS: 0,
-    medida: false,
-    sinAvanzarMs: 0,
-    detenido: false,
+export function estimateSpeed(
+  history: HistorySample[],
+  now: number,
+): SpeedEstimate {
+  const sorted = [...history].sort((a, b) => a.ts - b.ts);
+  const unmeasured: SpeedEstimate = {
+    ms: NOMINAL_SPEED_MS,
+    kmh: NOMINAL_SPEED_MS * 3.6,
+    actualAdvanceM: 0,
+    windowS: 0,
+    measured: false,
+    notMovingMs: 0,
+    stopped: false,
   };
-  if (orden.length < 2) return sinMedir;
+  if (sorted.length < 2) return unmeasured;
 
-  const ultima = orden[orden.length - 1];
+  const latest = sorted[sorted.length - 1];
 
-  // --- Velocidad: solo la ventana de 10 minutos ---
-  const ventana = orden.filter((m) => ahora - m.ts <= MS_VENTANA_VELOCIDAD);
-  let ms = VELOCIDAD_NOMINAL_MS;
-  let medida = false;
-  let avanceRealM = 0;
-  let ventanaS = 0;
-  if (ventana.length >= 2) {
-    const primera = ventana[0];
-    ventanaS = (ventana[ventana.length - 1].ts - primera.ts) / 1000;
-    avanceRealM = ventana[ventana.length - 1].metros - primera.metros;
-    if (ventanaS >= VENTANA_MINIMA_CONFIABLE_S) {
-      const bruta = avanceRealM / ventanaS;
-      if (bruta <= VELOCIDAD_MAXIMA_MS) {
-        ms = Math.max(bruta, VELOCIDAD_MINIMA_MS);
-        medida = true;
+  const window = sorted.filter((m) => now - m.ts <= SPEED_WINDOW_MS);
+  let ms = NOMINAL_SPEED_MS;
+  let measured = false;
+  let actualAdvanceM = 0;
+  let windowS = 0;
+  if (window.length >= 2) {
+    const first = window[0];
+    windowS = (window[window.length - 1].ts - first.ts) / 1000;
+    actualAdvanceM = window[window.length - 1].metres - first.metres;
+    if (windowS >= MIN_RELIABLE_WINDOW_S) {
+      const raw = actualAdvanceM / windowS;
+      if (raw <= MAX_SPEED_MS) {
+        ms = Math.max(raw, MIN_SPEED_MS);
+        measured = true;
       }
-      // Si se pasa del techo se deja la nominal y `medida` en false:
-      // la UI dirá "a ritmo estimado" en vez de inventar una cifra.
     }
   }
 
-  // --- Detención: se mira todo el historial, que es más largo que la ventana ---
-  // Se busca la muestra más reciente desde la cual la cabeza SÍ avanzó.
-  let sinAvanzarMs = ultima.ts - orden[0].ts;
-  for (let i = orden.length - 1; i >= 0; i--) {
-    if (ultima.metros - orden[i].metros > AVANCE_MINIMO_M) {
-      sinAvanzarMs = ultima.ts - orden[i].ts;
+  let notMovingMs = latest.ts - sorted[0].ts;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (latest.metres - sorted[i].metres > MIN_ADVANCE_M) {
+      notMovingMs = latest.ts - sorted[i].ts;
       break;
     }
   }
@@ -146,119 +103,105 @@ export function estimarVelocidad(
   return {
     ms,
     kmh: ms * 3.6,
-    avanceRealM,
-    ventanaS,
-    medida,
-    sinAvanzarMs,
-    // Sin historial suficiente no se puede afirmar que está detenido:
-    // puede que la app lleve dos minutos abierta y ya.
-    detenido: sinAvanzarMs >= DETENIDO_MS,
+    actualAdvanceM,
+    windowS,
+    measured,
+    notMovingMs,
+    stopped: notMovingMs >= STOPPED_MS,
   };
 }
 
-/** Redondea a múltiplos de 5, para que el rango se lea como estimación y no como cronómetro. */
-function aMultiploDe5(n: number, modo: "abajo" | "arriba"): number {
-  return modo === "abajo" ? Math.floor(n / 5) * 5 : Math.ceil(n / 5) * 5;
+function toMultipleOf5(n: number, mode: "down" | "up"): number {
+  return mode === "down" ? Math.floor(n / 5) * 5 : Math.ceil(n / 5) * 5;
 }
 
-/**
- * Convierte un ETA puntual en un rango honesto.
- * −25% / +40%: asimétrico porque un desfile se atrasa mucho más fácil de lo que se adelanta.
- */
-export function aRango(minutos: number): RangoMin {
-  const bajo = Math.max(0, aMultiploDe5(minutos * 0.75, "abajo"));
-  let alto = aMultiploDe5(minutos * 1.4, "arriba");
-  if (alto - bajo < 5) alto = bajo + 5;
-  return { minMin: bajo, maxMin: alto };
+export function toRange(minutes: number): MinuteRange {
+  const low = Math.max(0, toMultipleOf5(minutes * 0.75, "down"));
+  let high = toMultipleOf5(minutes * 1.4, "up");
+  if (high - low < 5) high = low + 5;
+  return { minMin: low, maxMin: high };
 }
 
-export interface ArgsEta {
-  estado: EstadoDesfile;
-  /** Metros del usuario sobre la senda. null si no dio permiso de ubicación. */
-  metrosUsuario: number | null;
-  /** Qué tan lejos de la senda está realmente el usuario. */
-  desvioUsuarioM: number | null;
-  desvioMaxM: number;
-  ahora: number;
+export interface EtaArgs {
+  state: ParadeState;
+  userMetres: number | null;
+  userOffsetM: number | null;
+  maxOffsetM: number;
+  now: number;
 }
 
-export function calcularEta({
-  estado,
-  metrosUsuario,
-  desvioUsuarioM,
-  desvioMaxM,
-  ahora,
-}: ArgsEta): Eta {
-  const cabeza = estado.posiciones.cabeza;
-  if (!cabeza) return { tipo: "sin_datos", motivo: "sin_reporte" };
-  if (metrosUsuario === null) return { tipo: "sin_datos", motivo: "sin_ubicacion" };
-  if (desvioUsuarioM !== null && desvioUsuarioM > desvioMaxM) {
-    return { tipo: "sin_datos", motivo: "fuera_de_senda" };
+export function computeEta({
+  state,
+  userMetres,
+  userOffsetM,
+  maxOffsetM,
+  now,
+}: EtaArgs): Eta {
+  const head = state.positions.head;
+  if (!head) return { kind: "no_data", reason: "no_report" };
+  if (userMetres === null) return { kind: "no_data", reason: "no_location" };
+  if (userOffsetM !== null && userOffsetM > maxOffsetM) {
+    return { kind: "no_data", reason: "off_course" };
   }
 
-  const distancia = metrosUsuario - cabeza.metros;
+  const distance = userMetres - head.metres;
 
-  // Con la cabeza callada, lo único honesto es decir cuándo fue el último dato.
-  if (sinSenal(cabeza.ts, ahora) && distancia > RADIO_AQUI_M) {
+  if (noSignal(head.ts, now) && distance > HERE_RADIUS_M) {
     return {
-      tipo: "sin_senal",
-      distanciaM: distancia,
-      haceMin: Math.round((ahora - cabeza.ts) / 60000),
+      kind: "no_signal",
+      distanceM: distance,
+      agoMin: Math.round((now - head.ts) / 60000),
     };
   }
 
-  const vel = estimarVelocidad(estado.historialCabeza, ahora);
+  const speed = estimateSpeed(state.headHistory, now);
 
-  // ¿En cuánto termina de pasar? La cola se mueve al ritmo de la cabeza; si
-  // está callada o el desfile detenido, no se promete nada.
-  const cola = estado.posiciones.cola;
-  const faltaCola = cola ? metrosUsuario - cola.metros : null;
-  const colaEn =
-    cola && faltaCola !== null && faltaCola > RADIO_AQUI_M && !vel.detenido && !sinSenal(cola.ts, ahora)
-      ? aRango(faltaCola / vel.ms / 60)
+  const tail = state.positions.tail;
+  const tailRemaining = tail ? userMetres - tail.metres : null;
+  const tailIn =
+    tail && tailRemaining !== null && tailRemaining > HERE_RADIUS_M && !speed.stopped && !noSignal(tail.ts, now)
+      ? toRange(tailRemaining / speed.ms / 60)
       : null;
 
-  if (Math.abs(distancia) <= RADIO_AQUI_M) {
-    return { tipo: "aqui", distanciaM: Math.abs(distancia), colaEn };
+  if (Math.abs(distance) <= HERE_RADIUS_M) {
+    return { kind: "here", distanceM: Math.abs(distance), tailIn };
   }
 
-  // El usuario quedó detrás de la cabeza: el desfile ya pasó por donde está.
-  if (distancia < 0) {
-    const brechaCola = faltaCola;
+  if (distance < 0) {
+    const tailGap = tailRemaining;
     return {
-      tipo: "ya_paso",
-      distanciaCabezaM: Math.abs(distancia),
-      distanciaColaM: brechaCola === null ? null : Math.abs(brechaCola),
-      colaYaPaso: brechaCola !== null && brechaCola < 0,
-      colaEn,
+      kind: "passed",
+      headDistanceM: Math.abs(distance),
+      tailDistanceM: tailGap === null ? null : Math.abs(tailGap),
+      tailPassed: tailGap !== null && tailGap < 0,
+      tailIn,
     };
   }
 
-  if (vel.detenido) {
+  if (speed.stopped) {
     return {
-      tipo: "detenido",
-      distanciaM: distancia,
-      detenidoHaceMin: Math.round(vel.sinAvanzarMs / 60000),
+      kind: "stopped",
+      distanceM: distance,
+      stoppedForMin: Math.round(speed.notMovingMs / 60000),
     };
   }
 
-  const minutos = distancia / vel.ms / 60;
-  const { minMin, maxMin } = aRango(minutos);
+  const minutes = distance / speed.ms / 60;
+  const { minMin, maxMin } = toRange(minutes);
 
   return {
-    tipo: "llegando",
+    kind: "arriving",
     minMin,
     maxMin,
-    distanciaM: distancia,
-    velocidadKmh: vel.kmh,
-    velocidadMedida: vel.medida,
-    sinAvanzarMin:
-      vel.sinAvanzarMs >= SIN_AVANZAR_AVISO_MS ? Math.round(vel.sinAvanzarMs / 60000) : null,
-    colaEn,
+    distanceM: distance,
+    speedKmh: speed.kmh,
+    speedMeasured: speed.measured,
+    notMovingMin:
+      speed.notMovingMs >= NOT_MOVING_NOTICE_MS ? Math.round(speed.notMovingMs / 60000) : null,
+    tailIn,
   };
 }
 
-/** ¿Este reportero sigue vivo? Nunca se borra su última posición, solo se marca. */
-export function sinSenal(ts: number, ahora: number): boolean {
-  return ahora - ts > MS_SIN_SENAL;
+export function noSignal(ts: number, now: number): boolean {
+  return now - ts > NO_SIGNAL_MS;
 }

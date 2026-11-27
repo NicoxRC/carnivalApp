@@ -3,18 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { fijarIdioma, useIdioma } from "@/lib/i18n";
+import { setLanguage, useLanguage } from "@/lib/i18n";
 
 /** Los cuatro iconos del diseño, como trazo de 2px sobre 24×24. */
 const ICONOS: Record<string, React.ReactNode> = {
-  mapa: <path d="M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4l-5.5 2m0 12V6m0 0L9 4" />,
-  hoy: (
+  map: <path d="M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4l-5.5 2m0 12V6m0 0L9 4" />,
+  today: (
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
     </>
   ),
-  desfiles: (
+  parades: (
     <>
       <rect x="4" y="5" width="16" height="16" rx="2" />
       <line x1="4" y1="9" x2="20" y2="9" />
@@ -22,7 +22,7 @@ const ICONOS: Record<string, React.ReactNode> = {
       <line x1="16" y1="2" x2="16" y2="6" />
     </>
   ),
-  fotos: (
+  photos: (
     <>
       <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
       <circle cx="12" cy="13" r="3.2" />
@@ -31,19 +31,19 @@ const ICONOS: Record<string, React.ReactNode> = {
 };
 
 const TABS = [
-  { href: "/", clave: "nav.mapa", icono: "mapa" },
-  { href: "/hoy", clave: "nav.hoy", icono: "hoy" },
-  { href: "/desfiles", clave: "nav.desfiles", icono: "desfiles" },
-  { href: "/fotos", clave: "nav.fotos", icono: "fotos" },
+  { href: "/", key: "nav.map", icono: "map" },
+  { href: "/hoy", key: "nav.today", icono: "today" },
+  { href: "/desfiles", key: "nav.parades", icono: "parades" },
+  { href: "/fotos", key: "nav.photos", icono: "photos" },
 ] as const;
 
 export function Navegacion() {
-  const ruta = usePathname();
-  const { idioma, t } = useIdioma();
+  const path = usePathname();
+  const { language, t } = useLanguage();
 
   // Los paneles del equipo no son pestañas del público: no llevan esta barra,
   // y al reportero le quita la tentación de salirse del panel en plena senda.
-  if (ruta.startsWith("/admin") || ruta.startsWith("/reportero")) return null;
+  if (path.startsWith("/admin") || path.startsWith("/reportero")) return null;
 
   return (
     <nav
@@ -56,12 +56,12 @@ export function Navegacion() {
     >
       <ul className="mx-auto flex max-w-lg px-1 pt-1.5 lg:mx-0 lg:max-w-none lg:flex-col lg:gap-1 lg:px-2 lg:pt-4">
         {TABS.map((tab) => {
-          const activo = ruta === tab.href;
+          const active = path === tab.href;
           return (
             <li key={tab.href} className="flex-1 lg:flex-none">
               <Link
                 href={tab.href}
-                aria-current={activo ? "page" : undefined}
+                aria-current={active ? "page" : undefined}
                 className="flex flex-col items-center gap-[3px] rounded-xl py-2 lg:py-3 lg:hover:bg-papel-2"
               >
                 <svg
@@ -69,7 +69,7 @@ export function Navegacion() {
                   height="24"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke={activo ? "var(--color-cabeza)" : "var(--color-tinta-4)"}
+                  stroke={active ? "var(--color-cabeza)" : "var(--color-tinta-4)"}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -79,10 +79,10 @@ export function Navegacion() {
                 </svg>
                 <span
                   className={`text-[11px] ${
-                    activo ? "font-extrabold text-cabeza" : "font-bold text-tinta-4"
+                    active ? "font-extrabold text-cabeza" : "font-bold text-tinta-4"
                   }`}
                 >
-                  {t(tab.clave)}
+                  {t(tab.key)}
                 </span>
               </Link>
             </li>
@@ -94,10 +94,10 @@ export function Navegacion() {
         <li className="hidden lg:mt-auto lg:block">
           <button
             type="button"
-            onClick={() => fijarIdioma(idioma === "es" ? "en" : "es")}
+            onClick={() => setLanguage(language === "es" ? "en" : "es")}
             className="w-full rounded-xl py-3 text-[11px] font-bold text-tinta-3 hover:bg-papel-2"
           >
-            {t("nav.idioma")}
+            {t("nav.language")}
           </button>
         </li>
       </ul>

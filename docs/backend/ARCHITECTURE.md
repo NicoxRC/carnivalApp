@@ -82,7 +82,7 @@ and enum-like values. The web keeps its Spanish types and maps the names in one 
 - **There is no "the" parade: there is the CURRENT parade.** The
   server resolves it; the public client does not send an id. An id that does not exist
   gives 404; a parade is never created because someone asked for it.
-- **"Today" and "now" are Pasto time** (`America/Bogota`), as in `apps/web/src/lib/fecha.ts`.
+- **"Today" and "now" are Pasto time** (`America/Bogota`), as in `apps/web/src/lib/dates.ts`.
 
 ## Users, roles and permissions
 

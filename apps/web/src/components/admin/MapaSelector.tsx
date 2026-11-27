@@ -4,8 +4,8 @@ import * as maplibregl from "maplibre-gl";
 import { type Map as MapaGL, type Marker } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
-import { estiloMapa, LIMITES_TESELAS, ZOOM_MAX, ZOOM_MIN } from "@/lib/mapa";
-import { SENDA } from "@/lib/senda";
+import { mapStyle, TILES_BOUNDS, ZOOM_MAX, ZOOM_MIN } from "@/lib/map";
+import { COURSE } from "@/lib/course";
 
 interface Props {
   lat: number | null;
@@ -28,14 +28,14 @@ export default function MapaSelector({ lat, lng, onCambio }: Props) {
   useEffect(() => {
     if (!contenedor.current) return;
     const centro: [number, number] =
-      lat !== null && lng !== null ? [lng, lat] : (SENDA.geojson.geometry.coordinates[0] as [number, number]);
+      lat !== null && lng !== null ? [lng, lat] : (COURSE.geojson.geometry.coordinates[0] as [number, number]);
 
     const m = new maplibregl.Map({
       container: contenedor.current,
-      style: estiloMapa(),
+      style: mapStyle(),
       center: centro,
       zoom: lat !== null ? 16 : 14,
-      maxBounds: LIMITES_TESELAS,
+      maxBounds: TILES_BOUNDS,
       minZoom: ZOOM_MIN,
       maxZoom: ZOOM_MAX,
       dragRotate: false,
@@ -45,7 +45,7 @@ export default function MapaSelector({ lat, lng, onCambio }: Props) {
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     m.on("load", () => {
-      m.addSource("senda", { type: "geojson", data: SENDA.geojson });
+      m.addSource("senda", { type: "geojson", data: COURSE.geojson });
       m.addLayer({
         id: "senda",
         type: "line",

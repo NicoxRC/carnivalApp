@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { API_DESARROLLO, resolverBaseApi, urlApi } from "@/lib/api/cliente";
-import { comerciosDesdeApi, metricaParaApi } from "@/lib/api/comercios";
-import { estadoDesdeApi } from "@/lib/api/estado";
-import { posicionParaApi } from "@/lib/api/posiciones";
-import { programacionDesdeApi, recorridoDesdeApi } from "@/lib/api/programacion";
-import type { EntradaPosicion, TipoMetrica } from "@/lib/tipos";
+import { parseBusinesses } from "@/lib/api/businesses";
+import { DEV_API, apiUrl, resolveApiBase } from "@/lib/api/client";
+import { positionForApi } from "@/lib/api/positions";
+import { parseProgress, parseSchedule } from "@/lib/api/schedule";
+import { parseParadeState } from "@/lib/api/state";
+import type { PositionInput } from "@/lib/types";
 
-/** Los traductores avisan en la consola al descartar algo; en los tests se calla. */
-function sinAvisos<T>(f: () => T): T {
+function quietly<T>(f: () => T): T {
   const original = console.warn;
   console.warn = () => undefined;
   try {
@@ -19,27 +18,27 @@ function sinAvisos<T>(f: () => T): T {
   }
 }
 
-describe("dónde está el API", () => {
-  it("arma la URL con la base configurada, sin barras de más", () => {
-    const base = resolverBaseApi("https://api.ejemplo.co/", false);
-    assert.equal(urlApi("/api/state", base), "https://api.ejemplo.co/api/state");
-    assert.equal(urlApi("api/state", base), "https://api.ejemplo.co/api/state");
+describe("where the API is", () => {
+  it("builds the URL from the configured base, without extra slashes", () => {
+    const base = resolveApiBase("https://api.example.co/", false);
+    assert.equal(apiUrl("/api/state", base), "https://api.example.co/api/state");
+    assert.equal(apiUrl("api/state", base), "https://api.example.co/api/state");
   });
 
-  it("sin NEXT_PUBLIC_API_URL usa localhost en desarrollo y falla en producción", () => {
-    assert.equal(resolverBaseApi(undefined, true), API_DESARROLLO);
-    assert.equal(resolverBaseApi("  ", false), null);
-    assert.throws(() => urlApi("/api/state", null), /NEXT_PUBLIC_API_URL/);
+  it("without NEXT_PUBLIC_API_URL uses localhost in development and fails in production", () => {
+    assert.equal(resolveApiBase(undefined, true), DEV_API);
+    assert.equal(resolveApiBase("  ", false), null);
+    assert.throws(() => apiUrl("/api/state", null), /NEXT_PUBLIC_API_URL/);
   });
 });
 
-const ESTADO_API = {
+const STATE_API = {
   paradeId: "d31-1",
   name: "Desfile de Años Viejos",
   state: "in_progress",
   date: "2026-12-31",
   startTime: "14:00",
-  courseId: "senda-carnaval",
+  courseId: "provisional-pasto-course",
   positions: {
     head: { post: "head", lat: 1.21, lng: -77.28, metres: 1200, accuracyM: 8, ts: 2000 },
     tail: { post: "tail", lat: 1.2, lng: -77.27, metres: 400, accuracyM: null, ts: 1900 },
@@ -52,43 +51,39 @@ const ESTADO_API = {
   serverTs: 2100,
 };
 
-describe("el estado del API se traduce al de la web", () => {
-  it("traduce nombres y valores", () => {
-    const e = estadoDesdeApi(ESTADO_API);
-    assert.equal(e.desfileId, "d31-1");
-    assert.equal(e.estado, "en_curso");
-    assert.equal(e.horaInicio, "14:00");
-    assert.equal(e.posiciones.cabeza?.metros, 1200);
-    assert.equal(e.posiciones.cola?.precisionM, null);
-    assert.equal(e.posiciones.mitad, undefined);
-    assert.equal(e.historialCabeza.length, 2);
-    assert.equal(e.avisos[0].nivel, "alerta");
-    assert.equal(e.servidorTs, 2100);
+describe("the parade state from the API", () => {
+  it("is read field by field", () => {
+    const s = parseParadeState(STATE_API);
+    assert.equal(s.paradeId, "d31-1");
+    assert.equal(s.state, "in_progress");
+    assert.equal(s.positions.head?.metres, 1200);
+    assert.equal(s.positions.tail?.accuracyM, null);
+    assert.equal(s.positions.middle, undefined);
+    assert.equal(s.headHistory.length, 2);
+    assert.equal(s.announcements[0].level, "alert");
+    assert.equal(s.serverTs, 2100);
   });
 
-  it("falla con un estado al que le falta un campo o trae un valor desconocido", () => {
-    const { serverTs: _, ...sinReloj } = ESTADO_API;
-    assert.throws(() => estadoDesdeApi(sinReloj), /serverTs/);
-    assert.throws(() => estadoDesdeApi({ ...ESTADO_API, state: "paused" }), /state/);
-  });
-});
-
-describe("las posiciones se traducen al API", () => {
-  const entrada: EntradaPosicion = { desfileId: "d31-1", rol: "mitad", lat: 1.21, lng: -77.28, precisionM: 6, ts: 1000 };
-
-  it("manda el puesto en inglés y sin el id del desfile", () => {
-    const p = posicionParaApi(entrada);
-    assert.deepEqual(p, { post: "middle", lat: 1.21, lng: -77.28, accuracyM: 6, ts: 1000 });
-    assert.equal(posicionParaApi({ ...entrada, precisionM: undefined, ts: undefined }).accuracyM, null);
-  });
-
-  it("falla con un rol desconocido", () => {
-    assert.throws(() => posicionParaApi({ ...entrada, rol: "lateral" as EntradaPosicion["rol"] }), /lateral/);
+  it("fails with a missing field, an unknown value or a post under the wrong key", () => {
+    const { serverTs: _, ...noClock } = STATE_API;
+    assert.throws(() => parseParadeState(noClock), /serverTs/);
+    assert.throws(() => parseParadeState({ ...STATE_API, state: "paused" }), /state/);
+    const swapped = { ...STATE_API, positions: { head: STATE_API.positions.tail } };
+    assert.throws(() => parseParadeState(swapped), /positions\.head/);
   });
 });
 
-const EVENTO_API = {
-  id: "tarima-1",
+describe("positions sent to the API", () => {
+  const input: PositionInput = { paradeId: "d31-1", post: "middle", lat: 1.21, lng: -77.28, accuracyM: 6, ts: 1000 };
+
+  it("carry the post and not the parade id", () => {
+    assert.deepEqual(positionForApi(input), { post: "middle", lat: 1.21, lng: -77.28, accuracyM: 6, ts: 1000 });
+    assert.equal(positionForApi({ ...input, accuracyM: undefined, ts: undefined }).accuracyM, null);
+  });
+});
+
+const EVENT_API = {
+  id: "stage-1",
   date: "2027-01-04",
   startTime: "18:00",
   endTime: null,
@@ -101,53 +96,49 @@ const EVENTO_API = {
   sponsored: true,
 };
 
-const PROGRAMACION_API = {
+const SCHEDULE_API = {
   parades: [{ id: "d31-1", name: "Años Viejos", date: "2026-12-31", startTime: "14:00", state: "scheduled" }],
-  events: [EVENTO_API, { ...EVENTO_API, id: "tasca-1", category: "tasca", endTime: "22:00", lat: null, lng: null }],
+  events: [EVENT_API, { ...EVENT_API, id: "tasca-1", category: "tasca", endTime: "22:00", lat: null, lng: null }],
   today: "2026-12-31",
   currentId: "d31-1",
 };
 
-describe("la programación del API se traduce a la de la web", () => {
-  it("traduce un desfile con sus eventos", () => {
-    const p = programacionDesdeApi(PROGRAMACION_API);
-    assert.deepEqual(p.desfiles, [
-      { id: "d31-1", nombre: "Años Viejos", fecha: "2026-12-31", horaInicio: "14:00", estado: "programado" },
-    ]);
-    assert.equal(p.eventos[0].categoria, "presentacion");
-    assert.equal(p.eventos[0].lugarNombre, "Plaza de Nariño");
-    assert.equal(p.eventos[0].patrocinado, true);
-    assert.equal(p.eventos[1].horaFin, "22:00");
-    assert.equal(p.eventos[1].lat, null);
-    assert.equal(p.hoy, "2026-12-31");
-    assert.equal(p.actualId, "d31-1");
-    assert.equal(programacionDesdeApi({ ...PROGRAMACION_API, currentId: null }).actualId, null);
+describe("the schedule from the API", () => {
+  it("reads a parade with its events", () => {
+    const s = parseSchedule(SCHEDULE_API);
+    assert.deepEqual(s.parades, SCHEDULE_API.parades);
+    assert.equal(s.events[0].category, "stage");
+    assert.equal(s.events[1].endTime, "22:00");
+    assert.equal(s.events[1].lat, null);
+    assert.equal(s.today, "2026-12-31");
+    assert.equal(s.currentId, "d31-1");
+    assert.equal(parseSchedule({ ...SCHEDULE_API, currentId: null }).currentId, null);
   });
 
-  it("descarta solo el evento con una categoría desconocida y falla sin la estructura", () => {
-    const raro = { ...EVENTO_API, id: "raro", category: "fireworks" };
-    const p = sinAvisos(() => programacionDesdeApi({ ...PROGRAMACION_API, events: [raro, EVENTO_API] }));
+  it("drops only the event with an unknown category and fails without the structure", () => {
+    const odd = { ...EVENT_API, id: "odd", category: "fireworks" };
+    const s = quietly(() => parseSchedule({ ...SCHEDULE_API, events: [odd, EVENT_API] }));
     assert.deepEqual(
-      p.eventos.map((e) => e.id),
-      ["tarima-1"],
+      s.events.map((e) => e.id),
+      ["stage-1"],
     );
-    assert.throws(() => programacionDesdeApi({ ...PROGRAMACION_API, parades: null }), /parades/);
+    assert.throws(() => parseSchedule({ ...SCHEDULE_API, parades: null }), /parades/);
   });
 
-  it("traduce el recorrido sin el desfile que viene al lado", () => {
-    const pasos = recorridoDesdeApi({
-      parade: PROGRAMACION_API.parades[0],
+  it("reads the progress without the parade next to it", () => {
+    const passes = parseProgress({
+      parade: SCHEDULE_API.parades[0],
       passes: [
-        { waypointId: "h1", name: "Salida", metres: 0, ts: 1000 },
-        { waypointId: "h2", name: "Plaza", metres: 900, ts: null },
+        { waypointId: "w1", name: "Salida", metres: 0, ts: 1000 },
+        { waypointId: "w2", name: "Plaza", metres: 900, ts: null },
       ],
     });
-    assert.deepEqual(pasos[1], { hitoId: "h2", nombre: "Plaza", metros: 900, ts: null });
-    assert.throws(() => recorridoDesdeApi({ passes: [{ waypointId: "h1", name: "Salida" }] }), /metres/);
+    assert.deepEqual(passes[1], { waypointId: "w2", name: "Plaza", metres: 900, ts: null });
+    assert.throws(() => parseProgress({ passes: [{ waypointId: "w1", name: "Salida" }] }), /metres/);
   });
 });
 
-const COMERCIO_API = {
+const BUSINESS_API = {
   id: "cafe-1",
   name: "Café del Carnaval",
   category: "ice_cream",
@@ -161,13 +152,13 @@ const COMERCIO_API = {
   offerTiming: "after",
   menu: [{ name: "Helado", price: "$5.000" }],
   whatsapp: "573001234567",
-  link: "https://ejemplo.co",
+  link: "https://example.co",
   visible: true,
 };
 
-const SIN_PLAN = {
-  ...COMERCIO_API,
-  id: "bano-1",
+const NO_PLAN = {
+  ...BUSINESS_API,
+  id: "toilet-1",
   category: "toilet",
   plan: null,
   offer: null,
@@ -177,34 +168,20 @@ const SIN_PLAN = {
   link: null,
 };
 
-describe("los comercios del API se traducen a los de la web", () => {
-  it("traduce un comercio con plan y un servicio sin plan", () => {
-    const [con, sin] = comerciosDesdeApi({ businesses: [COMERCIO_API, SIN_PLAN] });
-    assert.equal(con.categoria, "heladeria");
-    assert.equal(con.plan, "destacado");
-    assert.equal(con.promo, "2x1");
-    assert.equal(con.promoMomento, "despues");
-    assert.deepEqual(con.menu, [{ nombre: "Helado", precio: "$5.000" }]);
-    assert.equal(con.enlace, "https://ejemplo.co");
-    assert.equal(sin.categoria, "bano");
-    assert.equal(sin.plan, null);
-    assert.equal(sin.promoMomento, "siempre");
-    assert.equal(sin.whatsapp, null);
+describe("the businesses from the API", () => {
+  it("reads a business with a plan and a service without one", () => {
+    const [withPlan, noPlan] = parseBusinesses({ businesses: [BUSINESS_API, NO_PLAN] });
+    assert.deepEqual(withPlan, BUSINESS_API);
+    assert.deepEqual(noPlan, NO_PLAN);
   });
 
-  it("descarta solo el comercio con un valor desconocido y falla sin la lista", () => {
-    const raro = { ...COMERCIO_API, id: "raro", plan: "gold" };
-    const comercios = sinAvisos(() => comerciosDesdeApi({ businesses: [raro, SIN_PLAN] }));
+  it("drops only the business with an unknown value and fails without the list", () => {
+    const odd = { ...BUSINESS_API, id: "odd", plan: "gold" };
+    const businesses = quietly(() => parseBusinesses({ businesses: [odd, NO_PLAN] }));
     assert.deepEqual(
-      comercios.map((c) => c.id),
-      ["bano-1"],
+      businesses.map((b) => b.id),
+      ["toilet-1"],
     );
-    assert.throws(() => comerciosDesdeApi({ comercios: [] }), /businesses/);
-  });
-
-  it("manda el tipo de métrica en inglés y falla con uno desconocido", () => {
-    assert.deepEqual(metricaParaApi("cafe-1", "ficha"), { id: "cafe-1", type: "card" });
-    assert.equal(metricaParaApi("cafe-1", "enlace").type, "link");
-    assert.throws(() => metricaParaApi("cafe-1", "compartir" as TipoMetrica), /compartir/);
+    assert.throws(() => parseBusinesses({ items: [] }), /businesses/);
   });
 });
