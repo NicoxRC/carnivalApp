@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     s3_bucket: str | None = None
     s3_access_key: str | None = None
     s3_secret_key: SecretStr | None = None
+    # Cloudflare R2 takes "auto"; AWS wants the bucket's region.
+    s3_region: str = "auto"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

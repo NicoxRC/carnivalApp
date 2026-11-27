@@ -1,10 +1,13 @@
 """Where the photo files live. Not in the database: in file storage.
 
-In development, a folder. In production, an S3-compatible bucket (Railway,
-Cloudflare R2, AWS). Which one is decided by whether `S3_BUCKET` is set.
+In development, a folder. In production, an S3-compatible bucket (Cloudflare
+R2, AWS). Which one is decided by whether `S3_BUCKET` is set.
 
-Images are never served from a public bucket URL: they go out through the
-API, so a pending photo is not reachable.
+With a bucket, the phone uploads and downloads straight from it through URLs
+the backend signs, so the files do not go through our server. The bucket is
+private: a URL to read a photo is only signed for whoever may see it.
+Without a bucket there is nothing to sign: the API itself receives and
+serves the files.
 """
 
 import asyncio
@@ -23,7 +26,29 @@ DISK_ROOT = Path(__file__).resolve().parent.parent / ".photos"
 
 
 class Storage(Protocol):
+    # True when the phone uploads and downloads straight from the storage.
+    signs_urls: bool
+
     async def save(self, path: str, data: bytes) -> None: ...
+
+    def upload_url(self, path: str, size: int, expires_s: int) -> str | None:
+        """A URL to PUT exactly `size` bytes of JPEG at `path`, or `None` if
+        uploads go through the API."""
+        ...
+
+    def download_url(self, path: str, expires_s: int) -> str | None:
+        """A URL to read the file, or `None` if the API serves it."""
+        ...
+
+    async def size(self, path: str) -> int | None:
+        """Its size in bytes, or `None` if there is no file."""
+        ...
+
+    async def read_start(self, path: str, length: int) -> bytes | None:
+        """Its first `length` bytes, or `None` if there is no file."""
+        ...
+
+    async def move(self, source: str, target: str) -> None: ...
 
     async def read(self, path: str) -> bytes | None:
         """The file, or `None` if there is none at that path."""
@@ -35,6 +60,8 @@ class Storage(Protocol):
 
 
 class DiskStorage:
+    signs_urls = False
+
     def __init__(self, root: Path = DISK_ROOT) -> None:
         self._root = root.resolve()
 
@@ -71,8 +98,48 @@ class DiskStorage:
         file = self._file(path)
         await asyncio.to_thread(lambda: file.unlink(missing_ok=True))
 
+    def upload_url(self, path: str, size: int, expires_s: int) -> str | None:
+        return None
+
+    def download_url(self, path: str, expires_s: int) -> str | None:
+        return None
+
+    async def size(self, path: str) -> int | None:
+        file = self._file(path)
+
+        def size() -> int | None:
+            try:
+                return file.stat().st_size
+            except FileNotFoundError:
+                return None
+
+        return await asyncio.to_thread(size)
+
+    async def read_start(self, path: str, length: int) -> bytes | None:
+        file = self._file(path)
+
+        def read() -> bytes | None:
+            try:
+                with file.open("rb") as handle:
+                    return handle.read(length)
+            except FileNotFoundError:
+                return None
+
+        return await asyncio.to_thread(read)
+
+    async def move(self, source: str, target: str) -> None:
+        source_file, target_file = self._file(source), self._file(target)
+
+        def move() -> None:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            source_file.replace(target_file)
+
+        await asyncio.to_thread(move)
+
 
 class S3Storage:
+    signs_urls = True
+
     def __init__(self, client: "S3Client", bucket: str) -> None:
         self._client = client
         self._bucket = bucket
@@ -100,6 +167,61 @@ class S3Storage:
     async def delete(self, path: str) -> None:
         await asyncio.to_thread(self._client.delete_object, Bucket=self._bucket, Key=path)
 
+    def upload_url(self, path: str, size: int, expires_s: int) -> str | None:
+        # Signing is local: no request to the bucket. Type and size are part
+        # of the signature, so the URL cannot be used for anything else.
+        return self._client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": self._bucket,
+                "Key": path,
+                "ContentType": "image/jpeg",
+                "ContentLength": size,
+            },
+            ExpiresIn=expires_s,
+        )
+
+    def download_url(self, path: str, expires_s: int) -> str | None:
+        return self._client.generate_presigned_url(
+            "get_object", Params={"Bucket": self._bucket, "Key": path}, ExpiresIn=expires_s
+        )
+
+    async def size(self, path: str) -> int | None:
+        def size() -> int | None:
+            try:
+                return self._client.head_object(Bucket=self._bucket, Key=path)["ContentLength"]
+            except self._client.exceptions.ClientError as error:
+                if error.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                    return None
+                raise
+
+        return await asyncio.to_thread(size)
+
+    async def read_start(self, path: str, length: int) -> bytes | None:
+        def read() -> bytes | None:
+            try:
+                response = self._client.get_object(
+                    Bucket=self._bucket, Key=path, Range=f"bytes=0-{length - 1}"
+                )
+            except self._client.exceptions.NoSuchKey:
+                return None
+            return response["Body"].read()
+
+        return await asyncio.to_thread(read)
+
+    async def move(self, source: str, target: str) -> None:
+        def move() -> None:
+            self._client.copy_object(
+                Bucket=self._bucket,
+                Key=target,
+                CopySource={"Bucket": self._bucket, "Key": source},
+                ContentType="image/jpeg",
+                MetadataDirective="REPLACE",
+            )
+            self._client.delete_object(Bucket=self._bucket, Key=source)
+
+        await asyncio.to_thread(move)
+
 
 @lru_cache
 def get_storage() -> Storage:
@@ -108,10 +230,13 @@ def get_storage() -> Storage:
         return DiskStorage()
 
     import boto3
+    from botocore.config import Config
 
     client = boto3.client(
         "s3",
         endpoint_url=settings.s3_endpoint,
+        region_name=settings.s3_region,
+        config=Config(signature_version="s3v4"),
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=(
             settings.s3_secret_key.get_secret_value() if settings.s3_secret_key else None
