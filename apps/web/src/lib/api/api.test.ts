@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import { parseBusinesses } from "@/lib/api/businesses";
 import { DEV_API, apiUrl, resolveApiBase } from "@/lib/api/client";
+import { parseDensity } from "@/lib/api/density";
 import { positionForApi } from "@/lib/api/positions";
 import { parseProgress, parseSchedule } from "@/lib/api/schedule";
 import { parseParadeState } from "@/lib/api/state";
@@ -183,5 +184,40 @@ describe("the businesses from the API", () => {
       ["toilet-1"],
     );
     assert.throws(() => parseBusinesses({ items: [] }), /businesses/);
+  });
+});
+
+const DENSITY_API = {
+  bins: [
+    { bin: 3, fromM: 300, toM: 400, count: 12, level: "busy" },
+    { bin: 4, fromM: 400, toM: 500, count: 4, level: "calm" },
+  ],
+  total: 64,
+  enough: true,
+  windowMin: 5,
+  serverTs: 3000,
+};
+
+describe("the crowd map from the API", () => {
+  it("reads the stretches with enough sample", () => {
+    assert.deepEqual(parseDensity(DENSITY_API), DENSITY_API);
+  });
+
+  it("reads «not enough sample» as an empty map, not as an error", () => {
+    const d = parseDensity({ ...DENSITY_API, bins: [], total: 7, enough: false });
+    assert.equal(d.enough, false);
+    assert.equal(d.total, 7);
+    assert.deepEqual(d.bins, []);
+  });
+
+  it("drops only the stretch with an unknown level and fails without the total", () => {
+    const odd = { ...DENSITY_API.bins[0], bin: 9, level: "packed" };
+    const d = quietly(() => parseDensity({ ...DENSITY_API, bins: [odd, DENSITY_API.bins[1]] }));
+    assert.deepEqual(
+      d.bins.map((b) => b.bin),
+      [4],
+    );
+    const { total: _, ...noTotal } = DENSITY_API;
+    assert.throws(() => parseDensity(noTotal), /total/);
   });
 });

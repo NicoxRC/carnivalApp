@@ -7,7 +7,9 @@ import {
   DENSITY_REPORT_INTERVAL_MS,
   type Density,
 } from "@/lib/density";
-import { getDevice, forgetDevice } from "@/lib/device";
+import { ApiError, requestApi } from "@/lib/api/client";
+import { parseDensity } from "@/lib/api/density";
+import { forgetDevice, getDevice } from "@/lib/device";
 
 const SHARE_KEY = "sed:share-crowd";
 
@@ -54,11 +56,16 @@ export function useDensity(
 
     const read = async () => {
       try {
-        const r = await fetch("/api/densidad", { cache: "no-store" });
-        if (!r.ok) return;
-        const d = (await r.json()) as Density;
+        const r = await requestApi("/api/density", { cache: "no-store" });
+        const d = parseDensity(await r.json());
         if (alive) setDensity(d);
-      } catch {}
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          if (alive) setDensity(null);
+        } else if (!(error instanceof TypeError)) {
+          console.warn("Could not read the crowd map:", error);
+        }
+      }
     };
 
     void read();
@@ -78,13 +85,14 @@ export function useDensity(
       try {
         const device = await getDevice();
         if (!device) return;
-        const r = await fetch("/api/densidad", {
+        await requestApi("/api/density", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ device, bin: binOfMetres(m) }),
         });
-        if (r.status === 401) forgetDevice();
-      } catch {}
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) forgetDevice();
+      }
     };
 
     void send();

@@ -1,3 +1,6 @@
+import { requestApi } from "@/lib/api/client";
+import { obj, str } from "@/lib/api/parse";
+
 const KEY = "sed:signed-device";
 
 let inFlight: Promise<string | null> | null = null;
@@ -7,14 +10,14 @@ export function getDevice(): Promise<string | null> {
     const saved = localStorage.getItem(KEY);
     if (saved) return Promise.resolve(saved);
   } catch {}
-  return (inFlight ??= fetch("/api/dispositivo", { method: "POST" })
-    .then((r) => (r.ok ? (r.json() as Promise<{ device: string }>) : null))
-    .then((d) => {
-      if (!d) return null;
+  return (inFlight ??= requestApi("/api/device", { method: "POST" })
+    .then((r) => r.json())
+    .then((json: unknown) => {
+      const device = str(obj(json, "the device"), "device");
       try {
-        localStorage.setItem(KEY, d.device);
+        localStorage.setItem(KEY, device);
       } catch {}
-      return d.device;
+      return device;
     })
     .catch(() => null)
     .finally(() => {
