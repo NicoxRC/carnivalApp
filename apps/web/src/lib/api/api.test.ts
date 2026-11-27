@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { parsePositionsResult, parseSession, parseSessionUser } from "@/lib/api/auth";
 import { parseBusinesses } from "@/lib/api/businesses";
 import { DEV_API, apiUrl, resolveApiBase } from "@/lib/api/client";
 import { parseDensity } from "@/lib/api/density";
@@ -265,5 +266,35 @@ describe("photos and push from the API", () => {
     assert.deepEqual(parsePushStatus({ configured: true, key: "BPub" }), { configured: true, key: "BPub" });
     assert.deepEqual(parsePushStatus({ configured: false, key: null }), { configured: false, key: null });
     assert.throws(() => parsePushStatus({ configured: "yes", key: null }), /configured/);
+  });
+});
+
+const USER_API = {
+  id: "0b6f6b1e-0000-4000-8000-000000000002",
+  email: "ana@example.com",
+  name: "Ana",
+  roles: ["reporter"],
+  permissions: ["positions:own"],
+  post: "head",
+};
+
+describe("the team's session from the API", () => {
+  it("reads the login and the user with their post", () => {
+    const session = parseSession({ token: "jwt", expiresAt: 9000, user: USER_API });
+    assert.equal(session.token, "jwt");
+    assert.deepEqual(session.user, USER_API);
+    assert.equal(parseSessionUser({ ...USER_API, roles: ["admin"], post: null }).post, null);
+  });
+
+  it("fails with an unknown post or a permission that is not text", () => {
+    assert.throws(() => parseSessionUser({ ...USER_API, post: "front" }), /post/);
+    assert.throws(() => parseSessionUser({ ...USER_API, permissions: [1] }), /permissions/);
+    assert.throws(() => parseSession({ token: "jwt", user: USER_API }), /expiresAt/);
+  });
+
+  it("reads the answer to the positions, including «backup»", () => {
+    const answer = { saved: 0, discarded: 2, waiting: true, serverTs: 1234 };
+    assert.deepEqual(parsePositionsResult(answer), answer);
+    assert.throws(() => parsePositionsResult({ ...answer, waiting: undefined }), /waiting/);
   });
 });

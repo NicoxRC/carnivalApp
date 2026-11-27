@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { parsePositionsResult } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
+import { authRequest } from "@/lib/session";
+
 export const SEND_INTERVAL_MS = 20_000;
 const STALE_FIX_MS = 60_000;
 const MAX_QUEUE = 200;
@@ -90,34 +94,30 @@ export function useReporting(onSessionExpired: () => void): Reporting {
     sending.current = true;
     const batch = queue.current;
     try {
-      const r = await fetch("/api/posiciones", {
+      const r = await authRequest("/api/positions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(batch.map((p) => ({ ...p, ts: p.ts + clockOffsetMs.current }))),
       });
-      if (r.status === 401) {
-        setNetwork("session_expired");
-        sessionExpired.current();
-        return;
-      }
-      if (!r.ok) {
-        if (r.status === 400) {
-          queue.current = queue.current.slice(batch.length);
-          saveQueue(queue.current);
-          setPending(queue.current.length);
-        }
-        setNetwork("no_signal");
-        return;
-      }
-      const res = (await r.json()) as { serverTs?: number; onHold?: boolean };
-      if (typeof res.serverTs === "number") clockOffsetMs.current = res.serverTs - Date.now();
-      setOnHold(res.onHold === true);
+      const res = parsePositionsResult(await r.json());
+      clockOffsetMs.current = res.serverTs - Date.now();
+      setOnHold(res.waiting);
       queue.current = queue.current.slice(batch.length);
       saveQueue(queue.current);
       setPending(queue.current.length);
       setLastSentAt(Date.now());
       setNetwork("ok");
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setNetwork("session_expired");
+        sessionExpired.current();
+        return;
+      }
+      if (error instanceof ApiError && error.status === 400) {
+        queue.current = queue.current.slice(batch.length);
+        saveQueue(queue.current);
+        setPending(queue.current.length);
+      }
       setNetwork("no_signal");
     } finally {
       sending.current = false;

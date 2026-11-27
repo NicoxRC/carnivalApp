@@ -15,8 +15,8 @@ export default function Privacy() {
         </p>
 
         <p className={p}>
-          La app no tiene cuentas: no pide nombre, correo ni teléfono. Esto es todo lo que usa y para
-          qué.
+          Para el público la app no tiene cuentas: no pide nombre, correo ni teléfono. Esto es todo
+          lo que usa y para qué.
         </p>
 
         <h2 className={h2}>Tu ubicación</h2>
@@ -59,6 +59,14 @@ export default function Privacy() {
           La app guarda en tu navegador tus preferencias (idioma, si ya viste la bienvenida, el punto
           que marcaste a mano) y una copia del mapa para funcionar sin señal. Se borran al borrar los
           datos del sitio.
+        </p>
+
+        <h2 className={h2}>El equipo</h2>
+        <p className={p}>
+          Las personas del equipo (reporteros, moderadores, administración) entran con un usuario. De
+          ellas se guarda el nombre, el correo, su rol y, mientras caminan con el desfile, las
+          posiciones que reportan. La contraseña no se guarda: solo una huella que no se puede
+          revertir. La sesión dura un día y queda guardada en el celular hasta que salen.
         </p>
 
         <h2 className={h2}>Lo que no hace</h2>
